@@ -106,9 +106,6 @@ impl AuthorizationInputs {
 /// Canonical §§10, 56, 95-96, 108-109, and 122: every required strategy and authority gate
 /// must be TRUE. There is intentionally no trade-count or consecutive-loss input.
 #[must_use]
-pub fn trade_authorized(
-    conditions: ProductionConditions,
-    authority: AuthorizationInputs,
-) -> bool {
+pub fn trade_authorized(conditions: ProductionConditions, authority: AuthorizationInputs) -> bool {
     conditions.all_true() && authority.all_true()
 }
