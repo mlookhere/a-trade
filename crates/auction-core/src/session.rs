@@ -7,7 +7,9 @@ impl EtTime {
         if hour > 23 || minute > 59 || second > 59 {
             return None;
         }
-        Some(Self(hour as u32 * 3600 + minute as u32 * 60 + second as u32))
+        Some(Self(
+            hour as u32 * 3600 + minute as u32 * 60 + second as u32,
+        ))
     }
 
     const fn seconds(self) -> u32 {
@@ -28,8 +30,7 @@ impl SessionPermissions {
         const ENTRY_START: u32 = 9 * 3600 + 30 * 60;
         const ENTRY_END_EXCLUSIVE: u32 = 11 * 3600;
 
-        let allow_new_entries =
-            (ENTRY_START..ENTRY_END_EXCLUSIVE).contains(&time_et.seconds());
+        let allow_new_entries = (ENTRY_START..ENTRY_END_EXCLUSIVE).contains(&time_et.seconds());
 
         Self {
             allow_new_entries,
