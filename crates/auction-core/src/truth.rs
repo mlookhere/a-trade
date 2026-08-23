@@ -13,3 +13,9 @@ impl Condition {
         matches!(self, Self::True)
     }
 }
+
+impl From<bool> for Condition {
+    fn from(value: bool) -> Self {
+        if value { Self::True } else { Self::False }
+    }
+}
