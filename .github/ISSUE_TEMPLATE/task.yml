@@ -1,0 +1,21 @@
+name: Engineering task
+description: One independently deliverable repository change
+title: ""
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true
+  - type: textarea
+    id: canonical
+    attributes:
+      label: Governing canonical sections
+      description: Required for strategy-dependent work.
