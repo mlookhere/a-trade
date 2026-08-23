@@ -10,10 +10,7 @@ pub struct SessionValue {
 
 impl SessionValue {
     fn valid(self) -> bool {
-        self.vah.is_finite()
-            && self.val.is_finite()
-            && self.poc.is_finite()
-            && self.vah >= self.val
+        self.vah.is_finite() && self.val.is_finite() && self.poc.is_finite() && self.vah >= self.val
     }
 
     fn midpoint(self) -> f64 {
