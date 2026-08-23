@@ -2,6 +2,8 @@
 
 pub mod authority;
 pub mod authorization;
+pub mod data;
+pub mod environment;
 pub mod fibonacci;
 pub mod market;
 pub mod rejection;
@@ -10,6 +12,11 @@ pub mod setup_state;
 pub mod truth;
 
 pub use authorization::{AuthorizationInputs, ProductionConditions, trade_authorized};
+pub use data::{DataHealth, GammaContext, GammaRegime, VolatilityExpectation};
+pub use environment::{
+    EnvironmentEvaluation, EnvironmentInput, HourlyStructure, PremarketReferences, SessionValue,
+    evaluate_environment,
+};
 pub use fibonacci::{
     FibLevels, bearish_fib, bullish_fib, long_location_reached, long_location_valid,
     short_location_reached, short_location_valid,

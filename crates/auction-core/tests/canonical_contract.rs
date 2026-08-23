@@ -92,24 +92,40 @@ fn sections_29_30_use_exact_source_fibonacci_levels() {
 
 #[test]
 fn sections_31_32_require_entire_zone_outside_value() {
-    let long = FibLevels { level_705: 90.0, level_788: 88.0, level_886: 86.0 };
+    let long = FibLevels {
+        level_705: 90.0,
+        level_788: 88.0,
+        level_886: 86.0,
+    };
     assert!(long_location_valid(long, 90.01));
     assert!(!long_location_valid(long, 90.0));
 
-    let short = FibLevels { level_705: 110.0, level_788: 112.0, level_886: 114.0 };
+    let short = FibLevels {
+        level_705: 110.0,
+        level_788: 112.0,
+        level_886: 114.0,
+    };
     assert!(short_location_valid(short, 109.99));
     assert!(!short_location_valid(short, 110.0));
 }
 
 #[test]
 fn section_35_location_boundaries_are_inclusive() {
-    let long = FibLevels { level_705: 90.0, level_788: 88.0, level_886: 86.0 };
+    let long = FibLevels {
+        level_705: 90.0,
+        level_788: 88.0,
+        level_886: 86.0,
+    };
     assert!(long_location_reached(long, 90.0));
     assert!(long_location_reached(long, 86.0));
     assert!(!long_location_reached(long, 90.01));
     assert!(!long_location_reached(long, 85.99));
 
-    let short = FibLevels { level_705: 110.0, level_788: 112.0, level_886: 114.0 };
+    let short = FibLevels {
+        level_705: 110.0,
+        level_788: 112.0,
+        level_886: 114.0,
+    };
     assert!(short_location_reached(short, 110.0));
     assert!(short_location_reached(short, 114.0));
     assert!(!short_location_reached(short, 109.99));
@@ -139,7 +155,10 @@ fn section_102_terminal_state_cannot_resume() {
 
 #[test]
 fn sections_10_56_95_108_109_122_require_every_gate() {
-    assert!(trade_authorized(all_true_conditions(), all_true_authority()));
+    assert!(trade_authorized(
+        all_true_conditions(),
+        all_true_authority()
+    ));
 
     let mut conditions = all_true_conditions();
     conditions.broker_safe = Condition::Unknown;
