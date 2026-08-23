@@ -1,0 +1,39 @@
+{
+  "authority": "source.zip -> source/99_CANONICAL_SOURCE_VERBATIM.md",
+  "canonical_sha256": "9e24b9a4ffc55a8815cb62e5c9f72d8356a3d52de5e716a2db8ced38df508deb",
+  "canonical_sections": 123,
+  "implemented_in_issue_2": {
+    "truth_semantics": [
+      10,
+      108
+    ],
+    "session_permissions": [
+      3,
+      4
+    ],
+    "direction_permission": [
+      18,
+      24
+    ],
+    "fibonacci_location": [
+      29,
+      30,
+      31,
+      32,
+      35
+    ],
+    "setup_state_machine": [
+      102
+    ],
+    "deterministic_authorization": [
+      56,
+      95,
+      96,
+      109,
+      122
+    ],
+    "rejection_codes": [
+      113
+    ]
+  }
+}

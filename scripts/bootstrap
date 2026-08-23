@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+python3 --version
+cargo --version
+rustc --version
+cargo fmt --version
+cargo clippy --version
+python3 workflow/self_test.py --ci
