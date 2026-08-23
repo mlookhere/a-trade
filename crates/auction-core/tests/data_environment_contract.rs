@@ -1,7 +1,7 @@
 use auction_core::{
-    Condition, DataHealth, Direction, EnvironmentInput, GammaContext, GammaRegime,
-    HourlyStructure, MarketState, PremarketReferences, SessionValue, VolatilityExpectation,
-    direction_allowed, evaluate_environment,
+    Condition, DataHealth, Direction, EnvironmentInput, GammaContext, GammaRegime, HourlyStructure,
+    MarketState, PremarketReferences, SessionValue, VolatilityExpectation, direction_allowed,
+    evaluate_environment,
 };
 
 fn value(mid: f64, poc: f64) -> SessionValue {
@@ -134,13 +134,19 @@ fn section_22_balanced_requires_explicit_substantial_overlap_true() {
         prior_value_areas_substantially_overlap: Condition::True,
     };
 
-    assert_eq!(evaluate_environment(base).market_state, MarketState::Balanced);
+    assert_eq!(
+        evaluate_environment(base).market_state,
+        MarketState::Balanced
+    );
 
     let unknown = EnvironmentInput {
         prior_value_areas_substantially_overlap: Condition::Unknown,
         ..base
     };
-    assert_eq!(evaluate_environment(unknown).market_state, MarketState::Unclear);
+    assert_eq!(
+        evaluate_environment(unknown).market_state,
+        MarketState::Unclear
+    );
 }
 
 #[test]
