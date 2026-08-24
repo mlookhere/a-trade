@@ -293,8 +293,7 @@ impl LongOrderflowSequence {
         if self.state != SetupState::WaitingSecondTest {
             return Condition::False;
         }
-        let (Some(dominance), Some(first_failure_low)) =
-            (self.dominance, self.first_failure_low)
+        let (Some(dominance), Some(first_failure_low)) = (self.dominance, self.first_failure_low)
         else {
             return Condition::Unknown;
         };
@@ -303,7 +302,9 @@ impl LongOrderflowSequence {
             genuine_second_seller_attempt(candle, dominance.midpoint()),
             second_test_has_real_selling(candle, participation, first_failure_low),
         ]);
-        if result.permits() && let Ok(next) = self.state.advance(SetupState::SecondTest) {
+        if result.permits()
+            && let Ok(next) = self.state.advance(SetupState::SecondTest)
+        {
             self.state = next;
             self.second_test = Some(candle.into());
         }
@@ -320,7 +321,9 @@ impl LongOrderflowSequence {
         };
 
         let result = second_failure_higher(test.low, first_failure_low, tick_size);
-        if result.permits() && let Ok(next) = self.state.advance(SetupState::SecondFailure) {
+        if result.permits()
+            && let Ok(next) = self.state.advance(SetupState::SecondFailure)
+        {
             self.state = next;
         }
         result
