@@ -76,7 +76,7 @@ fn sections_6_109_advisory_roles_never_have_order_submission_authority() {
         AgentRole::Audit,
     ];
     for role in roles {
-        assert!(!role.may_submit_order());
+        assert!(!role.llm_may_submit_order());
     }
     assert!(AgentRole::OrderFlow.may_propose_trade());
     assert!(!AgentRole::Environment.may_propose_trade());
