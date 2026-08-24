@@ -1,6 +1,6 @@
 use auction_core::{
     ClusterExposure, Condition, Direction, FuturesRiskInputs, InstrumentExecutionConfig,
-    OrderProposalInputs, OrderType, PortfolioRiskLimits, SetupState, STRICT_MIN_PLANNED_R,
+    OrderProposalInputs, OrderType, PortfolioRiskLimits, STRICT_MIN_PLANNED_R, SetupState,
     build_order_proposal, cluster_direction_clear, entry_limit_valid, entry_trigger,
     evaluate_portfolio_risk, planned_r, size_futures, slippage_guard, stop_replacement_allowed,
     structural_stop, structural_target_valid, trigger_expired,
@@ -116,10 +116,7 @@ fn section_61_expires_after_two_completed_five_minute_candles() {
 #[test]
 fn sections_62_63_93_structural_stops_and_no_widening_are_directional() {
     let cfg = config();
-    assert_close(
-        structural_stop(Direction::Long, 99.0, cfg).unwrap(),
-        98.5,
-    );
+    assert_close(structural_stop(Direction::Long, 99.0, cfg).unwrap(), 98.5);
     assert_close(
         structural_stop(Direction::Short, 101.0, cfg).unwrap(),
         101.5,
@@ -215,9 +212,27 @@ fn section_66_invalid_or_unknown_sizing_inputs_fail_closed() {
         slippage_reserve_per_contract: 1.0,
     };
 
-    assert!(size_futures(FuturesRiskInputs { risk_percent: 0.0, ..base }).is_none());
-    assert!(size_futures(FuturesRiskInputs { entry: f64::NAN, ..base }).is_none());
-    assert!(size_futures(FuturesRiskInputs { tick_size: 0.0, ..base }).is_none());
+    assert!(
+        size_futures(FuturesRiskInputs {
+            risk_percent: 0.0,
+            ..base
+        })
+        .is_none()
+    );
+    assert!(
+        size_futures(FuturesRiskInputs {
+            entry: f64::NAN,
+            ..base
+        })
+        .is_none()
+    );
+    assert!(
+        size_futures(FuturesRiskInputs {
+            tick_size: 0.0,
+            ..base
+        })
+        .is_none()
+    );
     assert!(
         size_futures(FuturesRiskInputs {
             commissions_per_contract: -0.01,
@@ -257,13 +272,7 @@ fn sections_67_69_portfolio_and_cluster_limits_are_inclusive_at_exact_ceiling() 
     assert_eq!(over.portfolio_pass, Condition::False);
     assert_eq!(over.cluster_pass, Condition::False);
 
-    let unknown = evaluate_portfolio_risk(
-        100_000.0,
-        f64::NAN,
-        0.0,
-        100.0,
-        limits(),
-    );
+    let unknown = evaluate_portfolio_risk(100_000.0, f64::NAN, 0.0, 100.0, limits());
     assert_eq!(unknown.portfolio_pass, Condition::Unknown);
     assert_eq!(unknown.cluster_pass, Condition::Unknown);
 }
@@ -305,10 +314,7 @@ fn sections_68_70_same_cluster_opposing_direction_fails_closed() {
 #[test]
 fn sections_71_72_94_enforce_strict_one_point_five_r_for_both_directions() {
     assert_close(STRICT_MIN_PLANNED_R, 1.5);
-    assert_close(
-        planned_r(Direction::Long, 100.0, 99.0, 101.5).unwrap(),
-        1.5,
-    );
+    assert_close(planned_r(Direction::Long, 100.0, 99.0, 101.5).unwrap(), 1.5);
     assert_eq!(
         structural_target_valid(Direction::Long, 100.0, 99.0, 101.5),
         Condition::True
@@ -318,10 +324,7 @@ fn sections_71_72_94_enforce_strict_one_point_five_r_for_both_directions() {
         Condition::False
     );
 
-    assert_close(
-        planned_r(Direction::Short, 100.0, 101.0, 98.5).unwrap(),
-        1.5,
-    );
+    assert_close(planned_r(Direction::Short, 100.0, 101.0, 98.5).unwrap(), 1.5);
     assert_eq!(
         structural_target_valid(Direction::Short, 100.0, 101.0, 98.5),
         Condition::True
