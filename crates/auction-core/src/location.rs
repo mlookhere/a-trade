@@ -96,7 +96,8 @@ impl LocationSetup {
         reference_value_boundary: f64,
         tick_size: f64,
     ) -> Option<Self> {
-        if !direction_allowed(market_state, impulse.direction)
+        if impulse.start_index >= impulse.end_index
+            || !direction_allowed(market_state, impulse.direction)
             || !reference_value_boundary.is_finite()
             || !tick_size.is_finite()
             || tick_size <= 0.0
