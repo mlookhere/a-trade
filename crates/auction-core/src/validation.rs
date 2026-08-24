@@ -1,0 +1,229 @@
+use std::collections::HashSet;
+
+use crate::{RejectionCode, SetupState};
+
+/// Offline validation phases from canonical §116. Paper/shadow is deliberately excluded from
+/// this harness because it requires a later execution environment rather than offline replay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValidationPhase {
+    Backtest,
+    OutOfSample,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidationDatasetManifest {
+    pub strategy_version: String,
+    pub backtest_session_ids: Vec<String>,
+    pub out_of_sample_session_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValidationManifestError {
+    MissingStrategyVersion,
+    MissingBacktestSessions,
+    MissingOutOfSampleSessions,
+    EmptySessionId,
+    DuplicateSessionId,
+    SplitOverlap,
+}
+
+impl ValidationDatasetManifest {
+    /// Deterministic split validation for §116 evidence. Requiring both sets and preventing
+    /// overlap is validation infrastructure only; it does not alter any production trade rule.
+    pub fn validate(&self) -> Result<(), ValidationManifestError> {
+        if self.strategy_version.trim().is_empty() {
+            return Err(ValidationManifestError::MissingStrategyVersion);
+        }
+        if self.backtest_session_ids.is_empty() {
+            return Err(ValidationManifestError::MissingBacktestSessions);
+        }
+        if self.out_of_sample_session_ids.is_empty() {
+            return Err(ValidationManifestError::MissingOutOfSampleSessions);
+        }
+
+        let mut backtest = HashSet::with_capacity(self.backtest_session_ids.len());
+        for session_id in &self.backtest_session_ids {
+            if session_id.trim().is_empty() {
+                return Err(ValidationManifestError::EmptySessionId);
+            }
+            if !backtest.insert(session_id.as_str()) {
+                return Err(ValidationManifestError::DuplicateSessionId);
+            }
+        }
+
+        let mut out_of_sample = HashSet::with_capacity(self.out_of_sample_session_ids.len());
+        for session_id in &self.out_of_sample_session_ids {
+            if session_id.trim().is_empty() {
+                return Err(ValidationManifestError::EmptySessionId);
+            }
+            if !out_of_sample.insert(session_id.as_str()) {
+                return Err(ValidationManifestError::DuplicateSessionId);
+            }
+            if backtest.contains(session_id.as_str()) {
+                return Err(ValidationManifestError::SplitOverlap);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn phase_for(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<ValidationPhase>, ValidationManifestError> {
+        self.validate()?;
+        if self.backtest_session_ids.iter().any(|id| id == session_id) {
+            Ok(Some(ValidationPhase::Backtest))
+        } else if self
+            .out_of_sample_session_ids
+            .iter()
+            .any(|id| id == session_id)
+        {
+            Ok(Some(ValidationPhase::OutOfSample))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+/// Final deterministic result captured by an offline replay case. A rejection code is optional
+/// because not every fail-closed condition is assigned a unique terminal rejection at this layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReplayOutcome {
+    pub trade_authorized: bool,
+    pub rejection_code: Option<RejectionCode>,
+    pub setup_state: Option<SetupState>,
+}
+
+impl ReplayOutcome {
+    fn valid(self) -> bool {
+        !(self.trade_authorized && self.rejection_code.is_some())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayCaseEvidence {
+    pub case_id: String,
+    pub setup_id: String,
+    pub session_id: String,
+    pub phase: ValidationPhase,
+    pub expected: ReplayOutcome,
+    pub observed: ReplayOutcome,
+}
+
+impl ReplayCaseEvidence {
+    #[must_use]
+    pub fn exact_match(&self) -> bool {
+        self.expected == self.observed
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayEvidenceError {
+    InvalidManifest(ValidationManifestError),
+    MissingCaseId,
+    MissingSetupId,
+    MissingSessionId,
+    UnknownSession,
+    PhaseMismatch,
+    InvalidOutcome,
+    EmptyEvidence,
+    MixedPhases,
+}
+
+impl From<ValidationManifestError> for ReplayEvidenceError {
+    fn from(value: ValidationManifestError) -> Self {
+        Self::InvalidManifest(value)
+    }
+}
+
+#[must_use]
+pub fn record_replay_case(
+    manifest: &ValidationDatasetManifest,
+    case_id: &str,
+    setup_id: &str,
+    session_id: &str,
+    phase: ValidationPhase,
+    expected: ReplayOutcome,
+    observed: ReplayOutcome,
+) -> Result<ReplayCaseEvidence, ReplayEvidenceError> {
+    manifest.validate()?;
+    if case_id.trim().is_empty() {
+        return Err(ReplayEvidenceError::MissingCaseId);
+    }
+    if setup_id.trim().is_empty() {
+        return Err(ReplayEvidenceError::MissingSetupId);
+    }
+    if session_id.trim().is_empty() {
+        return Err(ReplayEvidenceError::MissingSessionId);
+    }
+    if !expected.valid() || !observed.valid() {
+        return Err(ReplayEvidenceError::InvalidOutcome);
+    }
+
+    let Some(manifest_phase) = manifest.phase_for(session_id)? else {
+        return Err(ReplayEvidenceError::UnknownSession);
+    };
+    if manifest_phase != phase {
+        return Err(ReplayEvidenceError::PhaseMismatch);
+    }
+
+    Ok(ReplayCaseEvidence {
+        case_id: case_id.to_owned(),
+        setup_id: setup_id.to_owned(),
+        session_id: session_id.to_owned(),
+        phase,
+        expected,
+        observed,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReplayReport {
+    pub phase: ValidationPhase,
+    pub total_cases: usize,
+    pub exact_matches: usize,
+    pub mismatches: usize,
+    pub authorization_mismatches: usize,
+    pub rejection_mismatches: usize,
+    pub state_mismatches: usize,
+}
+
+/// Summarizes exact replay evidence only. Canonical knowledge defines no performance threshold
+/// that would permit this report to approve, promote, or version a strategy automatically.
+#[must_use]
+pub fn summarize_replay(
+    phase: ValidationPhase,
+    evidence: &[ReplayCaseEvidence],
+) -> Result<ReplayReport, ReplayEvidenceError> {
+    if evidence.is_empty() {
+        return Err(ReplayEvidenceError::EmptyEvidence);
+    }
+    if evidence.iter().any(|case| case.phase != phase) {
+        return Err(ReplayEvidenceError::MixedPhases);
+    }
+
+    let total_cases = evidence.len();
+    let exact_matches = evidence.iter().filter(|case| case.exact_match()).count();
+    let authorization_mismatches = evidence
+        .iter()
+        .filter(|case| case.expected.trade_authorized != case.observed.trade_authorized)
+        .count();
+    let rejection_mismatches = evidence
+        .iter()
+        .filter(|case| case.expected.rejection_code != case.observed.rejection_code)
+        .count();
+    let state_mismatches = evidence
+        .iter()
+        .filter(|case| case.expected.setup_state != case.observed.setup_state)
+        .count();
+
+    Ok(ReplayReport {
+        phase,
+        total_cases,
+        exact_matches,
+        mismatches: total_cases - exact_matches,
+        authorization_mismatches,
+        rejection_mismatches,
+        state_mismatches,
+    })
+}
