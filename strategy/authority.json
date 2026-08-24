@@ -332,6 +332,66 @@
       "provenance": "opaque agent/instrument/scenario record can be created only strictly before 09:30 ET with structurally valid locked §25 references and every required §17 concept TRUE; canonical §33 example fields remain example-only and are not promoted into a universal schema; successful freeze supplies only PREMARKET_PLAN_COMPLETE"
     }
   },
+  "implemented_in_issue_38": {
+    "reliable_gamma_snapshot_metadata": {
+      "sections": [14, 15, 25],
+      "provenance": "reliable GEX context retains nonempty underlying and opaque timestamp metadata plus optional finite locked gamma levels; no provider-specific freshness interval is invented"
+    },
+    "gamma_context_expectations": {
+      "sections": [14, 15],
+      "provenance": "positive gamma exposes canonical mean-reversion and reduced-breakout expectations; negative gamma exposes canonical directional-acceleration/expansion expectation; unspecified dimensions remain absent rather than inferred"
+    },
+    "gamma_non_directional_authority": {
+      "sections": [14, 15, 24],
+      "provenance": "gamma remains context only and cannot change or manufacture deterministic direction permission"
+    }
+  },
+  "implemented_in_issue_40": {
+    "sealed_order_risk_authority": {
+      "sections": [59, 60, 62, 64, 65, 66, 67, 68, 69, 70, 71, 72, 109, 110, 122],
+      "provenance": "OrderProposal construction is crate-sealed behind opaque validated strategy evidence and deterministic target, sizing, portfolio, cluster, and correlation checks; external callers cannot construct or mutate Strategy/Risk/Portfolio pass facts"
+    },
+    "live_execution_authority_boundary": {
+      "sections": [56, 64, 98, 100, 101, 109, 122],
+      "provenance": "ExecutionCoordinator accepts no caller-supplied Strategy Validator, Risk Engine, or Portfolio Coordinator pass booleans; broker safety, exact SETUP_ID clearance, no-conflicting-order, operational safety, protected-order capability, and execution-engine safety are rechecked at the live boundary"
+    }
+  },
+  "implemented_in_issue_42": {
+    "opaque_strategy_validation_proof": {
+      "sections": [3, 10, 16, 17, 18, 24, 25, 34, 35, 37, 40, 43, 48, 55, 85, 92, 95, 96, 102, 103, 108, 109, 117, 122],
+      "provenance": "deterministic Strategy Validator rechecks time, data readiness, frozen premarket identity, environment/direction, location lifecycle, completed order-flow sequence, setup ownership/identity, and news before issuing an opaque proof; FALSE/UNKNOWN or structural mismatch produces no proof"
+    },
+    "sealed_orderflow_extrema_and_participation": {
+      "sections": [38, 39, 40, 41, 43, 52, 55, 88, 91, 92, 108, 109],
+      "provenance": "deployment-selected participation rule is locked to the setup sequence; participation is deterministically derived per completed candle and accepted first-failure/final-reconfirmation extrema are carried inside validated evidence rather than re-entered at order construction"
+    }
+  },
+  "implemented_in_issue_44": {
+    "continuous_open_position_broker_stop_safety": {
+      "sections": [16, 64, 73, 98, 100, 101, 118],
+      "provenance": "provider-neutral open-position safety requires a known reconciled broker position for the exact consumed SETUP_ID plus hard-stop confirmation on each caller-requested safety cycle; missing/unconfirmable protection triggers one immediate flatten attempt, latches shared execution unsafe, and fails closed"
+    }
+  },
+  "implemented_in_issue_46": {
+    "live_execution_state_tail": {
+      "sections": [64, 102, 103, 117, 118],
+      "provenance": "the execution registry persists ENTRY_AUTHORIZED -> ORDER_PENDING -> FILLED -> POSITION_MANAGEMENT through the existing SetupState::advance authority; pre-transmission failure retains ENTRY_AUTHORIZED and an unprotected confirmed fill remains FILLED while §64 flatten/execution failure runs because no alternate terminal state is specified"
+    }
+  },
+  "implemented_in_issue_49": {
+    "sealed_pending_entry_guard": {
+      "sections": [60, 61, 102, 109, 110, 117],
+      "provenance": "the validated proposal retains deployment-owned execution configuration; live pending reconciliation uses the sealed direction, trigger, and slippage configuration rather than accepting replacements from callers"
+    },
+    "pending_entry_cancellation_lifecycle": {
+      "sections": [60, 61, 98, 100, 102, 117],
+      "provenance": "fill state is reconciled before cancellation; an explicitly unfilled order outside the sealed slippage allowance or at two completed 5-minute candles requires confirmed broker cancellation before terminating ORDER_PENDING as MISSED; the setup remains unconsumed and cannot be reused"
+    },
+    "cancellation_failure_boundary": {
+      "sections": [6, 98, 100, 101, 117],
+      "provenance": "FALSE/UNKNOWN/error cancellation confirmation never fabricates MISSED; the setup remains structurally pending, shared execution is latched unsafe, and provider-specific retry/recovery behavior is not inferred"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
@@ -375,8 +435,13 @@
     },
     "continuous_open_position_broker_reconciliation": {
       "section": 118,
-      "status": "full position algorithm requires ongoing broker-state and stop-existence verification, but provider-specific position-close, target-fill, stop-fill, and reconciliation semantics are not specified",
-      "live_behavior": "existing protected-entry and broker-safety mechanisms remain authoritative; provider-specific continuous position reconciliation stays outside live authorization until exact adapter contracts are supplied"
+      "status": "provider-neutral exact-SETUP_ID broker-state and hard-stop verification is implemented, but provider-specific position-close, target-fill, stop-fill, polling cadence, and reconciliation semantics are not specified",
+      "live_behavior": "the implemented safety cycle fails closed on unknown/missing broker position state and unconfirmable hard-stop protection; provider-specific close/fill detection and transport remain unsupported until exact adapter contracts are supplied"
+    },
+    "provider_specific_pending_order_cancellation_transport": {
+      "sections": [6, 60, 61, 101, 117],
+      "status": "canonical knowledge requires cancellation but does not specify broker SDK calls, retry cadence, cancel/replace, partial-fill, or recovery semantics",
+      "live_behavior": "the provider-neutral BrokerOrderCancellation boundary requires explicit TRUE confirmation; FALSE/UNKNOWN/error leaves the order pending and disables shared execution rather than inventing transport behavior"
     }
   }
 }
