@@ -41,10 +41,7 @@ pub fn buyer_aggression(
         Condition::from(candle.candle_delta > 0),
         candle.has_buy_imbalance_upper_half(),
         participation,
-        delta_magnitude_at_least_prior20_median(
-            candle.candle_delta,
-            previous_20_completed_deltas,
-        ),
+        delta_magnitude_at_least_prior20_median(candle.candle_delta, previous_20_completed_deltas),
     ])
 }
 
@@ -285,8 +282,7 @@ impl ShortOrderflowSequence {
         if self.state != SetupState::WaitingSecondTest {
             return Condition::False;
         }
-        let (Some(dominance), Some(first_failure_high)) =
-            (self.dominance, self.first_failure_high)
+        let (Some(dominance), Some(first_failure_high)) = (self.dominance, self.first_failure_high)
         else {
             return Condition::Unknown;
         };
@@ -295,7 +291,9 @@ impl ShortOrderflowSequence {
             genuine_second_buyer_attempt(candle, dominance.midpoint()),
             second_test_has_real_buying(candle, participation, first_failure_high),
         ]);
-        if result.permits() && let Ok(next) = self.state.advance(SetupState::SecondTest) {
+        if result.permits()
+            && let Ok(next) = self.state.advance(SetupState::SecondTest)
+        {
             self.state = next;
             self.second_test = Some(candle.into());
         }
@@ -312,7 +310,9 @@ impl ShortOrderflowSequence {
         };
 
         let result = second_failure_lower(test.high, first_failure_high, tick_size);
-        if result.permits() && let Ok(next) = self.state.advance(SetupState::SecondFailure) {
+        if result.permits()
+            && let Ok(next) = self.state.advance(SetupState::SecondFailure)
+        {
             self.state = next;
         }
         result
