@@ -6,17 +6,12 @@ use auction_core::{
     SetupState,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MockError {
-    Failure,
-}
-
 #[derive(Debug, Clone)]
 struct MockBroker {
-    reconciliation: Result<BrokerReconciliation, MockError>,
-    submission: Result<BrokerSubmission, MockError>,
-    fill_state: Result<Condition, MockError>,
-    stop_state: Result<Condition, MockError>,
+    reconciliation: Result<BrokerReconciliation, ()>,
+    submission: Result<BrokerSubmission, ()>,
+    fill_state: Result<Condition, ()>,
+    stop_state: Result<Condition, ()>,
 }
 
 impl Default for MockBroker {
@@ -34,7 +29,7 @@ impl Default for MockBroker {
 }
 
 impl BrokerAdapter for MockBroker {
-    type Error = MockError;
+    type Error = ();
 
     fn capabilities(&self) -> BrokerCapabilities {
         BrokerCapabilities {
