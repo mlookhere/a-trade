@@ -39,9 +39,13 @@ pub use broker_execution::{
     ExecutionCoordinator, ExecutionGateContext, ExecutionPermit, ExecutionStatus,
     PreExecutionAuthority, SetupRegistry, SetupRegistryStatus,
 };
-pub use data::{DataHealth, GammaContext, GammaRegime, VolatilityExpectation};
+pub use data::{
+    DataCycleReadiness, DataHealth, GammaContext, GammaRegime, RequiredMarketDataStatus,
+    RequiredVolumeProfileStatus, VolatilityExpectation,
+};
 pub use environment::{
-    EnvironmentEvaluation, EnvironmentInput, HourlyStructure, PremarketReferences, SessionValue,
+    EnvironmentEvaluation, EnvironmentInput, FrozenPremarketScenario, HourlyStructure,
+    PremarketPlanComponents, PremarketReferences, PremarketScenarioError, SessionValue,
     evaluate_environment,
 };
 pub use fibonacci::{

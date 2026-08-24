@@ -314,6 +314,24 @@
       "provenance": "approval is externally supplied as TRUE/FALSE/UNKNOWN; UNKNOWN cannot advance and FALSE rejects the proposal; a TRUE decision permits recording only an externally supplied new version identifier distinct from the base version, with no live activation or deployment API"
     }
   },
+  "implemented_in_issue_36": {
+    "required_market_data_status": {
+      "sections": [11, 16],
+      "provenance": "tri-state availability/validity contract for the exact bid, ask, last-trade, and 1m/5m/15m/1h/4h OHLCV families; provider-specific bar construction and freshness thresholds remain external"
+    },
+    "required_volume_profile_status": {
+      "sections": [13, 16],
+      "provenance": "tri-state contract for VAH, VAL, POC, volume-at-price, LVNs, HVNs, cross-session methodology consistency, and no intraday methodology change; no profile calculation algorithm is invented"
+    },
+    "combined_data_readiness": {
+      "sections": [11, 13, 16, 108],
+      "provenance": "required market/profile readiness composes with the existing §16 DataHealth facts; any FALSE or UNKNOWN remains fail-closed and the result supplies only DATA_VALID"
+    },
+    "frozen_premarket_scenario": {
+      "sections": [17, 25, 33, 108, 109, 122],
+      "provenance": "opaque agent/instrument/scenario record can be created only strictly before 09:30 ET with structurally valid locked §25 references and every required §17 concept TRUE; canonical §33 example fields remain example-only and are not promoted into a universal schema; successful freeze supplies only PREMARKET_PLAN_COMPLETE"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
