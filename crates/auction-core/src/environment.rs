@@ -1,4 +1,4 @@
-use crate::{Condition, MarketState};
+use crate::{Condition, EtTime, MarketState};
 
 /// Completed regular-session value references used by canonical §§19-21.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -143,4 +143,171 @@ pub struct PremarketReferences {
     pub call_wall: Option<f64>,
     pub put_wall: Option<f64>,
     pub gamma_flip: Option<f64>,
+}
+
+impl PremarketReferences {
+    /// Structural validity for the levels that canonical §25 requires to be locked. Optional
+    /// gamma levels may be absent, but a present value must be finite.
+    #[must_use]
+    pub fn validity(self) -> Condition {
+        Condition::from(
+            self.reference_vah.is_finite()
+                && self.reference_val.is_finite()
+                && self.reference_poc.is_finite()
+                && self.prior_rth_high.is_finite()
+                && self.prior_rth_low.is_finite()
+                && self.overnight_high.is_finite()
+                && self.overnight_low.is_finite()
+                && self.reference_vah >= self.reference_val
+                && self.prior_rth_high >= self.prior_rth_low
+                && self.overnight_high >= self.overnight_low
+                && self.call_wall.is_none_or(f64::is_finite)
+                && self.put_wall.is_none_or(f64::is_finite)
+                && self.gamma_flip.is_none_or(f64::is_finite),
+        )
+    }
+}
+
+/// Exact premarket concepts that canonical §17 requires to be established before an instrument
+/// may trade. TRUE means the concept has been deterministically resolved; it does not mean the
+/// resolved direction or environment itself is necessarily tradable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PremarketPlanComponents {
+    pub market_environment_established: Condition,
+    pub direction_permission_established: Condition,
+    pub relevant_swing_structure_established: Condition,
+    pub fib_location_established: Condition,
+    pub gamma_regime_established: Condition,
+    pub structural_targets_established: Condition,
+    pub invalidations_established: Condition,
+}
+
+impl PremarketPlanComponents {
+    #[must_use]
+    pub fn readiness(self) -> Condition {
+        all_conditions(&[
+            self.market_environment_established,
+            self.direction_permission_established,
+            self.relevant_swing_structure_established,
+            self.fib_location_established,
+            self.gamma_regime_established,
+            self.structural_targets_established,
+            self.invalidations_established,
+        ])
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PremarketScenarioError {
+    MissingAgentId,
+    MissingInstrument,
+    MissingScenarioId,
+    FreezeAtOrAfterOpen,
+    InvalidReferences,
+    IncompletePlan,
+    UnknownPlan,
+}
+
+/// Opaque frozen §33 scenario record. The canonical example is intentionally not promoted into
+/// a universal schema. The record proves identity, pre-open freeze timing, locked §25 references,
+/// and completion of the §17 concepts; it has no order, risk, broker, or mutation API.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FrozenPremarketScenario {
+    agent_id: String,
+    instrument: String,
+    scenario_id: String,
+    frozen_at_et: EtTime,
+    references: PremarketReferences,
+    components: PremarketPlanComponents,
+}
+
+impl FrozenPremarketScenario {
+    pub fn freeze(
+        agent_id: &str,
+        instrument: &str,
+        scenario_id: &str,
+        frozen_at_et: EtTime,
+        references: PremarketReferences,
+        components: PremarketPlanComponents,
+    ) -> Result<Self, PremarketScenarioError> {
+        if agent_id.trim().is_empty() {
+            return Err(PremarketScenarioError::MissingAgentId);
+        }
+        if instrument.trim().is_empty() {
+            return Err(PremarketScenarioError::MissingInstrument);
+        }
+        if scenario_id.trim().is_empty() {
+            return Err(PremarketScenarioError::MissingScenarioId);
+        }
+
+        let open = EtTime::from_hms(9, 30, 0).expect("09:30 ET is a valid time");
+        if frozen_at_et >= open {
+            return Err(PremarketScenarioError::FreezeAtOrAfterOpen);
+        }
+        if references.validity() != Condition::True {
+            return Err(PremarketScenarioError::InvalidReferences);
+        }
+
+        match components.readiness() {
+            Condition::True => {}
+            Condition::False => return Err(PremarketScenarioError::IncompletePlan),
+            Condition::Unknown => return Err(PremarketScenarioError::UnknownPlan),
+        }
+
+        Ok(Self {
+            agent_id: agent_id.to_owned(),
+            instrument: instrument.to_owned(),
+            scenario_id: scenario_id.to_owned(),
+            frozen_at_et,
+            references,
+            components,
+        })
+    }
+
+    #[must_use]
+    pub fn agent_id(&self) -> &str {
+        &self.agent_id
+    }
+
+    #[must_use]
+    pub fn instrument(&self) -> &str {
+        &self.instrument
+    }
+
+    #[must_use]
+    pub fn scenario_id(&self) -> &str {
+        &self.scenario_id
+    }
+
+    #[must_use]
+    pub const fn frozen_at_et(&self) -> EtTime {
+        self.frozen_at_et
+    }
+
+    #[must_use]
+    pub const fn references(&self) -> PremarketReferences {
+        self.references
+    }
+
+    #[must_use]
+    pub const fn components(&self) -> PremarketPlanComponents {
+        self.components
+    }
+
+    /// Existence of this validated frozen record is the deterministic §17 handoff into the
+    /// existing production authorization gate.
+    #[must_use]
+    pub const fn premarket_plan_complete(&self) -> Condition {
+        Condition::True
+    }
+}
+
+fn all_conditions(conditions: &[Condition]) -> Condition {
+    if conditions.contains(&Condition::False) {
+        Condition::False
+    } else if conditions.contains(&Condition::Unknown) {
+        Condition::Unknown
+    } else {
+        Condition::True
+    }
 }
