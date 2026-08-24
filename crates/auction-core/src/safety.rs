@@ -103,10 +103,7 @@ impl OperationalSafetyController {
         if self.system_disabled {
             return Condition::False;
         }
-        all_clear(&[
-            self.operational_risk_clear,
-            self.emergency_drawdown_clear,
-        ])
+        all_clear(&[self.operational_risk_clear, self.emergency_drawdown_clear])
     }
 
     /// Agent-local isolation is layered on top of shared system safety. Empty identifiers are
@@ -119,10 +116,7 @@ impl OperationalSafetyController {
         if self.system_disabled || self.disabled_agents.contains(agent_id) {
             return Condition::False;
         }
-        all_clear(&[
-            self.operational_risk_clear,
-            self.emergency_drawdown_clear,
-        ])
+        all_clear(&[self.operational_risk_clear, self.emergency_drawdown_clear])
     }
 }
 
