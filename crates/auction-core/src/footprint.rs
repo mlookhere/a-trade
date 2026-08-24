@@ -132,6 +132,19 @@ impl FootprintCandle5m<'_> {
     }
 
     #[must_use]
+    pub fn has_buy_imbalance_upper_half(self) -> Condition {
+        let Some(midpoint) = self.midpoint() else {
+            return Condition::Unknown;
+        };
+        Condition::from(self.levels.iter().any(|level| {
+            level.price >= midpoint
+                && level
+                    .buy_imbalance_ratio
+                    .is_some_and(|ratio| ratio >= IMBALANCE_THRESHOLD)
+        }))
+    }
+
+    #[must_use]
     pub fn aggression_at_long_extreme(self) -> Condition {
         if !self.valid() {
             return Condition::Unknown;
@@ -151,6 +164,29 @@ impl FootprintCandle5m<'_> {
             >= u128::from(self.total_volume) * u128::from(EXTREME_VOLUME_PERCENT);
 
         Condition::from(poc_in_bottom_quarter || enough_bottom_quarter_volume)
+    }
+
+    /// Mirrored §85 application of the §44 extreme-participation formalization.
+    #[must_use]
+    pub fn aggression_at_short_extreme(self) -> Condition {
+        if !self.valid() {
+            return Condition::Unknown;
+        }
+
+        let range = self.high - self.low;
+        let top_quarter_bottom = self.high - range * 0.25;
+        let poc_in_top_quarter = self.volume_poc >= top_quarter_bottom;
+        let top_quarter_volume = self
+            .levels
+            .iter()
+            .filter(|level| level.price >= top_quarter_bottom)
+            .fold(0_u128, |sum, level| {
+                sum + u128::from(level.bid_volume) + u128::from(level.ask_volume)
+            });
+        let enough_top_quarter_volume = top_quarter_volume * 100
+            >= u128::from(self.total_volume) * u128::from(EXTREME_VOLUME_PERCENT);
+
+        Condition::from(poc_in_top_quarter || enough_top_quarter_volume)
     }
 }
 
@@ -193,8 +229,37 @@ pub fn participation_valid(
     }
 }
 
+/// Shared mirrored §43/§88 absolute-delta median test. Exactly 20 completed 5M deltas are
+/// required; missing history fails closed as UNKNOWN.
+pub(crate) fn delta_magnitude_at_least_prior20_median(
+    current_delta: i64,
+    previous_20_completed_deltas: &[i64],
+) -> Condition {
+    let Some((middle_low, middle_high)) = median_abs_delta_pair(previous_20_completed_deltas)
+    else {
+        return Condition::Unknown;
+    };
+
+    Condition::from(
+        u128::from(current_delta.unsigned_abs()) * 2
+            >= u128::from(middle_low) + u128::from(middle_high),
+    )
+}
+
 fn median_middle_pair(values: &[u64]) -> Option<(u64, u64)> {
     let mut sorted: [u64; 20] = values.try_into().ok()?;
+    sorted.sort_unstable();
+    Some((sorted[9], sorted[10]))
+}
+
+fn median_abs_delta_pair(values: &[i64]) -> Option<(u64, u64)> {
+    if values.len() != 20 {
+        return None;
+    }
+    let mut sorted = [0_u64; 20];
+    for (destination, source) in sorted.iter_mut().zip(values.iter().copied()) {
+        *destination = source.unsigned_abs();
+    }
     sorted.sort_unstable();
     Some((sorted[9], sorted[10]))
 }

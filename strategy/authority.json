@@ -57,6 +57,25 @@
     },
     "absorption_and_long_confirmation_sequence": [47, 48, 49, 50, 51, 53, 54, 55, 102]
   },
+  "implemented_in_issue_10": {
+    "short_strategy_provenance": {
+      "sections": [85],
+      "provenance": "mirrored bearish implementation; detailed source example primarily bullish"
+    },
+    "short_environment_and_location_dependencies": [86, 87],
+    "buyer_aggression": {
+      "sections": [88, 85, 43],
+      "provenance": "mirrored deterministic seller-aggression formalization using shared delta and imbalance rules"
+    },
+    "short_extreme_participation": {
+      "sections": [85, 44, 88],
+      "provenance": "mirrored deterministic implementation; 35% top-quarter threshold remains implementation-defined"
+    },
+    "buyer_absorption_and_short_confirmation_sequence": {
+      "sections": [89, 90, 91, 92, 102],
+      "provenance": "explicit mirrored bearish application of long deterministic formalizations"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
@@ -72,6 +91,16 @@
       "section": 52,
       "status": "canonical knowledge says store the low from the original absorption structure but does not define a machine extraction algorithm",
       "live_behavior": "requires an explicit finite first-failure-low input; it is not silently assumed to equal a particular candle low"
+    },
+    "buyer_effort_vs_upward_price_progression": {
+      "sections": [88, 89],
+      "status": "mirrored short logic requires buyer failure but canonical knowledge does not define a numeric upward-progression algorithm",
+      "live_behavior": "supplied as TRUE/FALSE/UNKNOWN interpretation; UNKNOWN cannot advance the short setup"
+    },
+    "first_failure_high_extraction": {
+      "section": 91,
+      "status": "canonical knowledge says store FIRST_FAILURE_HIGH but does not define a machine extraction algorithm",
+      "live_behavior": "requires an explicit finite first-failure-high input; it is not silently assumed to equal a particular candle high"
     }
   }
 }

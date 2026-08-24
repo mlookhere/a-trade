@@ -1,5 +1,5 @@
 use crate::footprint::delta_magnitude_at_least_prior20_median;
-use crate::{Condition, FootprintCandle5m, ParticipationRule, SetupState, participation_valid};
+use crate::{Condition, FootprintCandle5m, SetupState};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct CandleSnapshot {
@@ -26,9 +26,9 @@ impl CandleSnapshot {
     }
 }
 
-/// Canonical §43 deterministic seller-aggression test.
+/// §85 mirrored application of §43 for canonical §88 aggressive buyers at premium.
 #[must_use]
-pub fn seller_aggression(
+pub fn buyer_aggression(
     candle: FootprintCandle5m<'_>,
     previous_20_completed_deltas: &[i64],
     participation: Condition,
@@ -38,40 +38,41 @@ pub fn seller_aggression(
     }
 
     all_conditions(&[
-        Condition::from(candle.candle_delta < 0),
-        candle.has_sell_imbalance_lower_half(),
+        Condition::from(candle.candle_delta > 0),
+        candle.has_buy_imbalance_upper_half(),
         participation,
         delta_magnitude_at_least_prior20_median(candle.candle_delta, previous_20_completed_deltas),
     ])
 }
 
-/// Canonical §47 rejection structure. `seller_aggression_present` is supplied separately so
-/// absorption cannot be inferred from candle shape without the preceding aggression gate.
+/// §§85,88-89 mirrored buyer-absorption rejection structure. Buyer effort failure itself is a
+/// separate tri-state input in the sequence because no numeric upward-progression algorithm is
+/// specified by the canonical source.
 #[must_use]
-pub fn potential_absorption(
+pub fn potential_buyer_absorption(
     candle: FootprintCandle5m<'_>,
-    seller_aggression_present: Condition,
+    buyer_aggression_present: Condition,
 ) -> Condition {
     if !candle.valid() {
         return Condition::Unknown;
     }
 
     let range = candle.high - candle.low;
-    let lower_wick = candle.open.min(candle.close) - candle.low;
-    let wick_rejection = lower_wick >= range * 0.25;
-    let bullish_or_upper_half =
-        candle.close > candle.open || candle.close >= (candle.high + candle.low) / 2.0;
+    let upper_wick = candle.high - candle.open.max(candle.close);
+    let wick_rejection = upper_wick >= range * 0.25;
+    let bearish_or_lower_half =
+        candle.close < candle.open || candle.close <= (candle.high + candle.low) / 2.0;
 
     all_conditions(&[
-        seller_aggression_present,
+        buyer_aggression_present,
         Condition::from(wick_rejection),
-        Condition::from(bullish_or_upper_half),
+        Condition::from(bearish_or_lower_half),
     ])
 }
 
-/// Canonical §49 completed-5M first buyer dominance shift.
+/// §90 implemented as the explicit §85 mirror of the deterministic §49 dominance formalization.
 #[must_use]
-pub fn first_buyer_dominance_shift(
+pub fn first_seller_dominance_shift(
     candle: FootprintCandle5m<'_>,
     aggression_candle_midpoint: f64,
     participation: Condition,
@@ -81,17 +82,18 @@ pub fn first_buyer_dominance_shift(
     }
 
     all_conditions(&[
-        Condition::from(candle.close > candle.open),
-        Condition::from(candle.close > aggression_candle_midpoint),
-        Condition::from(candle.candle_delta > 0),
-        candle.has_buy_imbalance(),
+        Condition::from(candle.close < candle.open),
+        Condition::from(candle.close < aggression_candle_midpoint),
+        Condition::from(candle.candle_delta < 0),
+        candle.has_sell_imbalance(),
         participation,
     ])
 }
 
-/// Canonical §51 genuine second seller attempt.
+/// §91 mirrored second-attempt requirement: buyers must trade above the prior dominance
+/// candle midpoint with positive delta.
 #[must_use]
-pub fn genuine_second_seller_attempt(
+pub fn genuine_second_buyer_attempt(
     test_candle: FootprintCandle5m<'_>,
     dominance_candle_midpoint: f64,
 ) -> Condition {
@@ -100,52 +102,51 @@ pub fn genuine_second_seller_attempt(
     }
 
     all_conditions(&[
-        Condition::from(test_candle.low < dominance_candle_midpoint),
-        Condition::from(test_candle.candle_delta < 0),
+        Condition::from(test_candle.high > dominance_candle_midpoint),
+        Condition::from(test_candle.candle_delta > 0),
     ])
 }
 
-/// Canonical §54 real selling on the second test. "Sell imbalance" uses the same configured
-/// §41 >=4.0 imbalance definition used throughout this implementation.
+/// §91 mirrored real-buying requirement from the long §54 formalization.
 #[must_use]
-pub fn second_test_has_real_selling(
+pub fn second_test_has_real_buying(
     test_candle: FootprintCandle5m<'_>,
     participation: Condition,
-    first_failure_low: f64,
+    first_failure_high: f64,
 ) -> Condition {
-    if !test_candle.valid() || !first_failure_low.is_finite() {
+    if !test_candle.valid() || !first_failure_high.is_finite() {
         return Condition::Unknown;
     }
 
     all_conditions(&[
-        Condition::from(test_candle.candle_delta < 0),
-        test_candle.has_sell_imbalance(),
+        Condition::from(test_candle.candle_delta > 0),
+        test_candle.has_buy_imbalance(),
         participation,
-        Condition::from(test_candle.close >= first_failure_low),
+        Condition::from(test_candle.close <= first_failure_high),
     ])
 }
 
-/// Canonical §53. The tick relationship is the deterministic minimum required by the spec.
+/// §91 one-tick lower-failure mirror of canonical §53.
 #[must_use]
-pub fn second_failure_higher(
-    second_test_low: f64,
-    first_failure_low: f64,
+pub fn second_failure_lower(
+    second_test_high: f64,
+    first_failure_high: f64,
     tick_size: f64,
 ) -> Condition {
-    if !second_test_low.is_finite()
-        || !first_failure_low.is_finite()
+    if !second_test_high.is_finite()
+        || !first_failure_high.is_finite()
         || !tick_size.is_finite()
         || tick_size <= 0.0
     {
         return Condition::Unknown;
     }
 
-    Condition::from(second_test_low >= first_failure_low + tick_size)
+    Condition::from(second_test_high <= first_failure_high - tick_size)
 }
 
-/// Canonical §55 completed-5M buyer reconfirmation.
+/// §92 seller reconfirmation as the explicit mirror of §55.
 #[must_use]
-pub fn buyer_reconfirmation(
+pub fn seller_reconfirmation(
     candle: FootprintCandle5m<'_>,
     second_test_midpoint: f64,
     participation: Condition,
@@ -155,26 +156,27 @@ pub fn buyer_reconfirmation(
     }
 
     all_conditions(&[
-        Condition::from(candle.close > candle.open),
-        Condition::from(candle.candle_delta > 0),
-        candle.has_buy_imbalance(),
-        Condition::from(candle.close > second_test_midpoint),
+        Condition::from(candle.close < candle.open),
+        Condition::from(candle.candle_delta < 0),
+        candle.has_sell_imbalance(),
+        Condition::from(candle.close < second_test_midpoint),
         participation,
     ])
 }
 
-/// Long-side state coordinator for canonical §§42-55 and §102. It begins only after location
-/// has been reached and stops at FINAL_RECONFIRMATION. It has no entry/risk/execution API.
+/// §85 mirrored bearish state coordinator. It uses the same canonical §102 states as the long
+/// sequence and stops at FINAL_RECONFIRMATION; short authorization/risk/execution remain
+/// separate deterministic layers.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct LongOrderflowSequence {
+pub struct ShortOrderflowSequence {
     state: SetupState,
     aggression: Option<CandleSnapshot>,
     dominance: Option<CandleSnapshot>,
     second_test: Option<CandleSnapshot>,
-    first_failure_low: Option<f64>,
+    first_failure_high: Option<f64>,
 }
 
-impl LongOrderflowSequence {
+impl ShortOrderflowSequence {
     #[must_use]
     pub fn from_location_reached(state: SetupState) -> Option<Self> {
         (state == SetupState::LocationReached).then_some(Self {
@@ -182,7 +184,7 @@ impl LongOrderflowSequence {
             aggression: None,
             dominance: None,
             second_test: None,
-            first_failure_low: None,
+            first_failure_high: None,
         })
     }
 
@@ -191,23 +193,20 @@ impl LongOrderflowSequence {
         self.state
     }
 
-    /// §§43-46. `seller_effort_failed` is deliberately tri-state because canonical §§45-46 do
-    /// not define a numeric algorithm for "meaningful" price progression. UNKNOWN cannot
-    /// advance the sequence.
     pub fn record_aggression(
         &mut self,
         candle: FootprintCandle5m<'_>,
         previous_20_completed_deltas: &[i64],
         participation: Condition,
-        seller_effort_failed: Condition,
+        buyer_effort_failed: Condition,
     ) -> Condition {
         if self.state != SetupState::LocationReached {
             return Condition::False;
         }
 
-        let aggression = seller_aggression(candle, previous_20_completed_deltas, participation);
-        let at_extreme = candle.aggression_at_long_extreme();
-        let result = all_conditions(&[aggression, at_extreme, seller_effort_failed]);
+        let aggression = buyer_aggression(candle, previous_20_completed_deltas, participation);
+        let at_extreme = candle.aggression_at_short_extreme();
+        let result = all_conditions(&[aggression, at_extreme, buyer_effort_failed]);
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::AggressionPresent)
         {
@@ -217,26 +216,25 @@ impl LongOrderflowSequence {
         result
     }
 
-    /// §§47-48 and §52. The source says FIRST_FAILURE_LOW comes from the original absorption
-    /// structure but does not define an extraction algorithm, so it is an explicit finite input
-    /// rather than silently assumed to equal one particular candle low.
-    pub fn record_absorption(&mut self, first_failure_low: f64) -> Condition {
+    /// §91 says FIRST_FAILURE_HIGH is stored but does not specify a machine extraction
+    /// algorithm, so it remains an explicit finite input rather than an invented candle rule.
+    pub fn record_absorption(&mut self, first_failure_high: f64) -> Condition {
         if self.state != SetupState::AggressionPresent {
             return Condition::False;
         }
-        if !first_failure_low.is_finite() {
+        if !first_failure_high.is_finite() {
             return Condition::Unknown;
         }
         let Some(aggression) = self.aggression else {
             return Condition::Unknown;
         };
 
-        let rejection = snapshot_absorption(aggression);
+        let rejection = snapshot_buyer_absorption(aggression);
         if rejection.permits()
             && let Ok(next) = self.state.advance(SetupState::PotentialAbsorption)
         {
             self.state = next;
-            self.first_failure_low = Some(first_failure_low);
+            self.first_failure_high = Some(first_failure_high);
         }
         rejection
     }
@@ -253,7 +251,7 @@ impl LongOrderflowSequence {
             return Condition::Unknown;
         };
 
-        let result = first_buyer_dominance_shift(candle, aggression.midpoint(), participation);
+        let result = first_seller_dominance_shift(candle, aggression.midpoint(), participation);
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::FirstDominanceShift)
         {
@@ -263,7 +261,6 @@ impl LongOrderflowSequence {
         result
     }
 
-    /// Canonical §50 makes the waiting state mandatory and explicit.
     pub fn begin_second_test(&mut self) -> Condition {
         if self.state != SetupState::FirstDominanceShift {
             return Condition::False;
@@ -277,8 +274,6 @@ impl LongOrderflowSequence {
         }
     }
 
-    /// §§51 and 54. Higher-low failure is deliberately checked in a separate state transition
-    /// so SECOND_TEST cannot skip directly to SECOND_FAILURE.
     pub fn record_second_test(
         &mut self,
         candle: FootprintCandle5m<'_>,
@@ -287,14 +282,14 @@ impl LongOrderflowSequence {
         if self.state != SetupState::WaitingSecondTest {
             return Condition::False;
         }
-        let (Some(dominance), Some(first_failure_low)) = (self.dominance, self.first_failure_low)
+        let (Some(dominance), Some(first_failure_high)) = (self.dominance, self.first_failure_high)
         else {
             return Condition::Unknown;
         };
 
         let result = all_conditions(&[
-            genuine_second_seller_attempt(candle, dominance.midpoint()),
-            second_test_has_real_selling(candle, participation, first_failure_low),
+            genuine_second_buyer_attempt(candle, dominance.midpoint()),
+            second_test_has_real_buying(candle, participation, first_failure_high),
         ]);
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::SecondTest)
@@ -309,12 +304,12 @@ impl LongOrderflowSequence {
         if self.state != SetupState::SecondTest {
             return Condition::False;
         }
-        let (Some(test), Some(first_failure_low)) = (self.second_test, self.first_failure_low)
+        let (Some(test), Some(first_failure_high)) = (self.second_test, self.first_failure_high)
         else {
             return Condition::Unknown;
         };
 
-        let result = second_failure_higher(test.low, first_failure_low, tick_size);
+        let result = second_failure_lower(test.high, first_failure_high, tick_size);
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::SecondFailure)
         {
@@ -335,7 +330,7 @@ impl LongOrderflowSequence {
             return Condition::Unknown;
         };
 
-        let result = buyer_reconfirmation(candle, test.midpoint(), participation);
+        let result = seller_reconfirmation(candle, test.midpoint(), participation);
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::FinalReconfirmation)
         {
@@ -345,9 +340,7 @@ impl LongOrderflowSequence {
     }
 }
 
-/// Same deterministic §47 candle-shape test as `potential_absorption`, applied to the stored
-/// aggression snapshot after §43 has already passed.
-fn snapshot_absorption(candle: CandleSnapshot) -> Condition {
+fn snapshot_buyer_absorption(candle: CandleSnapshot) -> Condition {
     if !candle.open.is_finite()
         || !candle.high.is_finite()
         || !candle.low.is_finite()
@@ -358,12 +351,12 @@ fn snapshot_absorption(candle: CandleSnapshot) -> Condition {
     }
 
     let range = candle.high - candle.low;
-    let lower_wick = candle.open.min(candle.close) - candle.low;
-    let wick_rejection = lower_wick >= range * 0.25;
-    let bullish_or_upper_half = candle.close > candle.open || candle.close >= candle.midpoint();
+    let upper_wick = candle.high - candle.open.max(candle.close);
+    let wick_rejection = upper_wick >= range * 0.25;
+    let bearish_or_lower_half = candle.close < candle.open || candle.close <= candle.midpoint();
     all_conditions(&[
         Condition::from(wick_rejection),
-        Condition::from(bullish_or_upper_half),
+        Condition::from(bearish_or_lower_half),
     ])
 }
 
@@ -375,14 +368,4 @@ fn all_conditions(conditions: &[Condition]) -> Condition {
     } else {
         Condition::True
     }
-}
-
-/// Convenience wrapper that binds §38/§39 participation selection to an execution candle.
-#[must_use]
-pub fn candle_participation(
-    candle: FootprintCandle5m<'_>,
-    rule: ParticipationRule,
-    prior_same_bucket_volumes: Option<&[u64]>,
-) -> Condition {
-    participation_valid(candle, rule, prior_same_bucket_volumes)
 }
