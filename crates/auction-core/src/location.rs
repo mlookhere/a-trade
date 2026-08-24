@@ -29,11 +29,13 @@ pub enum LocationEvent {
     Invalidated,
 }
 
-/// Opening/location lifecycle for canonical §§34-37 and §117. It owns only location and Fib
-/// invalidation state; order-flow confirmation is handled by later deterministic components.
+/// Opening/location lifecycle for canonical §§34-37 and §117. It retains the exact qualified
+/// impulse and creation time so the later deterministic validator can independently recompute
+/// Fib/value-location facts and news-reset ordering rather than trusting caller booleans.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LocationSetup {
-    structure: StructureKey,
+    impulse: SwingImpulse,
+    created_at: EtTime,
     levels: FibLevels,
     tick_size: f64,
     state: SetupState,
@@ -55,7 +57,13 @@ impl LocationSetup {
         if time_et != open {
             return None;
         }
-        Self::build_waiting(market_state, impulse, reference_value_boundary, tick_size)
+        Self::build_waiting(
+            time_et,
+            market_state,
+            impulse,
+            reference_value_boundary,
+            tick_size,
+        )
     }
 
     /// Canonical §37 and §117: while new entries are enabled, genuinely new confirmed structure
@@ -77,10 +85,17 @@ impl LocationSetup {
         if known_structures.contains(&structure) {
             return None;
         }
-        Self::build_waiting(market_state, impulse, reference_value_boundary, tick_size)
+        Self::build_waiting(
+            time_et,
+            market_state,
+            impulse,
+            reference_value_boundary,
+            tick_size,
+        )
     }
 
     fn build_waiting(
+        created_at: EtTime,
         market_state: MarketState,
         impulse: SwingImpulse,
         reference_value_boundary: f64,
@@ -113,7 +128,8 @@ impl LocationSetup {
             .ok()?;
 
         Some(Self {
-            structure: impulse.into(),
+            impulse,
+            created_at,
             levels,
             tick_size,
             state,
@@ -132,7 +148,21 @@ impl LocationSetup {
 
     #[must_use]
     pub const fn structure(self) -> StructureKey {
-        self.structure
+        StructureKey {
+            direction: self.impulse.direction,
+            start_index: self.impulse.start_index,
+            end_index: self.impulse.end_index,
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn impulse(self) -> SwingImpulse {
+        self.impulse
+    }
+
+    #[must_use]
+    pub const fn created_at(self) -> EtTime {
+        self.created_at
     }
 
     /// Canonical §§35-37: a location touch can only advance WAITING_FOR_LOCATION to
@@ -143,7 +173,7 @@ impl LocationSetup {
             return LocationEvent::None;
         }
 
-        let invalidated = match self.structure.direction {
+        let invalidated = match self.impulse.direction {
             Direction::Long => long_886_invalidated(self.levels, self.tick_size, price, self.state),
             Direction::Short => {
                 short_886_invalidated(self.levels, self.tick_size, price, self.state)
@@ -155,7 +185,7 @@ impl LocationSetup {
         }
 
         if self.state == SetupState::WaitingForLocation {
-            let reached = match self.structure.direction {
+            let reached = match self.impulse.direction {
                 Direction::Long => long_location_reached(self.levels, price),
                 Direction::Short => short_location_reached(self.levels, price),
             };
@@ -173,7 +203,7 @@ impl LocationSetup {
     #[must_use]
     pub fn requires_new_setup_id_for(self, candidate: StructureKey) -> bool {
         matches!(self.state, SetupState::Terminal(TerminalState::Invalidated))
-            && candidate != self.structure
+            && candidate != self.structure()
     }
 }
 

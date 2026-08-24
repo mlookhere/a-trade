@@ -1,5 +1,8 @@
 use crate::footprint::delta_magnitude_at_least_prior20_median;
-use crate::{Condition, FootprintCandle5m, ParticipationRule, SetupState, participation_valid};
+use crate::{
+    Condition, Direction, FootprintCandle5m, LocationSetup, ParticipationContext,
+    ParticipationRule, SetupState, StructureKey, participation_valid,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct CandleSnapshot {
@@ -163,27 +166,34 @@ pub fn buyer_reconfirmation(
     ])
 }
 
-/// Long-side state coordinator for canonical §§42-55 and §102. It begins only after location
-/// has been reached and stops at FINAL_RECONFIRMATION. It has no entry/risk/execution API.
+/// Long-side state coordinator for canonical §§42-55 and §102. It can only begin from an actual
+/// long LOCATION_REACHED lifecycle object, binds itself to that structure, and derives every
+/// deterministic participation condition from raw volume context. It has no execution API.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LongOrderflowSequence {
+    structure: StructureKey,
     state: SetupState,
     aggression: Option<CandleSnapshot>,
     dominance: Option<CandleSnapshot>,
     second_test: Option<CandleSnapshot>,
+    reconfirmation: Option<CandleSnapshot>,
     first_failure_low: Option<f64>,
 }
 
 impl LongOrderflowSequence {
     #[must_use]
-    pub fn from_location_reached(state: SetupState) -> Option<Self> {
-        (state == SetupState::LocationReached).then_some(Self {
-            state,
-            aggression: None,
-            dominance: None,
-            second_test: None,
-            first_failure_low: None,
-        })
+    pub fn from_location_reached(location: &LocationSetup) -> Option<Self> {
+        let structure = location.structure();
+        (location.state() == SetupState::LocationReached && structure.direction == Direction::Long)
+            .then_some(Self {
+                structure,
+                state: SetupState::LocationReached,
+                aggression: None,
+                dominance: None,
+                second_test: None,
+                reconfirmation: None,
+                first_failure_low: None,
+            })
     }
 
     #[must_use]
@@ -191,20 +201,36 @@ impl LongOrderflowSequence {
         self.state
     }
 
+    #[must_use]
+    pub(crate) const fn structure(self) -> StructureKey {
+        self.structure
+    }
+
+    #[must_use]
+    pub(crate) fn first_failure_extreme(self) -> Option<f64> {
+        self.first_failure_low
+    }
+
+    #[must_use]
+    pub(crate) fn reconfirmation_extreme(self) -> Option<f64> {
+        self.reconfirmation.map(|candle| candle.high)
+    }
+
     /// §§43-46. `seller_effort_failed` is deliberately tri-state because canonical §§45-46 do
-    /// not define a numeric algorithm for "meaningful" price progression. UNKNOWN cannot
-    /// advance the sequence.
+    /// not define a numeric algorithm for "meaningful" price progression. Participation itself
+    /// is recomputed here from raw volume history and cannot be asserted by the caller.
     pub fn record_aggression(
         &mut self,
         candle: FootprintCandle5m<'_>,
         previous_20_completed_deltas: &[i64],
-        participation: Condition,
+        participation: ParticipationContext<'_>,
         seller_effort_failed: Condition,
     ) -> Condition {
         if self.state != SetupState::LocationReached {
             return Condition::False;
         }
 
+        let participation = participation.evaluate(candle);
         let aggression = seller_aggression(candle, previous_20_completed_deltas, participation);
         let at_extreme = candle.aggression_at_long_extreme();
         let result = all_conditions(&[aggression, at_extreme, seller_effort_failed]);
@@ -219,7 +245,8 @@ impl LongOrderflowSequence {
 
     /// §§47-48 and §52. The source says FIRST_FAILURE_LOW comes from the original absorption
     /// structure but does not define an extraction algorithm, so it is an explicit finite input
-    /// rather than silently assumed to equal one particular candle low.
+    /// rather than silently assumed to equal one particular candle low. Once accepted, the
+    /// value is retained inside the sequence and later order construction cannot replace it.
     pub fn record_absorption(&mut self, first_failure_low: f64) -> Condition {
         if self.state != SetupState::AggressionPresent {
             return Condition::False;
@@ -244,7 +271,7 @@ impl LongOrderflowSequence {
     pub fn record_first_dominance_shift(
         &mut self,
         candle: FootprintCandle5m<'_>,
-        participation: Condition,
+        participation: ParticipationContext<'_>,
     ) -> Condition {
         if self.state != SetupState::PotentialAbsorption {
             return Condition::False;
@@ -253,7 +280,11 @@ impl LongOrderflowSequence {
             return Condition::Unknown;
         };
 
-        let result = first_buyer_dominance_shift(candle, aggression.midpoint(), participation);
+        let result = first_buyer_dominance_shift(
+            candle,
+            aggression.midpoint(),
+            participation.evaluate(candle),
+        );
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::FirstDominanceShift)
         {
@@ -282,7 +313,7 @@ impl LongOrderflowSequence {
     pub fn record_second_test(
         &mut self,
         candle: FootprintCandle5m<'_>,
-        participation: Condition,
+        participation: ParticipationContext<'_>,
     ) -> Condition {
         if self.state != SetupState::WaitingSecondTest {
             return Condition::False;
@@ -294,7 +325,11 @@ impl LongOrderflowSequence {
 
         let result = all_conditions(&[
             genuine_second_seller_attempt(candle, dominance.midpoint()),
-            second_test_has_real_selling(candle, participation, first_failure_low),
+            second_test_has_real_selling(
+                candle,
+                participation.evaluate(candle),
+                first_failure_low,
+            ),
         ]);
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::SecondTest)
@@ -326,7 +361,7 @@ impl LongOrderflowSequence {
     pub fn record_reconfirmation(
         &mut self,
         candle: FootprintCandle5m<'_>,
-        participation: Condition,
+        participation: ParticipationContext<'_>,
     ) -> Condition {
         if self.state != SetupState::SecondFailure {
             return Condition::False;
@@ -335,11 +370,16 @@ impl LongOrderflowSequence {
             return Condition::Unknown;
         };
 
-        let result = buyer_reconfirmation(candle, test.midpoint(), participation);
+        let result = buyer_reconfirmation(
+            candle,
+            test.midpoint(),
+            participation.evaluate(candle),
+        );
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::FinalReconfirmation)
         {
             self.state = next;
+            self.reconfirmation = Some(candle.into());
         }
         result
     }

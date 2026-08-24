@@ -1,5 +1,8 @@
 use crate::footprint::delta_magnitude_at_least_prior20_median;
-use crate::{Condition, FootprintCandle5m, SetupState};
+use crate::{
+    Condition, Direction, FootprintCandle5m, LocationSetup, ParticipationContext, SetupState,
+    StructureKey,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct CandleSnapshot {
@@ -164,28 +167,34 @@ pub fn seller_reconfirmation(
     ])
 }
 
-/// §85 mirrored bearish state coordinator. It uses the same canonical §102 states as the long
-/// sequence and stops at FINAL_RECONFIRMATION; short authorization/risk/execution remain
-/// separate deterministic layers.
+/// §85 mirrored bearish state coordinator. It can only begin from an actual short
+/// LOCATION_REACHED lifecycle object, binds itself to that structure, and derives deterministic
+/// participation from raw volume context rather than caller-asserted pass flags.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShortOrderflowSequence {
+    structure: StructureKey,
     state: SetupState,
     aggression: Option<CandleSnapshot>,
     dominance: Option<CandleSnapshot>,
     second_test: Option<CandleSnapshot>,
+    reconfirmation: Option<CandleSnapshot>,
     first_failure_high: Option<f64>,
 }
 
 impl ShortOrderflowSequence {
     #[must_use]
-    pub fn from_location_reached(state: SetupState) -> Option<Self> {
-        (state == SetupState::LocationReached).then_some(Self {
-            state,
-            aggression: None,
-            dominance: None,
-            second_test: None,
-            first_failure_high: None,
-        })
+    pub fn from_location_reached(location: &LocationSetup) -> Option<Self> {
+        let structure = location.structure();
+        (location.state() == SetupState::LocationReached && structure.direction == Direction::Short)
+            .then_some(Self {
+                structure,
+                state: SetupState::LocationReached,
+                aggression: None,
+                dominance: None,
+                second_test: None,
+                reconfirmation: None,
+                first_failure_high: None,
+            })
     }
 
     #[must_use]
@@ -193,17 +202,33 @@ impl ShortOrderflowSequence {
         self.state
     }
 
+    #[must_use]
+    pub(crate) const fn structure(self) -> StructureKey {
+        self.structure
+    }
+
+    #[must_use]
+    pub(crate) fn first_failure_extreme(self) -> Option<f64> {
+        self.first_failure_high
+    }
+
+    #[must_use]
+    pub(crate) fn reconfirmation_extreme(self) -> Option<f64> {
+        self.reconfirmation.map(|candle| candle.low)
+    }
+
     pub fn record_aggression(
         &mut self,
         candle: FootprintCandle5m<'_>,
         previous_20_completed_deltas: &[i64],
-        participation: Condition,
+        participation: ParticipationContext<'_>,
         buyer_effort_failed: Condition,
     ) -> Condition {
         if self.state != SetupState::LocationReached {
             return Condition::False;
         }
 
+        let participation = participation.evaluate(candle);
         let aggression = buyer_aggression(candle, previous_20_completed_deltas, participation);
         let at_extreme = candle.aggression_at_short_extreme();
         let result = all_conditions(&[aggression, at_extreme, buyer_effort_failed]);
@@ -218,6 +243,7 @@ impl ShortOrderflowSequence {
 
     /// §91 says FIRST_FAILURE_HIGH is stored but does not specify a machine extraction
     /// algorithm, so it remains an explicit finite input rather than an invented candle rule.
+    /// Once accepted, the stored value is the only one later order construction may use.
     pub fn record_absorption(&mut self, first_failure_high: f64) -> Condition {
         if self.state != SetupState::AggressionPresent {
             return Condition::False;
@@ -242,7 +268,7 @@ impl ShortOrderflowSequence {
     pub fn record_first_dominance_shift(
         &mut self,
         candle: FootprintCandle5m<'_>,
-        participation: Condition,
+        participation: ParticipationContext<'_>,
     ) -> Condition {
         if self.state != SetupState::PotentialAbsorption {
             return Condition::False;
@@ -251,7 +277,11 @@ impl ShortOrderflowSequence {
             return Condition::Unknown;
         };
 
-        let result = first_seller_dominance_shift(candle, aggression.midpoint(), participation);
+        let result = first_seller_dominance_shift(
+            candle,
+            aggression.midpoint(),
+            participation.evaluate(candle),
+        );
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::FirstDominanceShift)
         {
@@ -277,7 +307,7 @@ impl ShortOrderflowSequence {
     pub fn record_second_test(
         &mut self,
         candle: FootprintCandle5m<'_>,
-        participation: Condition,
+        participation: ParticipationContext<'_>,
     ) -> Condition {
         if self.state != SetupState::WaitingSecondTest {
             return Condition::False;
@@ -289,7 +319,11 @@ impl ShortOrderflowSequence {
 
         let result = all_conditions(&[
             genuine_second_buyer_attempt(candle, dominance.midpoint()),
-            second_test_has_real_buying(candle, participation, first_failure_high),
+            second_test_has_real_buying(
+                candle,
+                participation.evaluate(candle),
+                first_failure_high,
+            ),
         ]);
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::SecondTest)
@@ -321,7 +355,7 @@ impl ShortOrderflowSequence {
     pub fn record_reconfirmation(
         &mut self,
         candle: FootprintCandle5m<'_>,
-        participation: Condition,
+        participation: ParticipationContext<'_>,
     ) -> Condition {
         if self.state != SetupState::SecondFailure {
             return Condition::False;
@@ -330,11 +364,16 @@ impl ShortOrderflowSequence {
             return Condition::Unknown;
         };
 
-        let result = seller_reconfirmation(candle, test.midpoint(), participation);
+        let result = seller_reconfirmation(
+            candle,
+            test.midpoint(),
+            participation.evaluate(candle),
+        );
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::FinalReconfirmation)
         {
             self.state = next;
+            self.reconfirmation = Some(candle.into());
         }
         result
     }
