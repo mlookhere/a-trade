@@ -1,3 +1,4 @@
+use crate::footprint::delta_magnitude_at_least_prior20_median;
 use crate::{Condition, FootprintCandle5m, ParticipationRule, SetupState, participation_valid};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -35,19 +36,15 @@ pub fn seller_aggression(
     if !candle.valid() {
         return Condition::Unknown;
     }
-    let Some((middle_low, middle_high)) = median_abs_delta_pair(previous_20_completed_deltas)
-    else {
-        return Condition::Unknown;
-    };
-
-    let delta_large_enough = u128::from(candle.candle_delta.unsigned_abs()) * 2
-        >= u128::from(middle_low) + u128::from(middle_high);
 
     all_conditions(&[
         Condition::from(candle.candle_delta < 0),
         candle.has_sell_imbalance_lower_half(),
         participation,
-        Condition::from(delta_large_enough),
+        delta_magnitude_at_least_prior20_median(
+            candle.candle_delta,
+            previous_20_completed_deltas,
+        ),
     ])
 }
 
@@ -371,18 +368,6 @@ fn snapshot_absorption(candle: CandleSnapshot) -> Condition {
         Condition::from(wick_rejection),
         Condition::from(bullish_or_upper_half),
     ])
-}
-
-fn median_abs_delta_pair(values: &[i64]) -> Option<(u64, u64)> {
-    if values.len() != 20 {
-        return None;
-    }
-    let mut sorted = [0_u64; 20];
-    for (destination, source) in sorted.iter_mut().zip(values.iter().copied()) {
-        *destination = source.unsigned_abs();
-    }
-    sorted.sort_unstable();
-    Some((sorted[9], sorted[10]))
 }
 
 fn all_conditions(conditions: &[Condition]) -> Condition {
