@@ -41,10 +41,7 @@ pub fn seller_aggression(
         Condition::from(candle.candle_delta < 0),
         candle.has_sell_imbalance_lower_half(),
         participation,
-        delta_magnitude_at_least_prior20_median(
-            candle.candle_delta,
-            previous_20_completed_deltas,
-        ),
+        delta_magnitude_at_least_prior20_median(candle.candle_delta, previous_20_completed_deltas),
     ])
 }
 
