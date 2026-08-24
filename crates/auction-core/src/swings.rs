@@ -86,7 +86,10 @@ pub fn confirmed_swings(bars: &[Bar15]) -> Vec<ConfirmedSwing> {
 /// complete bullish impulse.
 #[must_use]
 pub fn latest_bullish_impulse(swings: &[ConfirmedSwing]) -> Option<SwingImpulse> {
-    let low = swings.iter().rev().find(|swing| swing.kind == SwingKind::Low)?;
+    let low = swings
+        .iter()
+        .rev()
+        .find(|swing| swing.kind == SwingKind::Low)?;
     let high = swings
         .iter()
         .rev()
