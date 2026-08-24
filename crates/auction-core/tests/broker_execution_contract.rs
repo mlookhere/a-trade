@@ -1,7 +1,7 @@
 use auction_core::{
     BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition,
     Direction, ExecutionCoordinator, ExecutionGateContext, ExecutionStatus, OrderProposal,
-    OrderType, PreExecutionAuthority, ProductionConditions, RejectionCode,
+    OrderType, PreExecutionAuthority, ProcessViolationScope, ProductionConditions, RejectionCode,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -176,8 +176,19 @@ fn context<'a>(owner: &'a str) -> ExecutionGateContext<'a> {
     }
 }
 
+fn operationally_ready(broker: MockBroker) -> ExecutionCoordinator<MockBroker> {
+    let mut coordinator = ExecutionCoordinator::new(broker);
+    coordinator
+        .operational_safety_mut()
+        .set_operational_risk_clear(Condition::True);
+    coordinator
+        .operational_safety_mut()
+        .observe_emergency_drawdown(Condition::False);
+    coordinator
+}
+
 fn registered() -> ExecutionCoordinator<MockBroker> {
-    let mut coordinator = ExecutionCoordinator::new(MockBroker::default());
+    let mut coordinator = operationally_ready(MockBroker::default());
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
     coordinator
 }
@@ -197,7 +208,7 @@ fn section_16_every_unknown_broker_reconciliation_field_fails_closed() {
             reconciliation: Ok(reconciliation),
             ..Default::default()
         };
-        let mut coordinator = ExecutionCoordinator::new(broker);
+        let mut coordinator = operationally_ready(broker);
         coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
         assert_eq!(
             coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
@@ -214,7 +225,7 @@ fn sections_16_122_false_broker_state_and_invalid_data_fail_closed() {
         reconciliation: Ok(reconciliation),
         ..Default::default()
     };
-    let mut coordinator = ExecutionCoordinator::new(broker);
+    let mut coordinator = operationally_ready(broker);
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
     assert_eq!(
         coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
@@ -232,7 +243,7 @@ fn sections_16_122_false_broker_state_and_invalid_data_fail_closed() {
 
 #[test]
 fn sections_8_9_103_missing_setup_wrong_owner_and_duplicate_reservation_reject() {
-    let mut missing = ExecutionCoordinator::new(MockBroker::default());
+    let mut missing = operationally_ready(MockBroker::default());
     assert_eq!(
         missing.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
         Err(RejectionCode::ProcessError)
@@ -273,7 +284,7 @@ fn section_9_reconciled_broker_order_or_position_for_same_setup_rejects_duplicat
             reconciliation: Ok(reconciliation),
             ..Default::default()
         };
-        let mut coordinator = ExecutionCoordinator::new(broker);
+        let mut coordinator = operationally_ready(broker);
         coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
         assert_eq!(
             coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
@@ -291,7 +302,7 @@ fn section_64_protected_bracket_capability_must_be_true_no_fallback_is_invented(
             },
             ..Default::default()
         };
-        let mut coordinator = ExecutionCoordinator::new(broker);
+        let mut coordinator = operationally_ready(broker);
         coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
         assert_eq!(
             coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
@@ -313,7 +324,7 @@ fn sections_109_110_122_gate_recalculates_final_authority_and_promotes_only_opaq
 
     let mut manually_promoted = proposal("SETUP-MANUAL", "MNQ");
     manually_promoted.execution_pass = Condition::True;
-    let mut other = ExecutionCoordinator::new(MockBroker::default());
+    let mut other = operationally_ready(MockBroker::default());
     other.register_setup("SETUP-MANUAL", "MNQ_AGENT").unwrap();
     assert_eq!(
         other.gate(&manually_promoted, context("MNQ_AGENT")),
@@ -394,7 +405,7 @@ fn section_8_immediate_fill_consumes_setup_and_section_64_confirms_stop() {
         stop_state: Ok(Condition::True),
         ..Default::default()
     };
-    let mut coordinator = ExecutionCoordinator::new(broker);
+    let mut coordinator = operationally_ready(broker);
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
 
     let permit = coordinator
@@ -454,7 +465,7 @@ fn section_64_false_or_unknown_stop_confirmation_flattens_and_disables_shared_en
             stop_state: Ok(stop_state),
             ..Default::default()
         };
-        let mut coordinator = ExecutionCoordinator::new(broker);
+        let mut coordinator = operationally_ready(broker);
         coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
         coordinator.register_setup("UNRELATED", "ES_AGENT").unwrap();
 
@@ -487,7 +498,7 @@ fn section_64_stop_confirmation_adapter_error_also_flattens() {
         stop_state: Err(MockError::Failure),
         ..Default::default()
     };
-    let mut coordinator = ExecutionCoordinator::new(broker);
+    let mut coordinator = operationally_ready(broker);
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
 
     let permit = coordinator
@@ -509,7 +520,7 @@ fn section_64_flatten_failure_remains_broker_unsafe_and_consumed() {
         flatten_result: Err(MockError::Failure),
         ..Default::default()
     };
-    let mut coordinator = ExecutionCoordinator::new(broker);
+    let mut coordinator = operationally_ready(broker);
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
 
     let permit = coordinator
@@ -527,7 +538,7 @@ fn submission_error_does_not_retry_and_disables_shared_execution_engine() {
         submission: Err(MockError::Failure),
         ..Default::default()
     };
-    let mut coordinator = ExecutionCoordinator::new(broker);
+    let mut coordinator = operationally_ready(broker);
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
 
     let permit = coordinator
@@ -575,6 +586,57 @@ fn pre_submit_reconciliation_change_rejects_without_transmitting() {
     );
     assert_eq!(coordinator.adapter().submit_calls, 0);
     assert_eq!(coordinator.execution_engine_safe(), Condition::True);
+    assert!(
+        !coordinator
+            .setup_status("SETUP-14")
+            .unwrap()
+            .order_active_or_reserved
+    );
+}
+
+#[test]
+fn sections_98_100_execution_gate_cannot_bypass_unknown_or_disabled_operational_safety() {
+    let mut coordinator = ExecutionCoordinator::new(MockBroker::default());
+    coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
+
+    assert_eq!(
+        coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
+        Err(RejectionCode::ProcessError)
+    );
+    assert_eq!(coordinator.adapter().reconcile_calls, 0);
+
+    coordinator
+        .operational_safety_mut()
+        .set_operational_risk_clear(Condition::True);
+    coordinator
+        .operational_safety_mut()
+        .observe_emergency_drawdown(Condition::False);
+    coordinator
+        .operational_safety_mut()
+        .record_process_violation(ProcessViolationScope::Agent("MNQ_AGENT".to_owned()))
+        .unwrap();
+
+    assert_eq!(
+        coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
+        Err(RejectionCode::ProcessError)
+    );
+    assert_eq!(coordinator.adapter().reconcile_calls, 0);
+}
+
+#[test]
+fn section_100_kill_switch_firing_after_gate_blocks_transmission() {
+    let mut coordinator = registered();
+    let permit = coordinator
+        .gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT"))
+        .unwrap();
+
+    coordinator
+        .operational_safety_mut()
+        .record_process_violation(ProcessViolationScope::SharedInfrastructure)
+        .unwrap();
+
+    assert_eq!(coordinator.submit(permit), Err(RejectionCode::ProcessError));
+    assert_eq!(coordinator.adapter().submit_calls, 0);
     assert!(
         !coordinator
             .setup_status("SETUP-14")

@@ -164,6 +164,24 @@
       "provenance": "schedule FALSE/UNKNOWN or invalid configured windows yield NEWS_BLACKOUT_CLEAR UNKNOWN and fail closed"
     }
   },
+  "implemented_in_issue_18": {
+    "operational_risk_gate": {
+      "sections": [98, 108],
+      "provenance": "caller-validated operational-clear facts are aggregated as TRUE/FALSE/UNKNOWN; canonical §98 malfunction examples are not promoted into an exhaustive hard-coded taxonomy"
+    },
+    "emergency_session_drawdown": {
+      "sections": [99],
+      "provenance": "session drawdown fraction and threshold are externally supplied; no universal percentage or session-equity drawdown derivation is embedded; reaching the configured threshold latches whole-system automation disabled"
+    },
+    "process_violation_kill_switch": {
+      "sections": [100, 101],
+      "provenance": "confirmed agent-local violations latch only that agent disabled; caller-explicit shared-infrastructure origin latches the whole system disabled; scope is never inferred"
+    },
+    "execution_safety_integration": {
+      "sections": [98, 99, 100, 101, 109, 122],
+      "provenance": "ExecutionCoordinator requires operational safety TRUE before issuing a permit and rechecks the permit owner immediately before broker transmission; default operational safety is UNKNOWN and fail-closed"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
