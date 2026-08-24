@@ -102,15 +102,45 @@ impl ReplayOutcome {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplayCaseEvidence {
-    pub case_id: String,
-    pub setup_id: String,
-    pub session_id: String,
-    pub phase: ValidationPhase,
-    pub expected: ReplayOutcome,
-    pub observed: ReplayOutcome,
+    case_id: String,
+    setup_id: String,
+    session_id: String,
+    phase: ValidationPhase,
+    expected: ReplayOutcome,
+    observed: ReplayOutcome,
 }
 
 impl ReplayCaseEvidence {
+    #[must_use]
+    pub fn case_id(&self) -> &str {
+        &self.case_id
+    }
+
+    #[must_use]
+    pub fn setup_id(&self) -> &str {
+        &self.setup_id
+    }
+
+    #[must_use]
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    #[must_use]
+    pub const fn phase(&self) -> ValidationPhase {
+        self.phase
+    }
+
+    #[must_use]
+    pub const fn expected(&self) -> ReplayOutcome {
+        self.expected
+    }
+
+    #[must_use]
+    pub const fn observed(&self) -> ReplayOutcome {
+        self.observed
+    }
+
     #[must_use]
     pub fn exact_match(&self) -> bool {
         self.expected == self.observed
@@ -128,6 +158,8 @@ pub enum ReplayEvidenceError {
     InvalidOutcome,
     EmptyEvidence,
     MixedPhases,
+    DuplicateCaseId,
+    DuplicateSetupEvidence,
 }
 
 impl From<ValidationManifestError> for ReplayEvidenceError {
@@ -200,6 +232,17 @@ pub fn summarize_replay(
     }
     if evidence.iter().any(|case| case.phase != phase) {
         return Err(ReplayEvidenceError::MixedPhases);
+    }
+
+    let mut case_ids = HashSet::with_capacity(evidence.len());
+    let mut setup_keys = HashSet::with_capacity(evidence.len());
+    for case in evidence {
+        if !case_ids.insert(case.case_id.as_str()) {
+            return Err(ReplayEvidenceError::DuplicateCaseId);
+        }
+        if !setup_keys.insert((case.session_id.as_str(), case.setup_id.as_str())) {
+            return Err(ReplayEvidenceError::DuplicateSetupEvidence);
+        }
     }
 
     let total_cases = evidence.len();
