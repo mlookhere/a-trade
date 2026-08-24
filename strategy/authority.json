@@ -146,6 +146,24 @@
       "provenance": "provider-neutral execution contract only; broker-specific retry, partial-fill, replace, cancel, and routing behavior remains unsupported until specified"
     }
   },
+  "implemented_in_issue_16": {
+    "scheduled_news_window": {
+      "sections": [95],
+      "provenance": "blackout intervals are externally validated/configured; ordinary T-5 through T+5 is example-only and is not a code default"
+    },
+    "news_blackout_all_subagents": {
+      "sections": [96],
+      "provenance": "canonical shared entry block during blackout; existing-position management remains enabled"
+    },
+    "post_blackout_setup_reset": {
+      "sections": [58, 96],
+      "provenance": "candidate setup sequence must start at or after the latest ended blackout; pre-event or in-blackout setup sequences cannot be revived"
+    },
+    "news_schedule_health": {
+      "sections": [10, 108, 122],
+      "provenance": "schedule FALSE/UNKNOWN or invalid configured windows yield NEWS_BLACKOUT_CLEAR UNKNOWN and fail closed"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,

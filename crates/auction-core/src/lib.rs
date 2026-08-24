@@ -10,6 +10,7 @@ pub mod footprint;
 pub mod location;
 pub mod long_orderflow;
 pub mod market;
+pub mod news;
 pub mod order_risk;
 pub mod rejection;
 pub mod session;
@@ -46,6 +47,7 @@ pub use long_orderflow::{
     second_test_has_real_selling, seller_aggression,
 };
 pub use market::{Direction, MarketState, direction_allowed};
+pub use news::{NewsBlackoutWindow, NewsGateEvaluation, evaluate_news_gate};
 pub use order_risk::{
     ClusterExposure, FuturesRiskInputs, InstrumentExecutionConfig, OrderProposal,
     OrderProposalInputs, OrderType, PortfolioRiskEvaluation, PortfolioRiskLimits, PositionSizing,
