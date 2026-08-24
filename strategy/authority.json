@@ -296,6 +296,24 @@
       "provenance": "offline contract corpus reuses existing deterministic production functions for authorization, time/news, stop-widening, operational-safety, and state-sequence boundaries; it is not a second strategy implementation and has no live execution authority"
     }
   },
+  "implemented_in_issue_34": {
+    "strategy_change_promotion_sequence": {
+      "sections": [116],
+      "provenance": "deterministic non-live evidence state machine preserves the exact hypothesis -> backtest -> out-of-sample -> paper/shadow -> approval -> new-version order; stages cannot be skipped, repeated, or reordered"
+    },
+    "replay_evidence_consumption": {
+      "sections": [116],
+      "provenance": "backtest and out-of-sample stages require structurally consistent ReplayReport evidence with the matching phase; structural consistency is an implementation integrity check only and report performance is not converted into an automatic acceptance threshold"
+    },
+    "paper_shadow_boundary": {
+      "sections": [116],
+      "provenance": "paper/shadow is represented only by an opaque external evidence identifier plus Paper or Shadow mode; no broker, fill, slippage, market-data, or simulation semantics are invented"
+    },
+    "approval_and_version_boundary": {
+      "sections": [116],
+      "provenance": "approval is externally supplied as TRUE/FALSE/UNKNOWN; UNKNOWN cannot advance and FALSE rejects the proposal; a TRUE decision permits recording only an externally supplied new version identifier distinct from the base version, with no live activation or deployment API"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
