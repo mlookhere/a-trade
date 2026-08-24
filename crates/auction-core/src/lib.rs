@@ -92,6 +92,7 @@ pub use swings::{
 };
 pub use truth::Condition;
 pub use validation::{
-    ReplayCaseEvidence, ReplayEvidenceError, ReplayOutcome, ReplayReport, ValidationDatasetManifest,
-    ValidationManifestError, ValidationPhase, record_replay_case, summarize_replay,
+    ReplayCaseEvidence, ReplayEvidenceError, ReplayOutcome, ReplayReport,
+    ValidationDatasetManifest, ValidationManifestError, ValidationPhase, record_replay_case,
+    summarize_replay,
 };
