@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
-    AuthorizationInputs, Condition, OperationalSafetyController, OrderProposal,
-    ProductionConditions, RejectionCode, trade_authorized,
-};
+use crate::{Condition, OperationalSafetyController, OrderProposal, RejectionCode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BrokerCapabilities {
@@ -16,6 +13,9 @@ pub struct BrokerReconciliation {
     pub broker_state_known: Condition,
     pub position_state_known: Condition,
     pub open_order_state_known: Condition,
+    /// Canonical §56 provider-neutral conflict fact. Adapter-specific conflict semantics remain
+    /// outside the strategy core; FALSE or UNKNOWN fails closed at the live Execution Gate.
+    pub no_conflicting_order: Condition,
     pub open_order_setup_ids: Vec<String>,
     pub position_setup_ids: Vec<String>,
 }
@@ -205,19 +205,12 @@ impl SetupRegistry {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PreExecutionAuthority {
-    pub llm_setup_pass: Condition,
-    pub strategy_validator_pass: Condition,
-    pub risk_engine_pass: Condition,
-    pub portfolio_coordinator_pass: Condition,
-}
-
+/// Live §109 execution context. Strategy/Risk/Portfolio authority is carried inside the sealed
+/// proposal; the only advisory input accepted here is LLM_SETUP_PASS.
 #[derive(Debug, Clone, Copy)]
 pub struct ExecutionGateContext<'a> {
     pub submitting_agent_id: &'a str,
-    pub production_conditions: ProductionConditions,
-    pub authority: PreExecutionAuthority,
+    pub llm_setup_pass: Condition,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -293,6 +286,8 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         self.registry.status(setup_id)
     }
 
+    /// Canonical §§6,56,64,103,109,122 live Execution Gate. Strategy/Risk/Portfolio pass flags
+    /// cannot be supplied here; they are sealed by deterministic upstream components.
     pub fn gate(
         &mut self,
         proposal: &OrderProposal,
@@ -304,6 +299,9 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         if context.submitting_agent_id.trim().is_empty() {
             return Err(RejectionCode::ProcessError);
         }
+        if context.llm_setup_pass != Condition::True {
+            return Err(RejectionCode::ProcessError);
+        }
         if self
             .operational_safety
             .agent_automation_allowed(context.submitting_agent_id)
@@ -311,31 +309,19 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         {
             return Err(RejectionCode::ProcessError);
         }
-        if proposal.execution_pass != Condition::Unknown {
-            return Err(RejectionCode::ProcessError);
-        }
-        if proposal.strategy_pass != Condition::True {
-            return Err(RejectionCode::ProcessError);
-        }
-        if proposal.risk_pass != Condition::True {
-            return Err(RejectionCode::RiskRejected);
-        }
-        if proposal.portfolio_pass != Condition::True {
-            return Err(RejectionCode::PortfolioRiskRejected);
-        }
-        if context.production_conditions.data_valid != Condition::True {
-            return Err(RejectionCode::DataInvalid);
-        }
-        if context.authority.risk_engine_pass != Condition::True {
-            return Err(RejectionCode::RiskRejected);
-        }
-        if context.authority.portfolio_coordinator_pass != Condition::True {
-            return Err(RejectionCode::PortfolioRiskRejected);
-        }
-        if context.authority.llm_setup_pass != Condition::True
-            || context.authority.strategy_validator_pass != Condition::True
+        if proposal.execution_pass() != Condition::Unknown
+            || proposal.strategy_pass() != Condition::True
         {
             return Err(RejectionCode::ProcessError);
+        }
+        if proposal.risk_pass() != Condition::True {
+            return Err(RejectionCode::RiskRejected);
+        }
+        if proposal.portfolio_pass() != Condition::True {
+            return Err(RejectionCode::PortfolioRiskRejected);
+        }
+        if proposal.owner_agent_id() != context.submitting_agent_id {
+            return Err(RejectionCode::DuplicateSetup);
         }
         if self.adapter.capabilities().protected_stop_limit_bracket != Condition::True {
             return Err(RejectionCode::BrokerUnsafe);
@@ -348,44 +334,31 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         if reconciliation.broker_safe() != Condition::True {
             return Err(RejectionCode::BrokerUnsafe);
         }
-        if reconciliation.setup_clear(&proposal.setup_id) != Condition::True {
+        if reconciliation.no_conflicting_order != Condition::True {
+            return Err(RejectionCode::ProcessError);
+        }
+        if reconciliation.setup_clear(proposal.setup_id()) != Condition::True {
             return Err(RejectionCode::DuplicateSetup);
         }
 
-        let Some(record) = self.registry.execution_record(&proposal.setup_id) else {
+        let Some(record) = self.registry.execution_record(proposal.setup_id()) else {
             return Err(RejectionCode::ProcessError);
         };
         if record.owner_agent_id != context.submitting_agent_id
+            || record.owner_agent_id != proposal.owner_agent_id()
             || record.consumed
             || record.order_active_or_reserved
         {
             return Err(RejectionCode::DuplicateSetup);
         }
 
-        // Broker reconciliation proves the exact SETUP_ID is clear, but it does not prove that
-        // upstream strategy/portfolio checks found no effective duplicate or conflicting order.
-        // Preserve those independent fail-closed facts rather than overwriting them.
-        let mut conditions = context.production_conditions;
-        conditions.broker_safe = Condition::True;
-        conditions.execution_engine_safe = Condition::True;
-        let authority = AuthorizationInputs {
-            llm_setup_pass: context.authority.llm_setup_pass,
-            strategy_validator_pass: context.authority.strategy_validator_pass,
-            risk_engine_pass: context.authority.risk_engine_pass,
-            portfolio_coordinator_pass: context.authority.portfolio_coordinator_pass,
-            execution_gate_pass: Condition::True,
-        };
-        if !trade_authorized(conditions, authority) {
-            return Err(RejectionCode::ProcessError);
-        }
-
         self.registry.reserve_for_submission(
-            &proposal.setup_id,
+            proposal.setup_id(),
             context.submitting_agent_id,
-            &proposal.instrument,
+            proposal.instrument(),
         )?;
         let mut approved = proposal.clone();
-        approved.execution_pass = Condition::True;
+        approved.mark_execution_pass();
         Ok(ExecutionPermit {
             proposal: approved,
             owner_agent_id: context.submitting_agent_id.to_owned(),
@@ -396,7 +369,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         if !self.engine_safe {
             return Err(RejectionCode::BrokerUnsafe);
         }
-        let setup_id = permit.proposal.setup_id.clone();
+        let setup_id = permit.proposal.setup_id().to_owned();
         if self
             .operational_safety
             .agent_automation_allowed(&permit.owner_agent_id)
@@ -419,6 +392,10 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         if reconciliation.broker_safe() != Condition::True {
             self.registry.clear_reservation(&setup_id);
             return Err(RejectionCode::BrokerUnsafe);
+        }
+        if reconciliation.no_conflicting_order != Condition::True {
+            self.registry.clear_reservation(&setup_id);
+            return Err(RejectionCode::ProcessError);
         }
         if reconciliation.setup_clear(&setup_id) != Condition::True {
             self.registry.clear_reservation(&setup_id);
@@ -489,12 +466,12 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
 
     fn reservation_valid(&self, proposal: &OrderProposal) -> bool {
         self.registry
-            .execution_record(&proposal.setup_id)
+            .execution_record(proposal.setup_id())
             .is_some_and(|record| {
                 record.order_active_or_reserved
                     && !record.consumed
                     && record.broker_order_id.is_none()
-                    && record.instrument.as_deref() == Some(proposal.instrument.as_str())
+                    && record.instrument.as_deref() == Some(proposal.instrument())
             })
     }
 

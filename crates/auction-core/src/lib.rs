@@ -37,8 +37,8 @@ pub use audit::{
 pub use authorization::{AuthorizationInputs, ProductionConditions, trade_authorized};
 pub use broker_execution::{
     BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission,
-    ExecutionCoordinator, ExecutionGateContext, ExecutionPermit, ExecutionStatus,
-    PreExecutionAuthority, SetupRegistry, SetupRegistryStatus,
+    ExecutionCoordinator, ExecutionGateContext, ExecutionPermit, ExecutionStatus, SetupRegistry,
+    SetupRegistryStatus,
 };
 pub use data::{
     DataCycleReadiness, DataHealth, GammaContext, GammaInterpretation, GammaRegime,

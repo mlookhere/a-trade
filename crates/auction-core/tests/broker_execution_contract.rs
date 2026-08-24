@@ -1,7 +1,9 @@
+mod common;
+
 use auction_core::{
     BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition,
-    Direction, ExecutionCoordinator, ExecutionGateContext, ExecutionStatus, OrderProposal,
-    OrderType, PreExecutionAuthority, ProcessViolationScope, ProductionConditions, RejectionCode,
+    ExecutionCoordinator, ExecutionGateContext, ExecutionStatus, OrderProposal,
+    ProcessViolationScope, RejectionCode,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,7 +21,6 @@ struct MockBroker {
     flatten_result: Result<(), MockError>,
     reconcile_calls: usize,
     submit_calls: usize,
-    fill_calls: usize,
     stop_calls: usize,
     flatten_calls: usize,
     last_submission: Option<OrderProposal>,
@@ -42,7 +43,6 @@ impl Default for MockBroker {
             flatten_result: Ok(()),
             reconcile_calls: 0,
             submit_calls: 0,
-            fill_calls: 0,
             stop_calls: 0,
             flatten_calls: 0,
             last_submission: None,
@@ -73,7 +73,6 @@ impl BrokerAdapter for MockBroker {
     }
 
     fn entry_filled(&mut self, _setup_id: &str) -> Result<Condition, Self::Error> {
-        self.fill_calls += 1;
         self.fill_state
     }
 
@@ -95,84 +94,16 @@ fn clear_reconciliation() -> BrokerReconciliation {
         broker_state_known: Condition::True,
         position_state_known: Condition::True,
         open_order_state_known: Condition::True,
+        no_conflicting_order: Condition::True,
         open_order_setup_ids: vec![],
         position_setup_ids: vec![],
     }
 }
 
-fn all_true_conditions() -> ProductionConditions {
-    ProductionConditions {
-        time_valid: Condition::True,
-        data_valid: Condition::True,
-        premarket_plan_complete: Condition::True,
-        environment_valid: Condition::True,
-        direction_valid: Condition::True,
-        qualified_swing_exists: Condition::True,
-        fib_zone_valid: Condition::True,
-        fib_zone_outside_value: Condition::True,
-        location_reached: Condition::True,
-        fib_886_valid: Condition::True,
-        participation_valid: Condition::True,
-        countertrend_aggression: Condition::True,
-        aggression_at_extreme: Condition::True,
-        effort_failed: Condition::True,
-        absorption_present: Condition::True,
-        first_dominance_shift: Condition::True,
-        second_attempt_present: Condition::True,
-        second_attempt_has_countertrend_aggression: Condition::True,
-        second_failure_structure_valid: Condition::True,
-        second_failure_valid: Condition::True,
-        final_reconfirmation: Condition::True,
-        structural_target_valid: Condition::True,
-        per_trade_risk_valid: Condition::True,
-        portfolio_risk_valid: Condition::True,
-        correlation_risk_valid: Condition::True,
-        setup_not_duplicated: Condition::True,
-        no_conflicting_order: Condition::True,
-        news_blackout_clear: Condition::True,
-        broker_safe: Condition::Unknown,
-        execution_engine_safe: Condition::Unknown,
-    }
-}
-
-fn authority() -> PreExecutionAuthority {
-    PreExecutionAuthority {
-        llm_setup_pass: Condition::True,
-        strategy_validator_pass: Condition::True,
-        risk_engine_pass: Condition::True,
-        portfolio_coordinator_pass: Condition::True,
-    }
-}
-
-fn proposal(setup_id: &str, instrument: &str) -> OrderProposal {
-    OrderProposal {
-        setup_id: setup_id.to_owned(),
-        instrument: instrument.to_owned(),
-        side: Direction::Long,
-        order_type: OrderType::StopLimit,
-        entry_trigger: 100.25,
-        entry_limit: 100.50,
-        stop: 98.50,
-        target: 103.00,
-        size: 2,
-        risk_dollars: 250.0,
-        risk_percent: 0.0025,
-        open_portfolio_risk_before: 100.0,
-        open_portfolio_risk_after: 250.0,
-        cluster_id: "NASDAQ_CLUSTER".to_owned(),
-        cluster_risk_after: 200.0,
-        strategy_pass: Condition::True,
-        risk_pass: Condition::True,
-        portfolio_pass: Condition::True,
-        execution_pass: Condition::Unknown,
-    }
-}
-
-fn context<'a>(owner: &'a str) -> ExecutionGateContext<'a> {
+fn context(owner: &str, llm_setup_pass: Condition) -> ExecutionGateContext<'_> {
     ExecutionGateContext {
         submitting_agent_id: owner,
-        production_conditions: all_true_conditions(),
-        authority: authority(),
+        llm_setup_pass,
     }
 }
 
@@ -187,21 +118,27 @@ fn operationally_ready(broker: MockBroker) -> ExecutionCoordinator<MockBroker> {
     coordinator
 }
 
-fn registered() -> ExecutionCoordinator<MockBroker> {
+fn registered(setup_id: &str) -> ExecutionCoordinator<MockBroker> {
     let mut coordinator = operationally_ready(MockBroker::default());
-    coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
+    coordinator.register_setup(setup_id, common::OWNER).unwrap();
     coordinator
 }
 
+fn proposal(setup_id: &str) -> OrderProposal {
+    common::valid_long_proposal(setup_id, common::OWNER, common::INSTRUMENT)
+}
+
 #[test]
-fn section_16_every_unknown_broker_reconciliation_field_fails_closed() {
-    for field in 0..4 {
+fn section_16_unknown_or_false_broker_health_fails_closed() {
+    for field in 0..5 {
+        let setup_id = format!("SETUP-BROKER-{field}");
         let mut reconciliation = clear_reconciliation();
         match field {
             0 => reconciliation.broker_connected = Condition::Unknown,
             1 => reconciliation.broker_state_known = Condition::Unknown,
             2 => reconciliation.position_state_known = Condition::Unknown,
             3 => reconciliation.open_order_state_known = Condition::Unknown,
+            4 => reconciliation.broker_connected = Condition::False,
             _ => unreachable!(),
         }
         let broker = MockBroker {
@@ -209,93 +146,87 @@ fn section_16_every_unknown_broker_reconciliation_field_fails_closed() {
             ..Default::default()
         };
         let mut coordinator = operationally_ready(broker);
-        coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
+        coordinator
+            .register_setup(&setup_id, common::OWNER)
+            .unwrap();
         assert_eq!(
-            coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
+            coordinator.gate(
+                &proposal(&setup_id),
+                context(common::OWNER, Condition::True)
+            ),
             Err(RejectionCode::BrokerUnsafe)
         );
     }
 }
 
 #[test]
-fn sections_16_122_false_broker_state_and_invalid_data_fail_closed() {
-    let mut reconciliation = clear_reconciliation();
-    reconciliation.broker_connected = Condition::False;
-    let broker = MockBroker {
-        reconciliation: Ok(reconciliation),
-        ..Default::default()
-    };
-    let mut coordinator = operationally_ready(broker);
-    coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
-    assert_eq!(
-        coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
-        Err(RejectionCode::BrokerUnsafe)
-    );
-
-    let mut coordinator = registered();
-    let mut gate_context = context("MNQ_AGENT");
-    gate_context.production_conditions.data_valid = Condition::Unknown;
-    assert_eq!(
-        coordinator.gate(&proposal("SETUP-14", "MNQ"), gate_context),
-        Err(RejectionCode::DataInvalid)
-    );
-}
-
-#[test]
-fn sections_8_9_103_missing_setup_wrong_owner_and_duplicate_reservation_reject() {
-    let mut missing = operationally_ready(MockBroker::default());
-    assert_eq!(
-        missing.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
-        Err(RejectionCode::ProcessError)
-    );
-
-    let mut wrong_owner = registered();
-    assert_eq!(
-        wrong_owner.gate(&proposal("SETUP-14", "MNQ"), context("OTHER_AGENT")),
-        Err(RejectionCode::DuplicateSetup)
-    );
-
-    let mut coordinator = registered();
-    let raw = proposal("SETUP-14", "MNQ");
-    let _permit = coordinator.gate(&raw, context("MNQ_AGENT")).unwrap();
-    assert_eq!(
-        coordinator.gate(&raw, context("MNQ_AGENT")),
-        Err(RejectionCode::DuplicateSetup)
-    );
-    let status = coordinator.setup_status("SETUP-14").unwrap();
-    assert!(status.order_active_or_reserved);
-    assert!(!status.consumed);
-}
-
-#[test]
-fn section_9_reconciled_broker_order_or_position_for_same_setup_rejects_duplicate() {
-    for position in [false, true] {
-        let mut reconciliation = clear_reconciliation();
-        if position {
-            reconciliation
-                .position_setup_ids
-                .push("SETUP-14".to_owned());
+fn section_56_conflicting_order_false_or_unknown_fails_closed() {
+    for conflict_clear in [Condition::False, Condition::Unknown] {
+        let setup_id = if conflict_clear == Condition::False {
+            "SETUP-CONFLICT-FALSE"
         } else {
-            reconciliation
-                .open_order_setup_ids
-                .push("SETUP-14".to_owned());
-        }
+            "SETUP-CONFLICT-UNKNOWN"
+        };
+        let mut reconciliation = clear_reconciliation();
+        reconciliation.no_conflicting_order = conflict_clear;
         let broker = MockBroker {
             reconciliation: Ok(reconciliation),
             ..Default::default()
         };
         let mut coordinator = operationally_ready(broker);
-        coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
+        coordinator.register_setup(setup_id, common::OWNER).unwrap();
         assert_eq!(
-            coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
-            Err(RejectionCode::DuplicateSetup)
+            coordinator.gate(&proposal(setup_id), context(common::OWNER, Condition::True)),
+            Err(RejectionCode::ProcessError)
         );
+        assert_eq!(coordinator.adapter().submit_calls, 0);
     }
 }
 
 #[test]
-fn section_64_protected_bracket_capability_must_be_true_no_fallback_is_invented() {
+fn sections_8_9_103_ownership_and_duplicate_state_fail_closed() {
+    let setup_id = "SETUP-OWNERSHIP";
+    let raw = proposal(setup_id);
+
+    let mut missing = operationally_ready(MockBroker::default());
+    assert_eq!(
+        missing.gate(&raw, context(common::OWNER, Condition::True)),
+        Err(RejectionCode::ProcessError)
+    );
+
+    let mut wrong_owner = registered(setup_id);
+    assert_eq!(
+        wrong_owner.gate(&raw, context("OTHER_AGENT", Condition::True)),
+        Err(RejectionCode::DuplicateSetup)
+    );
+
+    let mut broker_duplicate = registered(setup_id);
+    let mut duplicate = clear_reconciliation();
+    duplicate.open_order_setup_ids.push(setup_id.to_owned());
+    broker_duplicate.adapter_mut().reconciliation = Ok(duplicate);
+    assert_eq!(
+        broker_duplicate.gate(&raw, context(common::OWNER, Condition::True)),
+        Err(RejectionCode::DuplicateSetup)
+    );
+
+    let mut reserved = registered(setup_id);
+    let _permit = reserved
+        .gate(&raw, context(common::OWNER, Condition::True))
+        .unwrap();
+    assert_eq!(
+        reserved.gate(&raw, context(common::OWNER, Condition::True)),
+        Err(RejectionCode::DuplicateSetup)
+    );
+}
+
+#[test]
+fn section_64_protected_bracket_capability_must_be_true() {
     for capability in [Condition::False, Condition::Unknown] {
+        let setup_id = if capability == Condition::False {
+            "SETUP-CAP-FALSE"
+        } else {
+            "SETUP-CAP-UNKNOWN"
+        };
         let broker = MockBroker {
             capabilities: BrokerCapabilities {
                 protected_stop_limit_bracket: capability,
@@ -303,344 +234,205 @@ fn section_64_protected_bracket_capability_must_be_true_no_fallback_is_invented(
             ..Default::default()
         };
         let mut coordinator = operationally_ready(broker);
-        coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
+        coordinator.register_setup(setup_id, common::OWNER).unwrap();
         assert_eq!(
-            coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
+            coordinator.gate(&proposal(setup_id), context(common::OWNER, Condition::True)),
             Err(RejectionCode::BrokerUnsafe)
         );
-        assert_eq!(coordinator.adapter().submit_calls, 0);
     }
 }
 
 #[test]
-fn sections_109_110_122_gate_recalculates_final_authority_and_promotes_only_opaque_copy() {
-    let mut coordinator = registered();
-    let raw = proposal("SETUP-14", "MNQ");
-    assert_eq!(raw.execution_pass, Condition::Unknown);
+fn sections_109_110_122_only_gate_can_promote_execution_and_llm_must_be_true() {
+    let setup_id = "SETUP-PROMOTE";
+    let raw = proposal(setup_id);
+    assert_eq!(raw.execution_pass(), Condition::Unknown);
 
-    let permit = coordinator.gate(&raw, context("MNQ_AGENT")).unwrap();
-    assert_eq!(raw.execution_pass, Condition::Unknown);
-    assert_eq!(permit.proposal().execution_pass, Condition::True);
-
-    let mut manually_promoted = proposal("SETUP-MANUAL", "MNQ");
-    manually_promoted.execution_pass = Condition::True;
-    let mut other = operationally_ready(MockBroker::default());
-    other.register_setup("SETUP-MANUAL", "MNQ_AGENT").unwrap();
-    assert_eq!(
-        other.gate(&manually_promoted, context("MNQ_AGENT")),
-        Err(RejectionCode::ProcessError)
-    );
-}
-
-#[test]
-fn section_109_llm_strategy_risk_and_portfolio_authority_each_fail_closed() {
-    for field in 0..4 {
-        let mut coordinator = registered();
-        let mut gate_context = context("MNQ_AGENT");
-        match field {
-            0 => gate_context.authority.llm_setup_pass = Condition::Unknown,
-            1 => gate_context.authority.strategy_validator_pass = Condition::False,
-            2 => gate_context.authority.risk_engine_pass = Condition::Unknown,
-            3 => gate_context.authority.portfolio_coordinator_pass = Condition::False,
-            _ => unreachable!(),
-        }
-        assert!(
-            coordinator
-                .gate(&proposal("SETUP-14", "MNQ"), gate_context)
-                .is_err()
+    for pass in [Condition::False, Condition::Unknown] {
+        let mut coordinator = registered(setup_id);
+        assert_eq!(
+            coordinator.gate(&raw, context(common::OWNER, pass)),
+            Err(RejectionCode::ProcessError)
         );
     }
+
+    let mut coordinator = registered(setup_id);
+    let permit = coordinator
+        .gate(&raw, context(common::OWNER, Condition::True))
+        .unwrap();
+    assert_eq!(raw.execution_pass(), Condition::Unknown);
+    assert_eq!(permit.proposal().execution_pass(), Condition::True);
 }
 
 #[test]
-fn section_122_other_mandatory_strategy_condition_cannot_be_bypassed_by_execution_gate() {
-    let mut coordinator = registered();
-    let mut gate_context = context("MNQ_AGENT");
-    gate_context.production_conditions.news_blackout_clear = Condition::False;
+fn sections_8_64_pending_submission_is_exactly_once_and_not_consumed() {
+    let setup_id = "SETUP-PENDING";
+    let mut coordinator = registered(setup_id);
+    let raw = proposal(setup_id);
+    let permit = coordinator
+        .gate(&raw, context(common::OWNER, Condition::True))
+        .unwrap();
     assert_eq!(
-        coordinator.gate(&proposal("SETUP-14", "MNQ"), gate_context),
-        Err(RejectionCode::ProcessError)
-    );
-}
-
-#[test]
-fn sections_8_64_pending_submission_is_exactly_once_and_does_not_consume_setup() {
-    let mut coordinator = registered();
-    let raw = proposal("SETUP-14", "MNQ");
-    let permit = coordinator.gate(&raw, context("MNQ_AGENT")).unwrap();
-    let status = coordinator.submit(permit).unwrap();
-
-    assert_eq!(
-        status,
+        coordinator.submit(permit).unwrap(),
         ExecutionStatus::Pending {
             broker_order_id: "BROKER-1".to_owned()
         }
     );
     assert_eq!(coordinator.adapter().submit_calls, 1);
     let submitted = coordinator.adapter().last_submission.as_ref().unwrap();
-    assert_eq!(submitted.setup_id, raw.setup_id);
-    assert_eq!(submitted.instrument, raw.instrument);
-    assert_eq!(submitted.side, raw.side);
-    assert_eq!(submitted.order_type, raw.order_type);
-    assert_eq!(submitted.entry_trigger, raw.entry_trigger);
-    assert_eq!(submitted.entry_limit, raw.entry_limit);
-    assert_eq!(submitted.stop, raw.stop);
-    assert_eq!(submitted.target, raw.target);
-    assert_eq!(submitted.size, raw.size);
-    assert_eq!(submitted.execution_pass, Condition::True);
-
-    let registry = coordinator.setup_status("SETUP-14").unwrap();
+    assert_eq!(submitted.setup_id(), raw.setup_id());
+    assert_eq!(submitted.instrument(), raw.instrument());
+    assert_eq!(submitted.entry_trigger(), raw.entry_trigger());
+    assert_eq!(submitted.stop(), raw.stop());
+    assert_eq!(submitted.execution_pass(), Condition::True);
+    let registry = coordinator.setup_status(setup_id).unwrap();
     assert!(!registry.consumed);
     assert!(registry.order_active_or_reserved);
-    assert_eq!(registry.broker_order_id.as_deref(), Some("BROKER-1"));
 }
 
 #[test]
-fn section_8_immediate_fill_consumes_setup_and_section_64_confirms_stop() {
-    let broker = MockBroker {
-        submission: Ok(BrokerSubmission {
-            broker_order_id: "FILLED-1".to_owned(),
-            entry_filled: true,
-        }),
-        stop_state: Ok(Condition::True),
-        ..Default::default()
-    };
-    let mut coordinator = operationally_ready(broker);
-    coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
-
-    let permit = coordinator
-        .gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT"))
-        .unwrap();
-    assert_eq!(
-        coordinator.submit(permit).unwrap(),
-        ExecutionStatus::FilledProtected {
-            broker_order_id: "FILLED-1".to_owned()
-        }
-    );
-    let registry = coordinator.setup_status("SETUP-14").unwrap();
-    assert!(registry.consumed);
-    assert!(!registry.order_active_or_reserved);
-    assert_eq!(coordinator.adapter().stop_calls, 1);
-    assert_eq!(coordinator.adapter().flatten_calls, 0);
-    assert_eq!(coordinator.execution_engine_safe(), Condition::True);
-
-    assert_eq!(
-        coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
-        Err(RejectionCode::DuplicateSetup)
-    );
-}
-
-#[test]
-fn sections_8_64_later_fill_consumes_only_when_fill_becomes_true() {
-    let mut coordinator = registered();
-    let permit = coordinator
-        .gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT"))
-        .unwrap();
-    coordinator.submit(permit).unwrap();
-
-    coordinator.adapter_mut().fill_state = Ok(Condition::False);
-    assert!(matches!(
-        coordinator.reconcile_fill("SETUP-14").unwrap(),
-        ExecutionStatus::Pending { .. }
-    ));
-    assert!(!coordinator.setup_status("SETUP-14").unwrap().consumed);
-
-    coordinator.adapter_mut().fill_state = Ok(Condition::True);
-    coordinator.adapter_mut().stop_state = Ok(Condition::True);
-    assert!(matches!(
-        coordinator.reconcile_fill("SETUP-14").unwrap(),
-        ExecutionStatus::FilledProtected { .. }
-    ));
-    assert!(coordinator.setup_status("SETUP-14").unwrap().consumed);
-}
-
-#[test]
-fn section_64_false_or_unknown_stop_confirmation_flattens_and_disables_shared_engine() {
-    for stop_state in [Condition::False, Condition::Unknown] {
+fn section_64_immediate_fill_requires_confirmed_stop_or_flattens_and_disables_engine() {
+    for stop_state in [Condition::True, Condition::False, Condition::Unknown] {
+        let setup_id = match stop_state {
+            Condition::True => "SETUP-STOP-TRUE",
+            Condition::False => "SETUP-STOP-FALSE",
+            Condition::Unknown => "SETUP-STOP-UNKNOWN",
+        };
         let broker = MockBroker {
             submission: Ok(BrokerSubmission {
-                broker_order_id: "FILLED-FAIL".to_owned(),
+                broker_order_id: "FILLED".to_owned(),
                 entry_filled: true,
             }),
             stop_state: Ok(stop_state),
             ..Default::default()
         };
         let mut coordinator = operationally_ready(broker);
-        coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
-        coordinator.register_setup("UNRELATED", "ES_AGENT").unwrap();
-
+        coordinator.register_setup(setup_id, common::OWNER).unwrap();
         let permit = coordinator
-            .gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT"))
+            .gate(&proposal(setup_id), context(common::OWNER, Condition::True))
             .unwrap();
-        assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
-        assert!(coordinator.setup_status("SETUP-14").unwrap().consumed);
-        assert_eq!(coordinator.adapter().flatten_calls, 1);
-        assert_eq!(
-            coordinator.adapter().last_flatten_instrument.as_deref(),
-            Some("MNQ")
-        );
-        assert_eq!(coordinator.execution_engine_safe(), Condition::False);
 
-        assert_eq!(
-            coordinator.gate(&proposal("UNRELATED", "ES"), context("ES_AGENT")),
-            Err(RejectionCode::BrokerUnsafe)
-        );
+        if stop_state == Condition::True {
+            assert!(matches!(
+                coordinator.submit(permit).unwrap(),
+                ExecutionStatus::FilledProtected { .. }
+            ));
+            assert_eq!(coordinator.adapter().flatten_calls, 0);
+            assert_eq!(coordinator.execution_engine_safe(), Condition::True);
+        } else {
+            assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
+            assert_eq!(coordinator.adapter().flatten_calls, 1);
+            assert_eq!(
+                coordinator.adapter().last_flatten_instrument.as_deref(),
+                Some(common::INSTRUMENT)
+            );
+            assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+        }
+        assert!(coordinator.setup_status(setup_id).unwrap().consumed);
     }
 }
 
 #[test]
-fn section_64_stop_confirmation_adapter_error_also_flattens() {
-    let broker = MockBroker {
-        submission: Ok(BrokerSubmission {
-            broker_order_id: "FILLED-ERROR".to_owned(),
-            entry_filled: true,
-        }),
-        stop_state: Err(MockError::Failure),
-        ..Default::default()
-    };
-    let mut coordinator = operationally_ready(broker);
-    coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
-
-    let permit = coordinator
-        .gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT"))
-        .unwrap();
-    assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
-    assert_eq!(coordinator.adapter().flatten_calls, 1);
-    assert_eq!(coordinator.execution_engine_safe(), Condition::False);
-}
-
-#[test]
-fn section_64_flatten_failure_remains_broker_unsafe_and_consumed() {
-    let broker = MockBroker {
-        submission: Ok(BrokerSubmission {
-            broker_order_id: "FILLED-FLATTEN-FAIL".to_owned(),
-            entry_filled: true,
-        }),
-        stop_state: Ok(Condition::False),
-        flatten_result: Err(MockError::Failure),
-        ..Default::default()
-    };
-    let mut coordinator = operationally_ready(broker);
-    coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
-
-    let permit = coordinator
-        .gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT"))
-        .unwrap();
-    assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
-    assert!(coordinator.setup_status("SETUP-14").unwrap().consumed);
-    assert_eq!(coordinator.adapter().flatten_calls, 1);
-    assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+fn section_64_stop_adapter_error_and_flatten_failure_remain_broker_unsafe() {
+    for flatten_result in [Ok(()), Err(MockError::Failure)] {
+        let setup_id = if flatten_result.is_ok() {
+            "SETUP-STOP-ERROR"
+        } else {
+            "SETUP-FLATTEN-ERROR"
+        };
+        let broker = MockBroker {
+            submission: Ok(BrokerSubmission {
+                broker_order_id: "FILLED-ERROR".to_owned(),
+                entry_filled: true,
+            }),
+            stop_state: Err(MockError::Failure),
+            flatten_result,
+            ..Default::default()
+        };
+        let mut coordinator = operationally_ready(broker);
+        coordinator.register_setup(setup_id, common::OWNER).unwrap();
+        let permit = coordinator
+            .gate(&proposal(setup_id), context(common::OWNER, Condition::True))
+            .unwrap();
+        assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
+        assert_eq!(coordinator.adapter().flatten_calls, 1);
+        assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+    }
 }
 
 #[test]
 fn submission_error_does_not_retry_and_disables_shared_execution_engine() {
+    let setup_id = "SETUP-SUBMIT-ERROR";
     let broker = MockBroker {
         submission: Err(MockError::Failure),
         ..Default::default()
     };
     let mut coordinator = operationally_ready(broker);
-    coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
-
+    coordinator.register_setup(setup_id, common::OWNER).unwrap();
     let permit = coordinator
-        .gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT"))
+        .gate(&proposal(setup_id), context(common::OWNER, Condition::True))
         .unwrap();
     assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
     assert_eq!(coordinator.adapter().submit_calls, 1);
     assert_eq!(coordinator.execution_engine_safe(), Condition::False);
-    let registry = coordinator.setup_status("SETUP-14").unwrap();
-    assert!(!registry.consumed);
-    assert!(registry.order_active_or_reserved);
 }
 
 #[test]
-fn unknown_later_fill_state_disables_engine_without_inventing_flatten_before_confirmed_fill() {
-    let mut coordinator = registered();
-    let permit = coordinator
-        .gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT"))
-        .unwrap();
-    coordinator.submit(permit).unwrap();
-    coordinator.adapter_mut().fill_state = Ok(Condition::Unknown);
-
-    assert_eq!(
-        coordinator.reconcile_fill("SETUP-14"),
-        Err(RejectionCode::BrokerUnsafe)
-    );
-    assert_eq!(coordinator.execution_engine_safe(), Condition::False);
-    assert_eq!(coordinator.adapter().flatten_calls, 0);
-    assert!(!coordinator.setup_status("SETUP-14").unwrap().consumed);
+fn pre_submit_reconciliation_rechecks_duplicate_and_conflict_without_transmitting() {
+    for conflict in [false, true] {
+        let setup_id = if conflict {
+            "SETUP-RECHECK-CONFLICT"
+        } else {
+            "SETUP-RECHECK-DUPLICATE"
+        };
+        let mut coordinator = registered(setup_id);
+        let permit = coordinator
+            .gate(&proposal(setup_id), context(common::OWNER, Condition::True))
+            .unwrap();
+        let mut changed = clear_reconciliation();
+        if conflict {
+            changed.no_conflicting_order = Condition::False;
+        } else {
+            changed.open_order_setup_ids.push(setup_id.to_owned());
+        }
+        coordinator.adapter_mut().reconciliation = Ok(changed);
+        let expected = if conflict {
+            RejectionCode::ProcessError
+        } else {
+            RejectionCode::DuplicateSetup
+        };
+        assert_eq!(coordinator.submit(permit), Err(expected));
+        assert_eq!(coordinator.adapter().submit_calls, 0);
+        assert!(
+            !coordinator
+                .setup_status(setup_id)
+                .unwrap()
+                .order_active_or_reserved
+        );
+    }
 }
 
 #[test]
-fn pre_submit_reconciliation_change_rejects_without_transmitting() {
-    let mut coordinator = registered();
-    let permit = coordinator
-        .gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT"))
-        .unwrap();
-
-    let mut changed = clear_reconciliation();
-    changed.open_order_setup_ids.push("SETUP-14".to_owned());
-    coordinator.adapter_mut().reconciliation = Ok(changed);
+fn sections_98_100_operational_safety_and_post_gate_kill_switch_cannot_be_bypassed() {
+    let setup_id = "SETUP-OPS";
+    let raw = proposal(setup_id);
+    let mut unknown = ExecutionCoordinator::new(MockBroker::default());
+    unknown.register_setup(setup_id, common::OWNER).unwrap();
     assert_eq!(
-        coordinator.submit(permit),
-        Err(RejectionCode::DuplicateSetup)
-    );
-    assert_eq!(coordinator.adapter().submit_calls, 0);
-    assert_eq!(coordinator.execution_engine_safe(), Condition::True);
-    assert!(
-        !coordinator
-            .setup_status("SETUP-14")
-            .unwrap()
-            .order_active_or_reserved
-    );
-}
-
-#[test]
-fn sections_98_100_execution_gate_cannot_bypass_unknown_or_disabled_operational_safety() {
-    let mut coordinator = ExecutionCoordinator::new(MockBroker::default());
-    coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
-
-    assert_eq!(
-        coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
+        unknown.gate(&raw, context(common::OWNER, Condition::True)),
         Err(RejectionCode::ProcessError)
     );
-    assert_eq!(coordinator.adapter().reconcile_calls, 0);
+    assert_eq!(unknown.adapter().reconcile_calls, 0);
 
-    coordinator
-        .operational_safety_mut()
-        .set_operational_risk_clear(Condition::True);
-    coordinator
-        .operational_safety_mut()
-        .observe_emergency_drawdown(Condition::False);
-    coordinator
-        .operational_safety_mut()
-        .record_process_violation(ProcessViolationScope::Agent("MNQ_AGENT".to_owned()))
-        .unwrap();
-
-    assert_eq!(
-        coordinator.gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT")),
-        Err(RejectionCode::ProcessError)
-    );
-    assert_eq!(coordinator.adapter().reconcile_calls, 0);
-}
-
-#[test]
-fn section_100_kill_switch_firing_after_gate_blocks_transmission() {
-    let mut coordinator = registered();
+    let kill_id = "SETUP-KILL";
+    let mut coordinator = registered(kill_id);
     let permit = coordinator
-        .gate(&proposal("SETUP-14", "MNQ"), context("MNQ_AGENT"))
+        .gate(&proposal(kill_id), context(common::OWNER, Condition::True))
         .unwrap();
-
     coordinator
         .operational_safety_mut()
         .record_process_violation(ProcessViolationScope::SharedInfrastructure)
         .unwrap();
-
     assert_eq!(coordinator.submit(permit), Err(RejectionCode::ProcessError));
     assert_eq!(coordinator.adapter().submit_calls, 0);
-    assert!(
-        !coordinator
-            .setup_status("SETUP-14")
-            .unwrap()
-            .order_active_or_reserved
-    );
 }

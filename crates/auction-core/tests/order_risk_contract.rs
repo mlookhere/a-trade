@@ -1,9 +1,11 @@
+mod common;
+
 use auction_core::{
     ClusterExposure, Condition, Direction, FuturesRiskInputs, InstrumentExecutionConfig,
-    OrderProposalInputs, OrderType, PortfolioRiskLimits, STRICT_MIN_PLANNED_R, SetupState,
-    build_order_proposal, cluster_direction_clear, entry_limit_valid, entry_trigger,
-    evaluate_portfolio_risk, planned_r, size_futures, slippage_guard, stop_replacement_allowed,
-    structural_stop, structural_target_valid, trigger_expired,
+    OrderProposalInputs, OrderType, PortfolioRiskLimits, STRICT_MIN_PLANNED_R,
+    StrategyValidationProof, build_order_proposal, cluster_direction_clear, entry_limit_valid,
+    entry_trigger, evaluate_portfolio_risk, planned_r, size_futures, slippage_guard,
+    stop_replacement_allowed, structural_stop, structural_target_valid, trigger_expired,
 };
 
 fn config() -> InstrumentExecutionConfig {
@@ -344,16 +346,14 @@ fn sections_71_72_94_enforce_strict_one_point_five_r_for_both_directions() {
     );
 }
 
-fn valid_long_inputs<'a>(existing: &'a [ClusterExposure<'a>]) -> OrderProposalInputs<'a> {
+fn valid_long_inputs<'a>(
+    proof: &'a StrategyValidationProof,
+    existing: &'a [ClusterExposure<'a>],
+) -> OrderProposalInputs<'a> {
     OrderProposalInputs {
-        setup_id: "SETUP-12-LONG",
-        instrument: "TEST_FUTURE",
-        setup_state: SetupState::FinalReconfirmation,
-        direction: Direction::Long,
-        reconfirmation_extreme: 100.0,
-        entry_limit: 100.5,
-        first_failure_extreme: 99.0,
-        target: 103.0,
+        strategy: proof,
+        entry_limit: 10.5,
+        target: 25.0,
         execution_config: config(),
         account_equity: 100_000.0,
         risk_percent: 0.0025,
@@ -365,56 +365,49 @@ fn valid_long_inputs<'a>(existing: &'a [ClusterExposure<'a>]) -> OrderProposalIn
         portfolio_limits: limits(),
         cluster_id: "NASDAQ_CLUSTER",
         existing_cluster_exposure: existing,
-        strategy_pass: Condition::True,
     }
 }
 
 #[test]
-fn sections_109_110_valid_prebroker_proposal_matches_schema_and_stays_non_executable() {
-    let proposal = build_order_proposal(valid_long_inputs(&[])).unwrap();
+fn sections_109_110_valid_prebroker_proposal_is_sealed_and_stays_non_executable() {
+    let proof = common::valid_long_proof("SETUP-12-LONG", common::OWNER, common::INSTRUMENT);
+    let proposal = build_order_proposal(valid_long_inputs(&proof, &[])).unwrap();
 
-    assert_eq!(proposal.setup_id, "SETUP-12-LONG");
-    assert_eq!(proposal.instrument, "TEST_FUTURE");
-    assert_eq!(proposal.side, Direction::Long);
-    assert_eq!(proposal.order_type, OrderType::StopLimit);
-    assert_close(proposal.entry_trigger, 100.25);
-    assert_close(proposal.entry_limit, 100.5);
-    assert_close(proposal.stop, 98.5);
-    assert_close(proposal.target, 103.0);
-    assert!(proposal.size >= 1);
-    assert_close(proposal.risk_dollars, 250.0);
-    assert_close(proposal.risk_percent, 0.0025);
-    assert_close(proposal.open_portfolio_risk_before, 100.0);
-    assert!(proposal.open_portfolio_risk_after > proposal.open_portfolio_risk_before);
-    assert_eq!(proposal.cluster_id, "NASDAQ_CLUSTER");
-    assert!(proposal.cluster_risk_after > 50.0);
-    assert_eq!(proposal.strategy_pass, Condition::True);
-    assert_eq!(proposal.risk_pass, Condition::True);
-    assert_eq!(proposal.portfolio_pass, Condition::True);
-    assert_eq!(proposal.execution_pass, Condition::Unknown);
+    assert_eq!(proposal.setup_id(), "SETUP-12-LONG");
+    assert_eq!(proposal.instrument(), common::INSTRUMENT);
+    assert_eq!(proposal.side(), Direction::Long);
+    assert_eq!(proposal.order_type(), OrderType::StopLimit);
+    assert_close(proposal.entry_trigger(), 10.25);
+    assert_close(proposal.entry_limit(), 10.5);
+    assert_close(proposal.stop(), 1.5);
+    assert_close(proposal.target(), 25.0);
+    assert!(proposal.size() >= 1);
+    assert_close(proposal.risk_dollars(), 250.0);
+    assert_close(proposal.risk_percent(), 0.0025);
+    assert_close(proposal.open_portfolio_risk_before(), 100.0);
+    assert!(proposal.open_portfolio_risk_after() > proposal.open_portfolio_risk_before());
+    assert_eq!(proposal.cluster_id(), "NASDAQ_CLUSTER");
+    assert!(proposal.cluster_risk_after() > 50.0);
+    assert_eq!(proposal.strategy_pass(), Condition::True);
+    assert_eq!(proposal.risk_pass(), Condition::True);
+    assert_eq!(proposal.portfolio_pass(), Condition::True);
+    assert_eq!(proposal.execution_pass(), Condition::Unknown);
 }
 
 #[test]
-fn section_110_proposal_fails_closed_on_state_strategy_target_risk_portfolio_or_correlation() {
+fn sections_65_72_109_110_proposal_fails_closed_on_target_risk_portfolio_or_correlation() {
+    let proof = common::valid_long_proof("SETUP-12-LONG", common::OWNER, common::INSTRUMENT);
     let no_exposure: [ClusterExposure<'_>; 0] = [];
 
-    let mut inputs = valid_long_inputs(&no_exposure);
-    inputs.setup_state = SetupState::SecondFailure;
+    let mut inputs = valid_long_inputs(&proof, &no_exposure);
+    inputs.target = 20.0;
     assert!(build_order_proposal(inputs).is_none());
 
-    let mut inputs = valid_long_inputs(&no_exposure);
-    inputs.strategy_pass = Condition::Unknown;
-    assert!(build_order_proposal(inputs).is_none());
-
-    let mut inputs = valid_long_inputs(&no_exposure);
-    inputs.target = 102.0;
-    assert!(build_order_proposal(inputs).is_none());
-
-    let mut inputs = valid_long_inputs(&no_exposure);
+    let mut inputs = valid_long_inputs(&proof, &no_exposure);
     inputs.risk_percent = 0.0;
     assert!(build_order_proposal(inputs).is_none());
 
-    let mut inputs = valid_long_inputs(&no_exposure);
+    let mut inputs = valid_long_inputs(&proof, &no_exposure);
     inputs.current_open_portfolio_risk = 1_950.0;
     assert!(build_order_proposal(inputs).is_none());
 
@@ -422,33 +415,30 @@ fn section_110_proposal_fails_closed_on_state_strategy_target_risk_portfolio_or_
         cluster_id: "NASDAQ_CLUSTER",
         direction: Direction::Short,
     }];
-    assert!(build_order_proposal(valid_long_inputs(&opposing)).is_none());
+    assert!(build_order_proposal(valid_long_inputs(&proof, &opposing)).is_none());
 }
 
 #[test]
 fn section_110_proposal_rejects_invalid_execution_configuration_or_limit_price() {
+    let proof = common::valid_long_proof("SETUP-12-LONG", common::OWNER, common::INSTRUMENT);
     let no_exposure: [ClusterExposure<'_>; 0] = [];
 
-    let mut inputs = valid_long_inputs(&no_exposure);
+    let mut inputs = valid_long_inputs(&proof, &no_exposure);
     inputs.execution_config.tick_size = 0.0;
     assert!(build_order_proposal(inputs).is_none());
 
-    let mut inputs = valid_long_inputs(&no_exposure);
-    inputs.entry_limit = 101.500_001;
+    let mut inputs = valid_long_inputs(&proof, &no_exposure);
+    inputs.entry_limit = 11.500_001;
     assert!(build_order_proposal(inputs).is_none());
 }
 
 #[test]
 fn sections_85_93_94_build_mirrored_short_proposal_without_execution_authority() {
-    let inputs = OrderProposalInputs {
-        setup_id: "SETUP-12-SHORT",
-        instrument: "TEST_FUTURE",
-        setup_state: SetupState::FinalReconfirmation,
-        direction: Direction::Short,
-        reconfirmation_extreme: 100.0,
-        entry_limit: 99.5,
-        first_failure_extreme: 101.0,
-        target: 97.0,
+    let proof = common::valid_short_proof("SETUP-12-SHORT", common::OWNER, common::INSTRUMENT);
+    let proposal = build_order_proposal(OrderProposalInputs {
+        strategy: &proof,
+        entry_limit: -0.5,
+        target: -15.0,
         execution_config: config(),
         account_equity: 100_000.0,
         risk_percent: 0.0025,
@@ -460,13 +450,12 @@ fn sections_85_93_94_build_mirrored_short_proposal_without_execution_authority()
         portfolio_limits: limits(),
         cluster_id: "NASDAQ_CLUSTER",
         existing_cluster_exposure: &[],
-        strategy_pass: Condition::True,
-    };
+    })
+    .unwrap();
 
-    let proposal = build_order_proposal(inputs).unwrap();
-    assert_eq!(proposal.side, Direction::Short);
-    assert_close(proposal.entry_trigger, 99.75);
-    assert_close(proposal.entry_limit, 99.5);
-    assert_close(proposal.stop, 101.5);
-    assert_eq!(proposal.execution_pass, Condition::Unknown);
+    assert_eq!(proposal.side(), Direction::Short);
+    assert_close(proposal.entry_trigger(), -0.25);
+    assert_close(proposal.entry_limit(), -0.5);
+    assert_close(proposal.stop(), 8.5);
+    assert_eq!(proposal.execution_pass(), Condition::Unknown);
 }
