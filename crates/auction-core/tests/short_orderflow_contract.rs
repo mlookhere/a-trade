@@ -168,10 +168,7 @@ fn section_91_requires_genuine_real_buying_and_one_tick_lower_failure() {
         levels: &shallow_levels,
         completed: true,
     };
-    assert_eq!(
-        genuine_second_buyer_attempt(shallow, 5.0),
-        Condition::False
-    );
+    assert_eq!(genuine_second_buyer_attempt(shallow, 5.0), Condition::False);
 
     let test_data = levels(20_000, 100, 35, Some(4.0), None);
     let test = candle(&test_data, 6.0, 7.0, 20_000, 100, 9.0);
