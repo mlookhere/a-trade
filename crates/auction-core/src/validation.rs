@@ -168,7 +168,6 @@ impl From<ValidationManifestError> for ReplayEvidenceError {
     }
 }
 
-#[must_use]
 pub fn record_replay_case(
     manifest: &ValidationDatasetManifest,
     case_id: &str,
@@ -222,7 +221,6 @@ pub struct ReplayReport {
 
 /// Summarizes exact replay evidence only. Canonical knowledge defines no performance threshold
 /// that would permit this report to approve, promote, or version a strategy automatically.
-#[must_use]
 pub fn summarize_replay(
     phase: ValidationPhase,
     evidence: &[ReplayCaseEvidence],
