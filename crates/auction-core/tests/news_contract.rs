@@ -4,12 +4,7 @@ fn t(hour: u8, minute: u8, second: u8) -> EtTime {
     EtTime::from_hms(hour, minute, second).unwrap()
 }
 
-fn window(
-    start_hour: u8,
-    start_minute: u8,
-    end_hour: u8,
-    end_minute: u8,
-) -> NewsBlackoutWindow {
+fn window(start_hour: u8, start_minute: u8, end_hour: u8, end_minute: u8) -> NewsBlackoutWindow {
     NewsBlackoutWindow {
         start_inclusive: t(start_hour, start_minute, 0),
         end_exclusive: t(end_hour, end_minute, 0),
@@ -47,12 +42,8 @@ fn section_96_blackout_start_is_inclusive_and_end_is_resumable_with_new_sequence
     assert_eq!(inside.news_blackout_clear, Condition::False);
     assert!(!inside.allow_new_entries);
 
-    let at_end_with_new_setup = evaluate_news_gate(
-        t(10, 5, 0),
-        Some(t(10, 5, 0)),
-        Condition::True,
-        &windows,
-    );
+    let at_end_with_new_setup =
+        evaluate_news_gate(t(10, 5, 0), Some(t(10, 5, 0)), Condition::True, &windows);
     assert_eq!(at_end_with_new_setup.news_blackout_clear, Condition::True);
     assert!(at_end_with_new_setup.allow_new_entries);
 }
@@ -62,22 +53,12 @@ fn section_96_pre_event_or_in_blackout_setup_cannot_be_revived_after_event() {
     let windows = [window(9, 55, 10, 5)];
 
     for setup_start in [t(9, 40, 0), t(9, 55, 0), t(10, 4, 59)] {
-        let result = evaluate_news_gate(
-            t(10, 5, 0),
-            Some(setup_start),
-            Condition::True,
-            &windows,
-        );
+        let result = evaluate_news_gate(t(10, 5, 0), Some(setup_start), Condition::True, &windows);
         assert_eq!(result.news_blackout_clear, Condition::False);
         assert!(!result.allow_new_entries);
     }
 
-    let after = evaluate_news_gate(
-        t(10, 5, 1),
-        Some(t(10, 5, 1)),
-        Condition::True,
-        &windows,
-    );
+    let after = evaluate_news_gate(t(10, 5, 1), Some(t(10, 5, 1)), Condition::True, &windows);
     assert_eq!(after.news_blackout_clear, Condition::True);
     assert!(after.allow_new_entries);
 }
@@ -156,23 +137,18 @@ fn overlapping_windows_are_supported_and_latest_end_controls_setup_freshness() {
 
     let first_ended_second_active =
         evaluate_news_gate(t(10, 5, 0), None, Condition::True, &windows);
-    assert_eq!(first_ended_second_active.news_blackout_clear, Condition::False);
-
-    let stale_after_all = evaluate_news_gate(
-        t(10, 10, 0),
-        Some(t(10, 5, 0)),
-        Condition::True,
-        &windows,
+    assert_eq!(
+        first_ended_second_active.news_blackout_clear,
+        Condition::False
     );
+
+    let stale_after_all =
+        evaluate_news_gate(t(10, 10, 0), Some(t(10, 5, 0)), Condition::True, &windows);
     assert_eq!(stale_after_all.latest_blackout_end, Some(t(10, 10, 0)));
     assert_eq!(stale_after_all.news_blackout_clear, Condition::False);
 
-    let fresh_after_all = evaluate_news_gate(
-        t(10, 10, 0),
-        Some(t(10, 10, 0)),
-        Condition::True,
-        &windows,
-    );
+    let fresh_after_all =
+        evaluate_news_gate(t(10, 10, 0), Some(t(10, 10, 0)), Condition::True, &windows);
     assert_eq!(fresh_after_all.news_blackout_clear, Condition::True);
 }
 
