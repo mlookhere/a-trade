@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod advisory;
 pub mod audit;
 pub mod authority;
 pub mod authorization;
@@ -22,6 +23,10 @@ pub mod short_orderflow;
 pub mod swings;
 pub mod truth;
 
+pub use advisory::{
+    AdvisoryConditions, AdvisoryFib, AdvisoryGamma, AdvisorySetupEvaluation, AdvisorySwing,
+    AdvisoryValidationError, AdvisoryValue, AgentRole, CANONICAL_AGENT_MASTER_PROMPT,
+};
 pub use audit::{
     AuditError, AuditLedger, CompletedTradeRecord, DailyMetrics, EffortResultChange,
     EffortResultSnapshot, RejectedSetupRecord, StateChangeRecord, StoredRejectedSetupRecord,
