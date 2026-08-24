@@ -7,7 +7,6 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BrokerCapabilities {
-    /// §64 protected parent STOP_LIMIT + hard stop + target as one broker-supported structure.
     pub protected_stop_limit_bracket: Condition,
 }
 
@@ -17,9 +16,7 @@ pub struct BrokerReconciliation {
     pub broker_state_known: Condition,
     pub position_state_known: Condition,
     pub open_order_state_known: Condition,
-    /// Reconciled broker-side SETUP_ID tags for currently open orders.
     pub open_order_setup_ids: Vec<String>,
-    /// Reconciled broker-side SETUP_ID tags for current positions.
     pub position_setup_ids: Vec<String>,
 }
 
@@ -44,7 +41,6 @@ impl BrokerReconciliation {
         if setup_id.trim().is_empty() {
             return Condition::Unknown;
         }
-
         Condition::from(
             !self
                 .open_order_setup_ids
@@ -55,36 +51,23 @@ impl BrokerReconciliation {
     }
 }
 
-/// Provider-neutral adapter only. Broker-specific retry, partial-fill, replace, and routing
-/// semantics are intentionally absent because canonical knowledge does not define them.
 pub trait BrokerAdapter {
     type Error;
 
     fn capabilities(&self) -> BrokerCapabilities;
-
     fn reconcile(&mut self) -> Result<BrokerReconciliation, Self::Error>;
-
-    /// Submit the complete §64 protected structure exactly as represented by the approved
-    /// proposal. Implementations must not modify strategy prices, side, size, or order type.
     fn submit_protected(
         &mut self,
         proposal: &OrderProposal,
     ) -> Result<BrokerSubmission, Self::Error>;
-
-    /// TRUE means the entry is confirmed filled; FALSE means accepted/unfilled; UNKNOWN is unsafe.
     fn entry_filled(&mut self, setup_id: &str) -> Result<Condition, Self::Error>;
-
-    /// After any confirmed fill, canonical §64 requires the hard stop to be confirmed.
     fn hard_stop_confirmed(&mut self, setup_id: &str) -> Result<Condition, Self::Error>;
-
-    /// Emergency §64 flatten path. No retry policy is implied by this single attempt contract.
     fn flatten_instrument(&mut self, instrument: &str) -> Result<(), Self::Error>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BrokerSubmission {
     pub broker_order_id: String,
-    /// TRUE only when the broker response already confirms the entry filled.
     pub entry_filled: bool,
 }
 
@@ -117,8 +100,6 @@ pub struct SetupRegistry {
 }
 
 impl SetupRegistry {
-    /// §103 registration is expected to be called by the Setup Coordinator when SETUP_ID is
-    /// created. Duplicate registration is rejected instead of silently changing ownership.
     pub fn register_setup(
         &mut self,
         setup_id: &str,
@@ -130,7 +111,6 @@ impl SetupRegistry {
         if self.setups.contains_key(setup_id) {
             return Err(RejectionCode::DuplicateSetup);
         }
-
         self.setups.insert(
             setup_id.to_owned(),
             SetupRecord {
@@ -172,20 +152,21 @@ impl SetupRegistry {
         if instrument.trim().is_empty() {
             return Err(RejectionCode::ProcessError);
         }
-
         record.order_active_or_reserved = true;
         record.instrument = Some(instrument.to_owned());
         Ok(())
     }
 
     fn clear_reservation(&mut self, setup_id: &str) {
-        if let Some(record) = self.setups.get_mut(setup_id) {
-            if !record.consumed {
-                record.order_active_or_reserved = false;
-                record.instrument = None;
-                record.broker_order_id = None;
-            }
+        let Some(record) = self.setups.get_mut(setup_id) else {
+            return;
+        };
+        if record.consumed {
+            return;
         }
+        record.order_active_or_reserved = false;
+        record.instrument = None;
+        record.broker_order_id = None;
     }
 
     fn record_pending_order(
@@ -204,7 +185,6 @@ impl SetupRegistry {
         Ok(())
     }
 
-    /// §8: consumption happens when and only when the entry is confirmed filled.
     fn mark_filled_consumed(&mut self, setup_id: &str) -> Result<(), RejectionCode> {
         let Some(record) = self.setups.get_mut(setup_id) else {
             return Err(RejectionCode::ProcessError);
@@ -215,7 +195,6 @@ impl SetupRegistry {
         if !record.order_active_or_reserved {
             return Err(RejectionCode::ProcessError);
         }
-
         record.consumed = true;
         record.order_active_or_reserved = false;
         Ok(())
@@ -237,14 +216,10 @@ pub struct PreExecutionAuthority {
 #[derive(Debug, Clone, Copy)]
 pub struct ExecutionGateContext<'a> {
     pub submitting_agent_id: &'a str,
-    /// Full §122 strategy conditions from deterministic upstream components. Critical execution
-    /// fields are independently overwritten by this gate before final authorization.
     pub production_conditions: ProductionConditions,
     pub authority: PreExecutionAuthority,
 }
 
-/// Opaque approval token. Fields are private and there is no public constructor, so the
-/// Execution Engine can only receive one from the deterministic gate in this module.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExecutionPermit {
     proposal: OrderProposal,
@@ -305,8 +280,6 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         self.registry.status(setup_id)
     }
 
-    /// §§9,16,64,103,109,110,122 deterministic Execution Gate. It independently reconciles
-    /// broker state, ownership, duplicates, protected-bracket capability, and final authority.
     pub fn gate(
         &mut self,
         proposal: &OrderProposal,
@@ -344,9 +317,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         {
             return Err(RejectionCode::ProcessError);
         }
-
-        let capabilities = self.adapter.capabilities();
-        if capabilities.protected_stop_limit_bracket != Condition::True {
+        if self.adapter.capabilities().protected_stop_limit_bracket != Condition::True {
             return Err(RejectionCode::BrokerUnsafe);
         }
 
@@ -392,20 +363,15 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             context.submitting_agent_id,
             &proposal.instrument,
         )?;
-
         let mut approved = proposal.clone();
         approved.execution_pass = Condition::True;
         Ok(ExecutionPermit { proposal: approved })
     }
 
-    /// Submit only an opaque gate-approved token. A fresh broker reconciliation is performed
-    /// immediately before transmission to close the gate/submit race as far as provider-neutral
-    /// semantics allow.
     pub fn submit(&mut self, permit: ExecutionPermit) -> Result<ExecutionStatus, RejectionCode> {
         if !self.engine_safe {
             return Err(RejectionCode::BrokerUnsafe);
         }
-
         let setup_id = permit.proposal.setup_id.clone();
         if !self.reservation_valid(&permit.proposal) {
             return Err(RejectionCode::ProcessError);
@@ -442,16 +408,13 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             self.engine_safe = false;
             return Err(RejectionCode::BrokerUnsafe);
         }
-
         self.registry
             .record_pending_order(&setup_id, &submission.broker_order_id)?;
-
         if !submission.entry_filled {
             return Ok(ExecutionStatus::Pending {
                 broker_order_id: submission.broker_order_id,
             });
         }
-
         self.registry.mark_filled_consumed(&setup_id)?;
         self.verify_protection_after_fill(&setup_id, &submission.broker_order_id)
     }
@@ -472,7 +435,6 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         let Some(broker_order_id) = record.broker_order_id.clone() else {
             return Err(RejectionCode::ProcessError);
         };
-
         let filled = match self.adapter.entry_filled(setup_id) {
             Ok(value) => value,
             Err(_) => {
@@ -509,20 +471,21 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         setup_id: &str,
         broker_order_id: &str,
     ) -> Result<ExecutionStatus, RejectionCode> {
-        let stop_confirmed = self.adapter.hard_stop_confirmed(setup_id);
-        if matches!(stop_confirmed, Ok(Condition::True)) {
+        if matches!(
+            self.adapter.hard_stop_confirmed(setup_id),
+            Ok(Condition::True)
+        ) {
             return Ok(ExecutionStatus::FilledProtected {
                 broker_order_id: broker_order_id.to_owned(),
             });
         }
-
         self.engine_safe = false;
         let instrument = self
             .registry
             .execution_record(setup_id)
             .and_then(|record| record.instrument.clone())
             .ok_or(RejectionCode::ProcessError)?;
-        let _flatten_result = self.adapter.flatten_instrument(&instrument);
+        let _ = self.adapter.flatten_instrument(&instrument);
         Err(RejectionCode::BrokerUnsafe)
     }
 }
