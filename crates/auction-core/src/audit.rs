@@ -259,7 +259,11 @@ impl AuditLedger {
             .filter(|trade| trade.realized_r < 0.0)
             .count() as u64;
         let breakevens = trades_executed - winning_trades - losing_trades;
-        let realized_r: f64 = self.completed_trades.iter().map(|trade| trade.realized_r).sum();
+        let realized_r: f64 = self
+            .completed_trades
+            .iter()
+            .map(|trade| trade.realized_r)
+            .sum();
         let gross_win_r: f64 = self
             .completed_trades
             .iter()
@@ -345,8 +349,8 @@ fn compliance_percentage(observations: &[bool]) -> Option<f64> {
 }
 
 fn maximum_drawdown_r(trades: &[CompletedTradeRecord]) -> f64 {
-    let mut cumulative = 0.0;
-    let mut peak = 0.0;
+    let mut cumulative: f64 = 0.0;
+    let mut peak: f64 = 0.0;
     let mut maximum_drawdown: f64 = 0.0;
     for trade in trades {
         cumulative += trade.realized_r;
