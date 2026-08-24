@@ -1,8 +1,8 @@
 use auction_core::{
-    Bar15, ConfirmedSwing, Direction, EtTime, LocationEvent, LocationSetup, MarketState, SetupState,
-    StructureKey, SwingImpulse, SwingKind, TerminalState, bearish_fib, confirmed_swings,
-    latest_bearish_impulse, latest_bullish_impulse, long_886_invalidated, qualified_impulse,
-    short_886_invalidated,
+    Bar15, ConfirmedSwing, Direction, EtTime, LocationEvent, LocationSetup, MarketState,
+    SetupState, StructureKey, SwingImpulse, SwingKind, TerminalState, bearish_fib,
+    confirmed_swings, latest_bearish_impulse, latest_bullish_impulse, long_886_invalidated,
+    qualified_impulse, short_886_invalidated,
 };
 
 fn closed(high: f64, low: f64) -> Bar15 {
@@ -152,8 +152,8 @@ fn sections_24_27_28_reject_wrong_or_non_directional_environment() {
 #[test]
 fn sections_31_34_35_open_only_into_waiting_then_location_reached() {
     let open = EtTime::from_hms(9, 30, 0).unwrap();
-    let mut setup = LocationSetup::at_open(open, MarketState::ValueUp, long_impulse(), 90.0, 0.25)
-        .unwrap();
+    let mut setup =
+        LocationSetup::at_open(open, MarketState::ValueUp, long_impulse(), 90.0, 0.25).unwrap();
 
     assert_eq!(setup.state(), SetupState::WaitingForLocation);
     assert_eq!(setup.observe_price(90.0), LocationEvent::None);
@@ -164,18 +164,11 @@ fn sections_31_34_35_open_only_into_waiting_then_location_reached() {
 
     let after_open = EtTime::from_hms(9, 30, 1).unwrap();
     assert!(
-        LocationSetup::at_open(
-            after_open,
-            MarketState::ValueUp,
-            long_impulse(),
-            90.0,
-            0.25
-        )
-        .is_none()
+        LocationSetup::at_open(after_open, MarketState::ValueUp, long_impulse(), 90.0, 0.25)
+            .is_none()
     );
     assert!(
-        LocationSetup::at_open(open, MarketState::ValueDown, long_impulse(), 90.0, 0.25)
-            .is_none()
+        LocationSetup::at_open(open, MarketState::ValueDown, long_impulse(), 90.0, 0.25).is_none()
     );
 }
 
@@ -208,8 +201,8 @@ fn section_36_long_invalidation_is_strictly_beyond_one_tick_before_confirmation(
 #[test]
 fn sections_36_37_invalidation_is_terminal_and_same_structure_cannot_be_rescued() {
     let open = EtTime::from_hms(9, 30, 0).unwrap();
-    let mut setup = LocationSetup::at_open(open, MarketState::ValueUp, long_impulse(), 90.0, 0.25)
-        .unwrap();
+    let mut setup =
+        LocationSetup::at_open(open, MarketState::ValueUp, long_impulse(), 90.0, 0.25).unwrap();
     let threshold = setup.levels().level_886 - 0.25;
 
     assert_eq!(
@@ -220,7 +213,10 @@ fn sections_36_37_invalidation_is_terminal_and_same_structure_cannot_be_rescued(
         setup.state(),
         SetupState::Terminal(TerminalState::Invalidated)
     );
-    assert_eq!(setup.observe_price(setup.levels().level_705), LocationEvent::None);
+    assert_eq!(
+        setup.observe_price(setup.levels().level_705),
+        LocationEvent::None
+    );
 
     let same = setup.structure();
     assert!(!setup.requires_new_setup_id_for(same));
@@ -256,7 +252,7 @@ fn sections_85_and_36_mirror_premium_side_invalidation_explicitly() {
     ));
 
     let open = EtTime::from_hms(9, 30, 0).unwrap();
-    let setup = LocationSetup::at_open(open, MarketState::ValueDown, short_impulse(), 110.0, tick)
-        .unwrap();
+    let setup =
+        LocationSetup::at_open(open, MarketState::ValueDown, short_impulse(), 110.0, tick).unwrap();
     assert_eq!(setup.state(), SetupState::WaitingForLocation);
 }
