@@ -69,7 +69,7 @@ pub struct StoredRejectedSetupRecord {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuditError {
     InvalidRecord,
-    DuplicateTerminalRecord,
+    DuplicateRecord,
 }
 
 /// Reporting-only deterministic formalization of canonical §§97 and 114 metrics.
@@ -128,7 +128,7 @@ impl AuditLedger {
             .iter()
             .any(|existing| existing == setup_id)
         {
-            return Err(AuditError::DuplicateTerminalRecord);
+            return Err(AuditError::DuplicateRecord);
         }
         self.qualified_setup_ids.push(setup_id.to_owned());
         Ok(())
@@ -142,7 +142,7 @@ impl AuditLedger {
             return Err(AuditError::InvalidRecord);
         }
         if self.terminal_record_exists(&record.setup_id) {
-            return Err(AuditError::DuplicateTerminalRecord);
+            return Err(AuditError::DuplicateRecord);
         }
         self.completed_trades.push(record);
         Ok(())
@@ -156,7 +156,7 @@ impl AuditLedger {
             return Err(AuditError::InvalidRecord);
         }
         if self.terminal_record_exists(record.setup_id) {
-            return Err(AuditError::DuplicateTerminalRecord);
+            return Err(AuditError::DuplicateRecord);
         }
         self.rejected_setups.push(StoredRejectedSetupRecord {
             setup_id: record.setup_id.to_owned(),
@@ -283,7 +283,11 @@ impl AuditLedger {
 }
 
 fn mean_or_none(sum: f64, count: u64) -> Option<f64> {
-    (count > 0).then_some(sum / count as f64)
+    if count == 0 {
+        None
+    } else {
+        Some(sum / count as f64)
+    }
 }
 
 fn mean_trade_field(
