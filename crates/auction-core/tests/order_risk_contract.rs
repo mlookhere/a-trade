@@ -324,7 +324,10 @@ fn sections_71_72_94_enforce_strict_one_point_five_r_for_both_directions() {
         Condition::False
     );
 
-    assert_close(planned_r(Direction::Short, 100.0, 101.0, 98.5).unwrap(), 1.5);
+    assert_close(
+        planned_r(Direction::Short, 100.0, 101.0, 98.5).unwrap(),
+        1.5,
+    );
     assert_eq!(
         structural_target_valid(Direction::Short, 100.0, 101.0, 98.5),
         Condition::True
