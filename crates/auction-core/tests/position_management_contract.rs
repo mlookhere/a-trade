@@ -45,7 +45,11 @@ fn candle(spec: CandleSpec) -> FootprintCandle5m<'static> {
     }
 }
 
-fn long_candle(close: f64, delta: i64, buy_imbalance_ratio: Option<f64>) -> FootprintCandle5m<'static> {
+fn long_candle(
+    close: f64,
+    delta: i64,
+    buy_imbalance_ratio: Option<f64>,
+) -> FootprintCandle5m<'static> {
     candle(CandleSpec {
         open: 99.5,
         high: 100.5,
@@ -58,7 +62,11 @@ fn long_candle(close: f64, delta: i64, buy_imbalance_ratio: Option<f64>) -> Foot
     })
 }
 
-fn short_candle(close: f64, delta: i64, sell_imbalance_ratio: Option<f64>) -> FootprintCandle5m<'static> {
+fn short_candle(
+    close: f64,
+    delta: i64,
+    sell_imbalance_ratio: Option<f64>,
+) -> FootprintCandle5m<'static> {
     candle(CandleSpec {
         open: 105.5,
         high: 106.0,
@@ -75,16 +83,28 @@ fn short_candle(close: f64, delta: i64, sell_imbalance_ratio: Option<f64>) -> Fo
 fn sections_74_77_long_value_reclaim_includes_exact_val_boundary() {
     let below = long_candle(99.99, 10, None);
     let equal = long_candle(100.0, 10, None);
-    assert_eq!(value_reclaimed(Direction::Long, below, 100.0), Condition::False);
-    assert_eq!(value_reclaimed(Direction::Long, equal, 100.0), Condition::True);
+    assert_eq!(
+        value_reclaimed(Direction::Long, below, 100.0),
+        Condition::False
+    );
+    assert_eq!(
+        value_reclaimed(Direction::Long, equal, 100.0),
+        Condition::True
+    );
 }
 
 #[test]
 fn section_94_short_value_reclaim_mirrors_at_exact_vah_boundary() {
     let above = short_candle(105.01, -10, None);
     let equal = short_candle(105.0, -10, None);
-    assert_eq!(value_reclaimed(Direction::Short, above, 105.0), Condition::False);
-    assert_eq!(value_reclaimed(Direction::Short, equal, 105.0), Condition::True);
+    assert_eq!(
+        value_reclaimed(Direction::Short, above, 105.0),
+        Condition::False
+    );
+    assert_eq!(
+        value_reclaimed(Direction::Short, equal, 105.0),
+        Condition::True
+    );
 }
 
 #[test]
@@ -95,7 +115,10 @@ fn section_75_preserves_not_above_wording_independently_from_reclaim_equality() 
         effort_without_value_reclaim(Direction::Long, first, second, 100.0),
         Condition::True
     );
-    assert_eq!(value_reclaimed(Direction::Long, second, 100.0), Condition::True);
+    assert_eq!(
+        value_reclaimed(Direction::Long, second, 100.0),
+        Condition::True
+    );
 
     let above = long_candle(100.01, 15, None);
     assert_eq!(
@@ -128,7 +151,10 @@ fn section_94_mirrors_two_candle_seller_effort_without_reclaim() {
         effort_without_value_reclaim(Direction::Short, first, second, 105.0),
         Condition::True
     );
-    assert_eq!(value_reclaimed(Direction::Short, second, 105.0), Condition::True);
+    assert_eq!(
+        value_reclaimed(Direction::Short, second, 105.0),
+        Condition::True
+    );
 
     let below = short_candle(104.99, -15, None);
     assert_eq!(
@@ -151,7 +177,10 @@ fn position_management_rejects_incomplete_or_invalid_candles_as_unknown() {
     });
     let valid = long_candle(99.8, 10, None);
 
-    assert_eq!(value_reclaimed(Direction::Long, incomplete, 100.0), Condition::Unknown);
+    assert_eq!(
+        value_reclaimed(Direction::Long, incomplete, 100.0),
+        Condition::Unknown
+    );
     assert_eq!(
         effort_without_value_reclaim(Direction::Long, incomplete, valid, 100.0),
         Condition::Unknown
@@ -274,11 +303,26 @@ fn section_94_mirrors_healthy_seller_and_seller_failure() {
 
 #[test]
 fn section_81_exact_one_r_boundary_is_inclusive_for_long_and_short() {
-    assert_eq!(one_r_reached(Direction::Long, 100.0, 98.0, 101.999), Condition::False);
-    assert_eq!(one_r_reached(Direction::Long, 100.0, 98.0, 102.0), Condition::True);
-    assert_eq!(one_r_reached(Direction::Short, 100.0, 102.0, 98.001), Condition::False);
-    assert_eq!(one_r_reached(Direction::Short, 100.0, 102.0, 98.0), Condition::True);
-    assert_eq!(one_r_reached(Direction::Long, 100.0, 101.0, 102.0), Condition::Unknown);
+    assert_eq!(
+        one_r_reached(Direction::Long, 100.0, 98.0, 101.999),
+        Condition::False
+    );
+    assert_eq!(
+        one_r_reached(Direction::Long, 100.0, 98.0, 102.0),
+        Condition::True
+    );
+    assert_eq!(
+        one_r_reached(Direction::Short, 100.0, 102.0, 98.001),
+        Condition::False
+    );
+    assert_eq!(
+        one_r_reached(Direction::Short, 100.0, 102.0, 98.0),
+        Condition::True
+    );
+    assert_eq!(
+        one_r_reached(Direction::Long, 100.0, 101.0, 102.0),
+        Condition::Unknown
+    );
 }
 
 #[test]
