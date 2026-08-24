@@ -22,6 +22,7 @@ pub mod setup_state;
 pub mod short_orderflow;
 pub mod swings;
 pub mod truth;
+pub mod validation;
 
 pub use advisory::{
     AdvisoryConditions, AdvisoryFib, AdvisoryGamma, AdvisorySetupEvaluation, AdvisorySwing,
@@ -90,3 +91,8 @@ pub use swings::{
     latest_bullish_impulse, qualified_impulse,
 };
 pub use truth::Condition;
+pub use validation::{
+    ReplayCaseEvidence, ReplayEvidenceError, ReplayOutcome, ReplayReport,
+    ValidationDatasetManifest, ValidationManifestError, ValidationPhase, record_replay_case,
+    summarize_replay,
+};

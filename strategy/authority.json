@@ -282,6 +282,20 @@
       "provenance": "advisory output exposes only LLM_SETUP_PASS; trade_allowed=true is rejected as an LLM authority violation and deterministic strategy, risk, portfolio, broker, and execution gates remain independently authoritative"
     }
   },
+  "implemented_in_issue_32": {
+    "validation_dataset_split": {
+      "sections": [116],
+      "provenance": "deterministic validation infrastructure only: a named strategy version must have explicit nonempty backtest and out-of-sample session sets; IDs are unique and the two sets cannot overlap; no production trading rule is changed"
+    },
+    "offline_replay_evidence": {
+      "sections": [115, 116],
+      "provenance": "records expected versus observed authorization, rejection, and setup-state evidence from the existing Rust core; reports exact mismatches only and defines no win-rate, expectancy, profit-factor, drawdown, or replay percentage promotion threshold because canonical knowledge specifies none"
+    },
+    "integrated_acceptance_replay": {
+      "sections": [3, 4, 10, 56, 63, 76, 94, 95, 96, 98, 99, 100, 101, 102, 108, 109, 117, 118, 119, 122],
+      "provenance": "offline contract corpus reuses existing deterministic production functions for authorization, time/news, stop-widening, operational-safety, and state-sequence boundaries; it is not a second strategy implementation and has no live execution authority"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
