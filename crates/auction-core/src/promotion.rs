@@ -212,7 +212,7 @@ impl StrategyChangePromotion {
         if new_version.trim().is_empty() {
             return Err(PromotionError::MissingNewVersion);
         }
-        if new_version == self.base_strategy_version {
+        if new_version.trim() == self.base_strategy_version.trim() {
             return Err(PromotionError::NewVersionMatchesBase);
         }
         self.new_strategy_version = Some(new_version.to_owned());
