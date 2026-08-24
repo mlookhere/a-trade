@@ -1,7 +1,7 @@
 use auction_core::{
-    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition, Direction,
-    ExecutionCoordinator, ExecutionGateContext, ExecutionStatus, OrderProposal, OrderType,
-    PreExecutionAuthority, ProductionConditions, RejectionCode,
+    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition,
+    Direction, ExecutionCoordinator, ExecutionGateContext, ExecutionStatus, OrderProposal,
+    OrderType, PreExecutionAuthority, ProductionConditions, RejectionCode,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -258,9 +258,13 @@ fn section_9_reconciled_broker_order_or_position_for_same_setup_rejects_duplicat
     for position in [false, true] {
         let mut reconciliation = clear_reconciliation();
         if position {
-            reconciliation.position_setup_ids.push("SETUP-14".to_owned());
+            reconciliation
+                .position_setup_ids
+                .push("SETUP-14".to_owned());
         } else {
-            reconciliation.open_order_setup_ids.push("SETUP-14".to_owned());
+            reconciliation
+                .open_order_setup_ids
+                .push("SETUP-14".to_owned());
         }
         let mut broker = MockBroker::default();
         broker.reconciliation = Ok(reconciliation);
@@ -546,8 +550,16 @@ fn pre_submit_reconciliation_change_rejects_without_transmitting() {
     let mut changed = clear_reconciliation();
     changed.open_order_setup_ids.push("SETUP-14".to_owned());
     coordinator.adapter_mut().reconciliation = Ok(changed);
-    assert_eq!(coordinator.submit(permit), Err(RejectionCode::DuplicateSetup));
+    assert_eq!(
+        coordinator.submit(permit),
+        Err(RejectionCode::DuplicateSetup)
+    );
     assert_eq!(coordinator.adapter().submit_calls, 0);
     assert_eq!(coordinator.execution_engine_safe(), Condition::True);
-    assert!(!coordinator.setup_status("SETUP-14").unwrap().order_active_or_reserved);
+    assert!(
+        !coordinator
+            .setup_status("SETUP-14")
+            .unwrap()
+            .order_active_or_reserved
+    );
 }
