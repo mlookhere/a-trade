@@ -226,7 +226,12 @@ fn section_49_first_dominance_shift_uses_strict_midpoint_and_buy_imbalance() {
 
 #[test]
 fn sections_51_54_enforce_genuine_second_attempt_real_selling_and_one_tick_higher_low() {
-    let sell_data = levels(20_000, -100, 10, Some(4.0), None, None);
+    let shallow_levels = [
+        level(5.0, 5_000, -100, None, Some(4.0)),
+        level(6.0, 5_000, 0, None, None),
+        level(8.0, 5_000, 0, None, None),
+        level(10.0, 5_000, 0, None, None),
+    ];
     let shallow = FootprintCandle5m {
         low: 5.0,
         high: 10.0,
@@ -235,12 +240,7 @@ fn sections_51_54_enforce_genuine_second_attempt_real_selling_and_one_tick_highe
         total_volume: 20_000,
         candle_delta: -100,
         volume_poc: 7.0,
-        levels: &[
-            level(5.0, 5_000, -100, None, Some(4.0)),
-            level(6.0, 5_000, 0, None, None),
-            level(8.0, 5_000, 0, None, None),
-            level(10.0, 5_000, 0, None, None),
-        ],
+        levels: &shallow_levels,
         completed: true,
     };
     assert_eq!(
@@ -248,7 +248,8 @@ fn sections_51_54_enforce_genuine_second_attempt_real_selling_and_one_tick_highe
         Condition::False
     );
 
-    let test = candle(&sell_data, 4.0, 3.0, 20_000, -100, 7.0);
+    let test_data = levels(20_000, -100, 10, Some(4.0), None, None);
+    let test = candle(&test_data, 4.0, 3.0, 20_000, -100, 7.0);
     assert_eq!(
         genuine_second_seller_attempt(test, 5.0),
         Condition::True
@@ -294,8 +295,23 @@ fn sections_42_55_and_102_advance_every_state_without_entry_authorization() {
     let aggression = candle(&aggression_data, 2.5, 6.0, 20_000, -100, 1.0);
     let dominance_data = levels(20_000, 100, 10, None, None, Some(4.0));
     let dominance = candle(&dominance_data, 4.0, 6.0, 20_000, 100, 7.0);
-    let test_data = levels(20_000, -100, 10, Some(4.0), None, None);
-    let test = candle(&test_data, 4.0, 3.0, 20_000, -100, 7.0);
+    let second_test_levels = [
+        level(2.25, 5_000, -100, None, Some(4.0)),
+        level(3.0, 5_000, 0, None, None),
+        level(7.0, 5_000, 0, None, None),
+        level(10.0, 5_000, 0, None, None),
+    ];
+    let second_test = FootprintCandle5m {
+        open: 4.0,
+        high: 10.0,
+        low: 2.25,
+        close: 3.0,
+        total_volume: 20_000,
+        candle_delta: -100,
+        volume_poc: 7.0,
+        levels: &second_test_levels,
+        completed: true,
+    };
     let reconfirmation_data = levels(20_000, 100, 10, None, None, Some(4.0));
     let reconfirmation = candle(&reconfirmation_data, 4.0, 6.0, 20_000, 100, 7.0);
 
@@ -325,7 +341,7 @@ fn sections_42_55_and_102_advance_every_state_without_entry_authorization() {
     assert_eq!(sequence.state(), SetupState::WaitingSecondTest);
 
     assert_eq!(
-        sequence.record_second_test(test, Condition::True),
+        sequence.record_second_test(second_test, Condition::True),
         Condition::True
     );
     assert_eq!(sequence.state(), SetupState::SecondTest);
