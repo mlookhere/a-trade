@@ -21,6 +21,7 @@ pub mod safety;
 pub mod session;
 pub mod setup_state;
 pub mod short_orderflow;
+pub mod strategy_validator;
 pub mod swings;
 pub mod truth;
 pub mod validation;
@@ -55,7 +56,7 @@ pub use fibonacci::{
 };
 pub use footprint::{
     EXTREME_VOLUME_PERCENT, FootprintCandle5m, FootprintLevel, IMBALANCE_THRESHOLD,
-    MNQ_PARTICIPATION_THRESHOLD, ParticipationRule, participation_valid,
+    MNQ_PARTICIPATION_THRESHOLD, ParticipationContext, ParticipationRule, participation_valid,
 };
 pub use location::{
     LocationEvent, LocationSetup, StructureKey, long_886_invalidated, short_886_invalidated,
@@ -92,6 +93,9 @@ pub use short_orderflow::{
     ShortOrderflowSequence, buyer_aggression, first_seller_dominance_shift,
     genuine_second_buyer_attempt, potential_buyer_absorption, second_failure_lower,
     second_test_has_real_buying, seller_reconfirmation,
+};
+pub use strategy_validator::{
+    OrderflowSequenceEvidence, StrategyValidationInputs, StrategyValidationProof, validate_strategy,
 };
 pub use swings::{
     Bar15, ConfirmedSwing, SwingImpulse, SwingKind, confirmed_swings, latest_bearish_impulse,
