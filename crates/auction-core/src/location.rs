@@ -125,11 +125,9 @@ impl LocationSetup {
                 Direction::Long => long_location_reached(self.levels, price),
                 Direction::Short => short_location_reached(self.levels, price),
             };
-            if reached {
-                if let Ok(next) = self.state.advance(SetupState::LocationReached) {
-                    self.state = next;
-                    return LocationEvent::Reached;
-                }
+            if reached && let Ok(next) = self.state.advance(SetupState::LocationReached) {
+                self.state = next;
+                return LocationEvent::Reached;
             }
         }
 
