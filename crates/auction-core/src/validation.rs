@@ -219,6 +219,21 @@ pub struct ReplayReport {
     pub state_mismatches: usize,
 }
 
+impl ReplayReport {
+    /// Structural integrity only. This does not decide whether results are good enough for
+    /// promotion; canonical §116 defines no numeric acceptance threshold.
+    #[must_use]
+    pub const fn structurally_valid(self) -> bool {
+        self.total_cases > 0
+            && self.exact_matches <= self.total_cases
+            && self.mismatches <= self.total_cases
+            && self.exact_matches + self.mismatches == self.total_cases
+            && self.authorization_mismatches <= self.mismatches
+            && self.rejection_mismatches <= self.mismatches
+            && self.state_mismatches <= self.mismatches
+    }
+}
+
 /// Summarizes exact replay evidence only. Canonical knowledge defines no performance threshold
 /// that would permit this report to approve, promote, or version a strategy automatically.
 pub fn summarize_replay(
