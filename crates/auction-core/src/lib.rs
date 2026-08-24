@@ -12,6 +12,7 @@ pub mod market;
 pub mod rejection;
 pub mod session;
 pub mod setup_state;
+pub mod short_orderflow;
 pub mod swings;
 pub mod truth;
 
@@ -41,6 +42,11 @@ pub use market::{Direction, MarketState, direction_allowed};
 pub use rejection::RejectionCode;
 pub use session::{EtTime, SessionPermissions};
 pub use setup_state::{SetupState, SetupStateError, TerminalState};
+pub use short_orderflow::{
+    ShortOrderflowSequence, buyer_aggression, first_seller_dominance_shift,
+    genuine_second_buyer_attempt, potential_buyer_absorption, second_failure_lower,
+    second_test_has_real_buying, seller_reconfirmation,
+};
 pub use swings::{
     Bar15, ConfirmedSwing, SwingImpulse, SwingKind, confirmed_swings, latest_bearish_impulse,
     latest_bullish_impulse, qualified_impulse,
