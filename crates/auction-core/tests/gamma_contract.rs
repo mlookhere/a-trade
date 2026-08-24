@@ -81,7 +81,10 @@ fn sections_14_25_reliable_snapshot_keeps_required_metadata_and_optional_levels(
     assert_eq!(snapshot.underlying(), "MNQ");
     assert_eq!(snapshot.timestamp(), "2026-08-24T09:00:00-04:00");
     assert_eq!(snapshot.context().flip, None);
-    assert_eq!(snapshot.interpretation().volatility, VolatilityExpectation::Dampened);
+    assert_eq!(
+        snapshot.interpretation().volatility,
+        VolatilityExpectation::Dampened
+    );
 }
 
 #[test]
