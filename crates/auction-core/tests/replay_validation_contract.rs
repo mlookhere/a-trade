@@ -7,6 +7,8 @@ use auction_core::{
     stop_replacement_allowed, summarize_replay, trade_authorized,
 };
 
+type ConditionMutation = (&'static str, fn(&mut ProductionConditions));
+
 fn manifest() -> ValidationDatasetManifest {
     ValidationDatasetManifest {
         strategy_version: "strategy-v1".to_owned(),
@@ -335,7 +337,7 @@ fn sections_10_56_95_108_109_122_replay_integrated_authorization_fail_closed_mat
         true,
     )];
 
-    let mutations: [(&str, fn(&mut ProductionConditions)); 10] = [
+    let mutations: [ConditionMutation; 10] = [
         ("TIME", |value| value.time_valid = Condition::False),
         ("DATA", |value| value.data_valid = Condition::Unknown),
         ("DIRECTION", |value| {
