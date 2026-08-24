@@ -362,9 +362,10 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             return Err(RejectionCode::DuplicateSetup);
         }
 
+        // Broker reconciliation proves the exact SETUP_ID is clear, but it does not prove that
+        // upstream strategy/portfolio checks found no effective duplicate or conflicting order.
+        // Preserve those independent fail-closed facts rather than overwriting them.
         let mut conditions = context.production_conditions;
-        conditions.setup_not_duplicated = Condition::True;
-        conditions.no_conflicting_order = Condition::True;
         conditions.broker_safe = Condition::True;
         conditions.execution_engine_safe = Condition::True;
         let authority = AuthorizationInputs {

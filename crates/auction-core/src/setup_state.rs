@@ -56,12 +56,12 @@ impl SetupState {
         }
     }
 
-    pub const fn advance(self, requested: Self) -> Result<Self, SetupStateError> {
+    pub fn advance(self, requested: Self) -> Result<Self, SetupStateError> {
         if matches!(self, Self::Terminal(_)) {
             return Err(SetupStateError::AlreadyTerminal);
         }
         match self.next() {
-            Some(next) if same_state(next, requested) => Ok(requested),
+            Some(next) if next == requested => Ok(requested),
             _ => Err(SetupStateError::StateSkip),
         }
     }
@@ -73,40 +73,4 @@ impl SetupState {
             _ => Self::Terminal(terminal),
         }
     }
-}
-
-const fn same_state(left: SetupState, right: SetupState) -> bool {
-    matches!(
-        (left, right),
-        (SetupState::Created, SetupState::Created)
-            | (
-                SetupState::WaitingForLocation,
-                SetupState::WaitingForLocation
-            )
-            | (SetupState::LocationReached, SetupState::LocationReached)
-            | (SetupState::AggressionPresent, SetupState::AggressionPresent)
-            | (
-                SetupState::PotentialAbsorption,
-                SetupState::PotentialAbsorption
-            )
-            | (
-                SetupState::FirstDominanceShift,
-                SetupState::FirstDominanceShift
-            )
-            | (SetupState::WaitingSecondTest, SetupState::WaitingSecondTest)
-            | (SetupState::SecondTest, SetupState::SecondTest)
-            | (SetupState::SecondFailure, SetupState::SecondFailure)
-            | (
-                SetupState::FinalReconfirmation,
-                SetupState::FinalReconfirmation
-            )
-            | (SetupState::EntryAuthorized, SetupState::EntryAuthorized)
-            | (SetupState::OrderPending, SetupState::OrderPending)
-            | (SetupState::Filled, SetupState::Filled)
-            | (
-                SetupState::PositionManagement,
-                SetupState::PositionManagement
-            )
-            | (SetupState::Closed, SetupState::Closed)
-    )
 }

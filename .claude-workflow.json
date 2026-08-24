@@ -32,14 +32,15 @@
     "rust_format": ["cargo fmt --all -- --check"],
     "rust_lint": ["cargo clippy --workspace --all-targets --all-features -- -D warnings"],
     "rust_test": ["cargo test --workspace --all-targets --locked"],
+    "rust_release_build": ["cargo build --workspace --release --locked"],
     "dependency_audit": ["python3 ci/dependency_audit.py"]
   },
   "stages": {
     "fast": ["workflow_self_test", "quality", "rust_format", "rust_lint"],
-    "pr": ["rust_test"],
+    "pr": ["rust_test", "rust_release_build"],
     "audit": ["dependency_audit"],
-    "release": ["workflow_self_test", "quality", "rust_format", "rust_lint", "rust_test", "dependency_audit"],
-    "nightly": ["workflow_self_test", "quality", "rust_format", "rust_lint", "rust_test", "dependency_audit"]
+    "release": ["workflow_self_test", "quality", "rust_format", "rust_lint", "rust_test", "rust_release_build", "dependency_audit"],
+    "nightly": ["workflow_self_test", "quality", "rust_format", "rust_lint", "rust_test", "rust_release_build", "dependency_audit"]
   },
   "quality": {
     "base_ref": "origin/dev",
