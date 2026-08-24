@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    slippage_guard, trigger_expired, Condition, Direction, InstrumentExecutionConfig,
-    OperationalSafetyController, OrderProposal, RejectionCode, SetupState, TerminalState,
+    Condition, Direction, InstrumentExecutionConfig, OperationalSafetyController, OrderProposal,
+    RejectionCode, SetupState, TerminalState, slippage_guard, trigger_expired,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -451,8 +451,11 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             return Err(RejectionCode::DuplicateSetup);
         }
 
-        self.registry
-            .reserve_for_submission(proposal.setup_id(), context.submitting_agent_id, proposal)?;
+        self.registry.reserve_for_submission(
+            proposal.setup_id(),
+            context.submitting_agent_id,
+            proposal,
+        )?;
         let mut approved = proposal.clone();
         approved.mark_execution_pass();
         Ok(ExecutionPermit {
