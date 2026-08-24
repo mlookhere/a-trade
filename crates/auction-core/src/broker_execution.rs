@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    AuthorizationInputs, Condition, OrderProposal, ProductionConditions, RejectionCode,
-    trade_authorized,
+    AuthorizationInputs, Condition, OperationalSafetyController, OrderProposal,
+    ProductionConditions, RejectionCode, trade_authorized,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -223,6 +223,7 @@ pub struct ExecutionGateContext<'a> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExecutionPermit {
     proposal: OrderProposal,
+    owner_agent_id: String,
 }
 
 impl ExecutionPermit {
@@ -236,6 +237,7 @@ pub struct ExecutionCoordinator<A: BrokerAdapter> {
     adapter: A,
     registry: SetupRegistry,
     engine_safe: bool,
+    operational_safety: OperationalSafetyController,
 }
 
 impl<A: BrokerAdapter> ExecutionCoordinator<A> {
@@ -245,6 +247,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             adapter,
             registry: SetupRegistry::default(),
             engine_safe: true,
+            operational_safety: OperationalSafetyController::new(),
         }
     }
 
@@ -276,6 +279,16 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
     }
 
     #[must_use]
+    pub const fn operational_safety(&self) -> &OperationalSafetyController {
+        &self.operational_safety
+    }
+
+    #[must_use]
+    pub fn operational_safety_mut(&mut self) -> &mut OperationalSafetyController {
+        &mut self.operational_safety
+    }
+
+    #[must_use]
     pub fn setup_status(&self, setup_id: &str) -> Option<SetupRegistryStatus> {
         self.registry.status(setup_id)
     }
@@ -289,6 +302,13 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             return Err(RejectionCode::BrokerUnsafe);
         }
         if context.submitting_agent_id.trim().is_empty() {
+            return Err(RejectionCode::ProcessError);
+        }
+        if self
+            .operational_safety
+            .agent_automation_allowed(context.submitting_agent_id)
+            != Condition::True
+        {
             return Err(RejectionCode::ProcessError);
         }
         if proposal.execution_pass != Condition::Unknown {
@@ -365,7 +385,10 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         )?;
         let mut approved = proposal.clone();
         approved.execution_pass = Condition::True;
-        Ok(ExecutionPermit { proposal: approved })
+        Ok(ExecutionPermit {
+            proposal: approved,
+            owner_agent_id: context.submitting_agent_id.to_owned(),
+        })
     }
 
     pub fn submit(&mut self, permit: ExecutionPermit) -> Result<ExecutionStatus, RejectionCode> {
@@ -373,6 +396,14 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             return Err(RejectionCode::BrokerUnsafe);
         }
         let setup_id = permit.proposal.setup_id.clone();
+        if self
+            .operational_safety
+            .agent_automation_allowed(&permit.owner_agent_id)
+            != Condition::True
+        {
+            self.registry.clear_reservation(&setup_id);
+            return Err(RejectionCode::ProcessError);
+        }
         if !self.reservation_valid(&permit.proposal) {
             return Err(RejectionCode::ProcessError);
         }
