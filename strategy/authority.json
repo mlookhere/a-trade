@@ -138,8 +138,8 @@
       "provenance": "confirmed fill with stop confirmation other than TRUE triggers one immediate flatten attempt and marks shared execution engine unsafe"
     },
     "execution_gate": {
-      "sections": [109, 110, 122],
-      "provenance": "opaque gate permit independently recomputes broker safety, duplication, ownership, execution-engine safety, and full final authority before submission"
+      "sections": [56, 109, 110, 122],
+      "provenance": "opaque gate permit recomputes broker safety, exact SETUP_ID broker/registry clearance, ownership, execution-engine safety, and final authority while preserving upstream effective duplicate and conflicting-order facts; it never promotes FALSE or UNKNOWN upstream conflict facts to TRUE"
     },
     "provider_adapter_boundary": {
       "sections": [5, 6, 7, 101],
@@ -252,6 +252,16 @@
     "audit_non_authority": {
       "sections": [6, 115, 116],
       "provenance": "AuditLedger is append-only reporting data with no trade authorization, broker submission, risk override, live-parameter mutation, or automatic strategy-change API"
+    }
+  },
+  "implemented_in_issue_24": {
+    "later_session_new_setup_lifecycle": {
+      "sections": [3, 37, 117],
+      "provenance": "opening setup creation remains exactly 09:30; genuinely new confirmed swing structure may create a fresh setup during the canonical new-entry window through 10:59:59; caller-supplied known structure keys cannot be reused and invalid/nonchronological structure fails closed"
+    },
+    "execution_gate_upstream_preservation": {
+      "sections": [56, 109, 122],
+      "provenance": "broker exact-SETUP_ID reconciliation supplements rather than replaces upstream effective duplicate and conflicting-order gates; FALSE or UNKNOWN upstream facts remain fail-closed"
     }
   },
   "unresolved_strategy_algorithms": {
