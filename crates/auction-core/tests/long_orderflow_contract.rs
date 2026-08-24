@@ -183,8 +183,8 @@ fn sections_45_48_unknown_effort_result_cannot_advance_and_wick_25pct_is_inclusi
         Condition::True
     );
 
-    let mut sequence = LongOrderflowSequence::from_location_reached(SetupState::LocationReached)
-        .unwrap();
+    let mut sequence =
+        LongOrderflowSequence::from_location_reached(SetupState::LocationReached).unwrap();
     assert_eq!(
         sequence.record_aggression(
             aggression,
@@ -250,10 +250,7 @@ fn sections_51_54_enforce_genuine_second_attempt_real_selling_and_one_tick_highe
 
     let test_data = levels(20_000, -100, 10, Some(4.0), None, None);
     let test = candle(&test_data, 4.0, 3.0, 20_000, -100, 7.0);
-    assert_eq!(
-        genuine_second_seller_attempt(test, 5.0),
-        Condition::True
-    );
+    assert_eq!(genuine_second_seller_attempt(test, 5.0), Condition::True);
     assert_eq!(
         second_test_has_real_selling(test, Condition::True, 2.0),
         Condition::True
@@ -267,10 +264,7 @@ fn sections_51_54_enforce_genuine_second_attempt_real_selling_and_one_tick_highe
     );
 
     assert_eq!(second_failure_higher(2.25, 2.0, 0.25), Condition::True);
-    assert_eq!(
-        second_failure_higher(2.249, 2.0, 0.25),
-        Condition::False
-    );
+    assert_eq!(second_failure_higher(2.249, 2.0, 0.25), Condition::False);
 }
 
 #[test]
@@ -315,8 +309,8 @@ fn sections_42_55_and_102_advance_every_state_without_entry_authorization() {
     let reconfirmation_data = levels(20_000, 100, 10, None, None, Some(4.0));
     let reconfirmation = candle(&reconfirmation_data, 4.0, 7.0, 20_000, 100, 7.0);
 
-    let mut sequence = LongOrderflowSequence::from_location_reached(SetupState::LocationReached)
-        .unwrap();
+    let mut sequence =
+        LongOrderflowSequence::from_location_reached(SetupState::LocationReached).unwrap();
     assert_eq!(
         sequence.record_aggression(
             aggression,
