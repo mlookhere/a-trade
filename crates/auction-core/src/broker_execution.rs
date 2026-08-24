@@ -66,7 +66,10 @@ pub trait BrokerAdapter {
 
     /// Submit the complete §64 protected structure exactly as represented by the approved
     /// proposal. Implementations must not modify strategy prices, side, size, or order type.
-    fn submit_protected(&mut self, proposal: &OrderProposal) -> Result<BrokerSubmission, Self::Error>;
+    fn submit_protected(
+        &mut self,
+        proposal: &OrderProposal,
+    ) -> Result<BrokerSubmission, Self::Error>;
 
     /// TRUE means the entry is confirmed filled; FALSE means accepted/unfilled; UNKNOWN is unsafe.
     fn entry_filled(&mut self, setup_id: &str) -> Result<Condition, Self::Error>;
@@ -193,7 +196,8 @@ impl SetupRegistry {
         let Some(record) = self.setups.get_mut(setup_id) else {
             return Err(RejectionCode::ProcessError);
         };
-        if !record.order_active_or_reserved || record.consumed || broker_order_id.trim().is_empty() {
+        if !record.order_active_or_reserved || record.consumed || broker_order_id.trim().is_empty()
+        {
             return Err(RejectionCode::ProcessError);
         }
         record.broker_order_id = Some(broker_order_id.to_owned());
@@ -241,7 +245,7 @@ pub struct ExecutionGateContext<'a> {
 
 /// Opaque approval token. Fields are private and there is no public constructor, so the
 /// Execution Engine can only receive one from the deterministic gate in this module.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExecutionPermit {
     proposal: OrderProposal,
 }
@@ -287,11 +291,6 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
     }
 
     #[must_use]
-    pub fn setup_status(&self, setup_id: &str) -> Option<SetupRegistryStatus> {
-        self.registry.status(setup_id)
-    }
-
-    #[must_use]
     pub const fn adapter(&self) -> &A {
         &self.adapter
     }
@@ -299,6 +298,11 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
     #[must_use]
     pub fn adapter_mut(&mut self) -> &mut A {
         &mut self.adapter
+    }
+
+    #[must_use]
+    pub fn setup_status(&self, setup_id: &str) -> Option<SetupRegistryStatus> {
+        self.registry.status(setup_id)
     }
 
     /// §§9,16,64,103,109,110,122 deterministic Execution Gate. It independently reconciles
@@ -430,8 +434,6 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         let submission = match self.adapter.submit_protected(&permit.proposal) {
             Ok(value) => value,
             Err(_) => {
-                // The broker may have observed the request even though the response failed.
-                // Keep the reservation and disable the shared engine rather than inventing retry.
                 self.engine_safe = false;
                 return Err(RejectionCode::BrokerUnsafe);
             }
@@ -454,8 +456,6 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         self.verify_protection_after_fill(&setup_id, &submission.broker_order_id)
     }
 
-    /// Reconcile a previously accepted pending parent order. Partial-fill behavior is not
-    /// invented; adapters must return TRUE/FALSE/UNKNOWN only, and UNKNOWN fails shared-safe.
     pub fn reconcile_fill(&mut self, setup_id: &str) -> Result<ExecutionStatus, RejectionCode> {
         if !self.engine_safe {
             return Err(RejectionCode::BrokerUnsafe);
@@ -516,8 +516,6 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             });
         }
 
-        // §64 is explicit: once entry fill is confirmed, inability to confirm the stop requires
-        // immediate flatten and is an execution-system failure. Consumption is already permanent.
         self.engine_safe = false;
         let instrument = self
             .registry
