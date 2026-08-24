@@ -1,7 +1,7 @@
 use auction_core::{
-    AuthorizationInputs, Condition, DataCycleReadiness, DataHealth, EtTime, FrozenPremarketScenario,
-    PremarketPlanComponents, PremarketReferences, PremarketScenarioError, ProductionConditions,
-    RequiredMarketDataStatus, RequiredVolumeProfileStatus, trade_authorized,
+    AuthorizationInputs, Condition, DataCycleReadiness, DataHealth, EtTime,
+    FrozenPremarketScenario, PremarketPlanComponents, PremarketReferences, PremarketScenarioError,
+    ProductionConditions, RequiredMarketDataStatus, RequiredVolumeProfileStatus, trade_authorized,
 };
 
 fn true_health() -> DataHealth {
@@ -190,7 +190,10 @@ fn section_25_required_references_are_valid_while_optional_gamma_may_be_absent()
 
 #[test]
 fn section_17_plan_components_use_true_false_unknown_without_guessing() {
-    assert_eq!(PremarketPlanComponents::default().readiness(), Condition::Unknown);
+    assert_eq!(
+        PremarketPlanComponents::default().readiness(),
+        Condition::Unknown
+    );
     assert_eq!(true_plan().readiness(), Condition::True);
 
     let mut unknown = true_plan();
@@ -259,14 +262,7 @@ fn sections_17_33_incomplete_unknown_or_unidentified_scenario_cannot_freeze() {
         Err(PremarketScenarioError::MissingInstrument)
     );
     assert_eq!(
-        FrozenPremarketScenario::freeze(
-            "AGENT",
-            "MNQ",
-            "",
-            before_open,
-            references(),
-            true_plan(),
-        ),
+        FrozenPremarketScenario::freeze("AGENT", "MNQ", "", before_open, references(), true_plan(),),
         Err(PremarketScenarioError::MissingScenarioId)
     );
 
