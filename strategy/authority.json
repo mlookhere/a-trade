@@ -76,6 +76,50 @@
       "provenance": "explicit mirrored bearish application of long deterministic formalizations"
     }
   },
+  "implemented_in_issue_12": {
+    "entry_trigger": {
+      "sections": [59, 85],
+      "provenance": "long high-plus-one-tick trigger is canonical; short low-minus-one-tick trigger is explicit mirrored bearish implementation"
+    },
+    "entry_slippage_guard": {
+      "sections": [60],
+      "provenance": "instrument-specific deployment configuration; MNQ four-tick value remains example-only and is not a default"
+    },
+    "stale_trigger_expiration": [61],
+    "structural_stop": {
+      "sections": [62, 93, 85],
+      "provenance": "structural stop formula is canonical/mirrored; stop-buffer ticks are deployment configuration and MNQ two-tick value remains example-only"
+    },
+    "stop_cannot_widen": {
+      "sections": [63, 85],
+      "provenance": "canonical long rule with explicit mirrored short inequality"
+    },
+    "risk_per_setup": {
+      "sections": [65],
+      "provenance": "externally configured; source provides no universal account-risk percentage and 0.25% remains example-only"
+    },
+    "futures_position_sizing": [66],
+    "aggregate_portfolio_risk": {
+      "sections": [67],
+      "provenance": "deterministic risk arithmetic with externally configured portfolio ceiling"
+    },
+    "cluster_and_correlation_risk": {
+      "sections": [68, 69, 70],
+      "provenance": "explicit RISK_CLUSTER_ID and externally configured cluster ceiling; example Nasdaq/S&P groupings are not hard-coded limits"
+    },
+    "structural_target": {
+      "sections": [71, 85, 94],
+      "provenance": "nearest predefined structural target is caller-supplied and direction-validated; short calculation is mirrored"
+    },
+    "minimum_planned_r": {
+      "sections": [72],
+      "provenance": "strict autonomous implementation rule PLANNED_R >= 1.5; not promoted into a universal source-trader threshold"
+    },
+    "prebroker_order_proposal": {
+      "sections": [109, 110],
+      "provenance": "typed deterministic proposal only; execution_pass remains UNKNOWN until the later broker Execution Gate exists"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
