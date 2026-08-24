@@ -46,10 +46,7 @@ fn sections_3_4_109_time_cutoff_is_recalculated_and_fails_closed() {
     let scenario = common::frozen_scenario(common::OWNER, common::INSTRUMENT);
     let mut candidate = inputs(&scenario, &location, &sequence);
     candidate.now_et = EtTime::from_hms(11, 0, 0).unwrap();
-    assert_eq!(
-        validate_strategy(candidate),
-        Err(RejectionCode::TimeCutoff)
-    );
+    assert_eq!(validate_strategy(candidate), Err(RejectionCode::TimeCutoff));
 }
 
 #[test]
