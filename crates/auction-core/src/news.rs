@@ -8,12 +8,12 @@ pub struct NewsBlackoutWindow {
 
 impl NewsBlackoutWindow {
     #[must_use]
-    pub const fn valid(self) -> bool {
+    pub fn valid(self) -> bool {
         self.start_inclusive < self.end_exclusive
     }
 
     #[must_use]
-    pub const fn contains(self, time: EtTime) -> bool {
+    pub fn contains(self, time: EtTime) -> bool {
         self.start_inclusive <= time && time < self.end_exclusive
     }
 }
@@ -48,7 +48,10 @@ pub fn evaluate_news_gate(
         };
     }
 
-    let active = windows.iter().copied().any(|window| window.contains(now_et));
+    let active = windows
+        .iter()
+        .copied()
+        .any(|window| window.contains(now_et));
     let latest_blackout_end = windows
         .iter()
         .copied()
