@@ -1,34 +1,28 @@
 mod common;
 
 use auction_core::{
-    Condition, DataCycleReadiness, EnvironmentInput, EtTime, FrozenPremarketScenario,
-    LocationSetup, LongOrderflowSequence, NewsBlackoutWindow, OrderflowSequenceEvidence,
-    RejectionCode, StrategyValidationInputs, validate_strategy,
+    Condition, EtTime, FrozenPremarketScenario, LocationSetup, LongOrderflowSequence,
+    NewsBlackoutWindow, OrderflowSequenceEvidence, RejectionCode, StrategyValidationInputs,
+    validate_strategy,
 };
 
 fn inputs<'a>(
     scenario: &'a FrozenPremarketScenario,
     location: &'a LocationSetup,
     sequence: &'a LongOrderflowSequence,
-    now_et: EtTime,
-    data_readiness: DataCycleReadiness,
-    environment: EnvironmentInput,
-    owner: &'a str,
-    news_schedule_valid: Condition,
-    news_windows: &'a [NewsBlackoutWindow],
 ) -> StrategyValidationInputs<'a> {
     StrategyValidationInputs {
         setup_id: "SETUP-VALIDATOR",
-        owner_agent_id: owner,
+        owner_agent_id: common::OWNER,
         instrument: common::INSTRUMENT,
-        now_et,
-        data_readiness,
+        now_et: EtTime::from_hms(10, 0, 0).unwrap(),
+        data_readiness: common::true_data(),
         premarket_scenario: scenario,
-        environment,
+        environment: common::long_environment(),
         location,
         orderflow: OrderflowSequenceEvidence::Long(sequence),
-        news_schedule_valid,
-        news_windows,
+        news_schedule_valid: Condition::True,
+        news_windows: &[],
     }
 }
 
@@ -50,18 +44,10 @@ fn sections_3_4_109_time_cutoff_is_recalculated_and_fails_closed() {
     let location = common::long_location();
     let sequence = common::valid_long_sequence(&location);
     let scenario = common::frozen_scenario(common::OWNER, common::INSTRUMENT);
+    let mut candidate = inputs(&scenario, &location, &sequence);
+    candidate.now_et = EtTime::from_hms(11, 0, 0).unwrap();
     assert_eq!(
-        validate_strategy(inputs(
-            &scenario,
-            &location,
-            &sequence,
-            EtTime::from_hms(11, 0, 0).unwrap(),
-            common::true_data(),
-            common::long_environment(),
-            common::OWNER,
-            Condition::True,
-            &[],
-        )),
+        validate_strategy(candidate),
         Err(RejectionCode::TimeCutoff)
     );
 }
@@ -71,20 +57,10 @@ fn sections_10_11_109_unknown_data_cannot_be_promoted_to_strategy_pass() {
     let location = common::long_location();
     let sequence = common::valid_long_sequence(&location);
     let scenario = common::frozen_scenario(common::OWNER, common::INSTRUMENT);
-    let mut data = common::true_data();
-    data.health.quote_fresh = Condition::Unknown;
+    let mut candidate = inputs(&scenario, &location, &sequence);
+    candidate.data_readiness.health.quote_fresh = Condition::Unknown;
     assert_eq!(
-        validate_strategy(inputs(
-            &scenario,
-            &location,
-            &sequence,
-            EtTime::from_hms(10, 0, 0).unwrap(),
-            data,
-            common::long_environment(),
-            common::OWNER,
-            Condition::True,
-            &[],
-        )),
+        validate_strategy(candidate),
         Err(RejectionCode::DataInvalid)
     );
 }
@@ -94,18 +70,10 @@ fn sections_18_24_109_wrong_environment_direction_is_rejected() {
     let location = common::long_location();
     let sequence = common::valid_long_sequence(&location);
     let scenario = common::frozen_scenario(common::OWNER, common::INSTRUMENT);
+    let mut candidate = inputs(&scenario, &location, &sequence);
+    candidate.environment = common::short_environment();
     assert_eq!(
-        validate_strategy(inputs(
-            &scenario,
-            &location,
-            &sequence,
-            EtTime::from_hms(10, 0, 0).unwrap(),
-            common::true_data(),
-            common::short_environment(),
-            common::OWNER,
-            Condition::True,
-            &[],
-        )),
+        validate_strategy(candidate),
         Err(RejectionCode::WrongDirection)
     );
 }
@@ -119,18 +87,10 @@ fn sections_95_96_109_active_news_blackout_rejects_new_authorization() {
         start_inclusive: EtTime::from_hms(9, 55, 0).unwrap(),
         end_exclusive: EtTime::from_hms(10, 5, 0).unwrap(),
     }];
+    let mut candidate = inputs(&scenario, &location, &sequence);
+    candidate.news_windows = &windows;
     assert_eq!(
-        validate_strategy(inputs(
-            &scenario,
-            &location,
-            &sequence,
-            EtTime::from_hms(10, 0, 0).unwrap(),
-            common::true_data(),
-            common::long_environment(),
-            common::OWNER,
-            Condition::True,
-            &windows,
-        )),
+        validate_strategy(candidate),
         Err(RejectionCode::NewsBlackout)
     );
 }
@@ -140,34 +100,16 @@ fn sections_17_102_109_identity_or_incomplete_sequence_cannot_forge_pass() {
     let location = common::long_location();
     let complete = common::valid_long_sequence(&location);
     let scenario = common::frozen_scenario(common::OWNER, common::INSTRUMENT);
+    let mut wrong_owner = inputs(&scenario, &location, &complete);
+    wrong_owner.owner_agent_id = "OTHER_AGENT";
     assert_eq!(
-        validate_strategy(inputs(
-            &scenario,
-            &location,
-            &complete,
-            EtTime::from_hms(10, 0, 0).unwrap(),
-            common::true_data(),
-            common::long_environment(),
-            "OTHER_AGENT",
-            Condition::True,
-            &[],
-        )),
+        validate_strategy(wrong_owner),
         Err(RejectionCode::ProcessError)
     );
 
     let incomplete = LongOrderflowSequence::from_location_reached(&location).unwrap();
     assert_eq!(
-        validate_strategy(inputs(
-            &scenario,
-            &location,
-            &incomplete,
-            EtTime::from_hms(10, 0, 0).unwrap(),
-            common::true_data(),
-            common::long_environment(),
-            common::OWNER,
-            Condition::True,
-            &[],
-        )),
+        validate_strategy(inputs(&scenario, &location, &incomplete)),
         Err(RejectionCode::NoReconfirmation)
     );
 }
