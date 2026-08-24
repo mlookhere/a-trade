@@ -17,6 +17,22 @@
     "environment_classification": [18, 19, 20, 21, 22, 23, 24],
     "profile_references": [25]
   },
+  "implemented_in_issue_6": {
+    "confirmed_15m_pivots": {
+      "sections": [26],
+      "provenance": "deterministic implementation algorithm; transcript did not specify one"
+    },
+    "bullish_and_bearish_impulse_selection": [27, 28],
+    "opening_location_lifecycle": [34, 35, 37],
+    "long_886_invalidation": {
+      "sections": [36],
+      "provenance": "strict long implementation rule"
+    },
+    "short_886_invalidation": {
+      "sections": [36, 85],
+      "provenance": "mirrored bearish implementation; detailed source example primarily bullish"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
