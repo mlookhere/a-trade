@@ -120,6 +120,32 @@
       "provenance": "typed deterministic proposal only; execution_pass remains UNKNOWN until the later broker Execution Gate exists"
     }
   },
+  "implemented_in_issue_14": {
+    "broker_and_order_reconciliation": {
+      "sections": [9, 16],
+      "provenance": "provider-neutral tri-state broker, position, and open-order reconciliation; UNKNOWN fails closed"
+    },
+    "setup_ownership_and_single_consumption": {
+      "sections": [8, 9, 103],
+      "provenance": "SETUP_ID has one owner; duplicate registration/submission is rejected; CONSUMED is set only on confirmed entry fill"
+    },
+    "protected_entry": {
+      "sections": [64],
+      "provenance": "requires broker-supported ENTRY + HARD STOP + TARGET protected structure; no unprotected fallback is invented when capability is FALSE or UNKNOWN"
+    },
+    "post_fill_stop_failure": {
+      "sections": [64, 98, 100],
+      "provenance": "confirmed fill with stop confirmation other than TRUE triggers one immediate flatten attempt and marks shared execution engine unsafe"
+    },
+    "execution_gate": {
+      "sections": [109, 110, 122],
+      "provenance": "opaque gate permit independently recomputes broker safety, duplication, ownership, execution-engine safety, and full final authority before submission"
+    },
+    "provider_adapter_boundary": {
+      "sections": [5, 6, 7, 101],
+      "provenance": "provider-neutral execution contract only; broker-specific retry, partial-fill, replace, cancel, and routing behavior remains unsupported until specified"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
