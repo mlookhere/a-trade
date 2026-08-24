@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod audit;
 pub mod authority;
 pub mod authorization;
 pub mod broker_execution;
@@ -21,6 +22,10 @@ pub mod short_orderflow;
 pub mod swings;
 pub mod truth;
 
+pub use audit::{
+    AuditError, AuditLedger, CompletedTradeRecord, DailyMetrics, EffortResultChange,
+    EffortResultSnapshot, RejectedSetupRecord, StateChangeRecord, StoredRejectedSetupRecord,
+};
 pub use authorization::{AuthorizationInputs, ProductionConditions, trade_authorized};
 pub use broker_execution::{
     BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission,
