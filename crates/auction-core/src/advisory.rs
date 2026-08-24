@@ -35,23 +35,12 @@ impl AgentRole {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct AdvisoryGamma {
     pub regime: Option<GammaRegime>,
     pub flip: Option<f64>,
     pub call_wall: Option<f64>,
     pub put_wall: Option<f64>,
-}
-
-impl Default for AdvisoryGamma {
-    fn default() -> Self {
-        Self {
-            regime: None,
-            flip: None,
-            call_wall: None,
-            put_wall: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
