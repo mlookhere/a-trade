@@ -464,6 +464,61 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         }
     }
 
+    /// Canonical §§16,64,73,98,100,118 provider-neutral open-position safety cycle.
+    /// Callers invoke this while a position is believed open. Polling cadence and broker-specific
+    /// transport semantics remain outside the strategy core.
+    pub fn verify_open_position_safety(&mut self, setup_id: &str) -> Result<(), RejectionCode> {
+        if !self.engine_safe {
+            return Err(RejectionCode::BrokerUnsafe);
+        }
+        if setup_id.trim().is_empty() {
+            return Err(RejectionCode::ProcessError);
+        }
+
+        let instrument = {
+            let Some(record) = self.registry.execution_record(setup_id) else {
+                return Err(RejectionCode::ProcessError);
+            };
+            if !record.consumed
+                || record.order_active_or_reserved
+                || record.broker_order_id.is_none()
+            {
+                return Err(RejectionCode::ProcessError);
+            }
+            record
+                .instrument
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or(RejectionCode::ProcessError)?
+        };
+
+        let reconciliation = match self.adapter.reconcile() {
+            Ok(value) => value,
+            Err(_) => return Err(RejectionCode::BrokerUnsafe),
+        };
+        if reconciliation.broker_safe() != Condition::True {
+            return Err(RejectionCode::BrokerUnsafe);
+        }
+        if !reconciliation
+            .position_setup_ids
+            .iter()
+            .any(|candidate| candidate == setup_id)
+        {
+            return Err(RejectionCode::BrokerUnsafe);
+        }
+
+        if matches!(
+            self.adapter.hard_stop_confirmed(setup_id),
+            Ok(Condition::True)
+        ) {
+            return Ok(());
+        }
+
+        self.engine_safe = false;
+        let _ = self.adapter.flatten_instrument(&instrument);
+        Err(RejectionCode::BrokerUnsafe)
+    }
+
     fn reservation_valid(&self, proposal: &OrderProposal) -> bool {
         self.registry
             .execution_record(proposal.setup_id())
