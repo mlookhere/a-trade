@@ -193,9 +193,10 @@ fn section_16_every_unknown_broker_reconciliation_field_fails_closed() {
             3 => reconciliation.open_order_state_known = Condition::Unknown,
             _ => unreachable!(),
         }
-
-        let mut broker = MockBroker::default();
-        broker.reconciliation = Ok(reconciliation);
+        let broker = MockBroker {
+            reconciliation: Ok(reconciliation),
+            ..Default::default()
+        };
         let mut coordinator = ExecutionCoordinator::new(broker);
         coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
         assert_eq!(
@@ -207,10 +208,12 @@ fn section_16_every_unknown_broker_reconciliation_field_fails_closed() {
 
 #[test]
 fn sections_16_122_false_broker_state_and_invalid_data_fail_closed() {
-    let mut broker = MockBroker::default();
     let mut reconciliation = clear_reconciliation();
     reconciliation.broker_connected = Condition::False;
-    broker.reconciliation = Ok(reconciliation);
+    let broker = MockBroker {
+        reconciliation: Ok(reconciliation),
+        ..Default::default()
+    };
     let mut coordinator = ExecutionCoordinator::new(broker);
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
     assert_eq!(
@@ -266,8 +269,10 @@ fn section_9_reconciled_broker_order_or_position_for_same_setup_rejects_duplicat
                 .open_order_setup_ids
                 .push("SETUP-14".to_owned());
         }
-        let mut broker = MockBroker::default();
-        broker.reconciliation = Ok(reconciliation);
+        let broker = MockBroker {
+            reconciliation: Ok(reconciliation),
+            ..Default::default()
+        };
         let mut coordinator = ExecutionCoordinator::new(broker);
         coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
         assert_eq!(
@@ -280,8 +285,12 @@ fn section_9_reconciled_broker_order_or_position_for_same_setup_rejects_duplicat
 #[test]
 fn section_64_protected_bracket_capability_must_be_true_no_fallback_is_invented() {
     for capability in [Condition::False, Condition::Unknown] {
-        let mut broker = MockBroker::default();
-        broker.capabilities.protected_stop_limit_bracket = capability;
+        let broker = MockBroker {
+            capabilities: BrokerCapabilities {
+                protected_stop_limit_bracket: capability,
+            },
+            ..Default::default()
+        };
         let mut coordinator = ExecutionCoordinator::new(broker);
         coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
         assert_eq!(
@@ -377,12 +386,14 @@ fn sections_8_64_pending_submission_is_exactly_once_and_does_not_consume_setup()
 
 #[test]
 fn section_8_immediate_fill_consumes_setup_and_section_64_confirms_stop() {
-    let mut broker = MockBroker::default();
-    broker.submission = Ok(BrokerSubmission {
-        broker_order_id: "FILLED-1".to_owned(),
-        entry_filled: true,
-    });
-    broker.stop_state = Ok(Condition::True);
+    let broker = MockBroker {
+        submission: Ok(BrokerSubmission {
+            broker_order_id: "FILLED-1".to_owned(),
+            entry_filled: true,
+        }),
+        stop_state: Ok(Condition::True),
+        ..Default::default()
+    };
     let mut coordinator = ExecutionCoordinator::new(broker);
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
 
@@ -435,12 +446,14 @@ fn sections_8_64_later_fill_consumes_only_when_fill_becomes_true() {
 #[test]
 fn section_64_false_or_unknown_stop_confirmation_flattens_and_disables_shared_engine() {
     for stop_state in [Condition::False, Condition::Unknown] {
-        let mut broker = MockBroker::default();
-        broker.submission = Ok(BrokerSubmission {
-            broker_order_id: "FILLED-FAIL".to_owned(),
-            entry_filled: true,
-        });
-        broker.stop_state = Ok(stop_state);
+        let broker = MockBroker {
+            submission: Ok(BrokerSubmission {
+                broker_order_id: "FILLED-FAIL".to_owned(),
+                entry_filled: true,
+            }),
+            stop_state: Ok(stop_state),
+            ..Default::default()
+        };
         let mut coordinator = ExecutionCoordinator::new(broker);
         coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
         coordinator.register_setup("UNRELATED", "ES_AGENT").unwrap();
@@ -466,12 +479,14 @@ fn section_64_false_or_unknown_stop_confirmation_flattens_and_disables_shared_en
 
 #[test]
 fn section_64_stop_confirmation_adapter_error_also_flattens() {
-    let mut broker = MockBroker::default();
-    broker.submission = Ok(BrokerSubmission {
-        broker_order_id: "FILLED-ERROR".to_owned(),
-        entry_filled: true,
-    });
-    broker.stop_state = Err(MockError::Failure);
+    let broker = MockBroker {
+        submission: Ok(BrokerSubmission {
+            broker_order_id: "FILLED-ERROR".to_owned(),
+            entry_filled: true,
+        }),
+        stop_state: Err(MockError::Failure),
+        ..Default::default()
+    };
     let mut coordinator = ExecutionCoordinator::new(broker);
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
 
@@ -485,13 +500,15 @@ fn section_64_stop_confirmation_adapter_error_also_flattens() {
 
 #[test]
 fn section_64_flatten_failure_remains_broker_unsafe_and_consumed() {
-    let mut broker = MockBroker::default();
-    broker.submission = Ok(BrokerSubmission {
-        broker_order_id: "FILLED-FLATTEN-FAIL".to_owned(),
-        entry_filled: true,
-    });
-    broker.stop_state = Ok(Condition::False);
-    broker.flatten_result = Err(MockError::Failure);
+    let broker = MockBroker {
+        submission: Ok(BrokerSubmission {
+            broker_order_id: "FILLED-FLATTEN-FAIL".to_owned(),
+            entry_filled: true,
+        }),
+        stop_state: Ok(Condition::False),
+        flatten_result: Err(MockError::Failure),
+        ..Default::default()
+    };
     let mut coordinator = ExecutionCoordinator::new(broker);
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
 
@@ -506,8 +523,10 @@ fn section_64_flatten_failure_remains_broker_unsafe_and_consumed() {
 
 #[test]
 fn submission_error_does_not_retry_and_disables_shared_execution_engine() {
-    let mut broker = MockBroker::default();
-    broker.submission = Err(MockError::Failure);
+    let broker = MockBroker {
+        submission: Err(MockError::Failure),
+        ..Default::default()
+    };
     let mut coordinator = ExecutionCoordinator::new(broker);
     coordinator.register_setup("SETUP-14", "MNQ_AGENT").unwrap();
 
