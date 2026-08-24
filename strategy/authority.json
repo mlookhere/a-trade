@@ -220,6 +220,40 @@
       "provenance": "explicit mirrored bearish implementation: reclaim into value at close <= REFERENCE_VAH, seller effort/result mirror, lower-high structural trailing, put-wall/POC contextual management, and preidentified swing-low final exit"
     }
   },
+  "implemented_in_issue_22": {
+    "state_change_journal": {
+      "sections": [6, 118],
+      "provenance": "append-only SETUP_ID/from/to observation record; Audit does not validate, repair, or authorize the transition so observed violations remain visible"
+    },
+    "completed_trade_audit": {
+      "sections": [111],
+      "provenance": "canonical completed-trade field set preserved; audit validation is structural only so strategy-noncompliant executions are still recordable"
+    },
+    "rejected_setup_audit": {
+      "sections": [112, 113],
+      "provenance": "rejected setups retain SETUP_ID plus the existing fixed R01-R25 RejectionCode set; no additional rejection codes are invented"
+    },
+    "daily_metric_counts": {
+      "sections": [114],
+      "provenance": "qualified, rejected, executed, win/loss/breakeven, prevention, and execution-failure counts are derived only from explicit appended audit events"
+    },
+    "reporting_metric_formalizations": {
+      "sections": [97, 114, 115],
+      "provenance": "reporting-only deterministic formalizations where canonical knowledge names metrics but does not define arithmetic: expectancy is mean realized R; profit factor is gross positive R divided by absolute gross negative R with no-loss denominator reported as unavailable; win rate and average win/loss use their explicit trade groups; maximum drawdown is running-peak minus cumulative realized R in R-space; MFE, MAE, and slippage are arithmetic means; rule compliance is compliant observations divided by all compliance observations"
+    },
+    "rolling_expectancy": {
+      "sections": [97],
+      "provenance": "caller must supply a nonzero trade-count window and enough completed trades; no rolling window default is embedded"
+    },
+    "consecutive_loss_analysis": {
+      "sections": [97, 114],
+      "provenance": "current trailing loss streak is reported from ordered realized-R outcomes only; it has no shutdown or authorization effect"
+    },
+    "audit_non_authority": {
+      "sections": [6, 115, 116],
+      "provenance": "AuditLedger is append-only reporting data with no trade authorization, broker submission, risk override, live-parameter mutation, or automatic strategy-change API"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
