@@ -37,8 +37,8 @@ pub use audit::{
 pub use authorization::{AuthorizationInputs, ProductionConditions, trade_authorized};
 pub use broker_execution::{
     BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission,
-    ExecutionCoordinator, ExecutionGateContext, ExecutionPermit, ExecutionStatus, SetupRegistry,
-    SetupRegistryStatus,
+    ExecutionCoordinator, ExecutionGateContext, ExecutionPermit, ExecutionStatus,
+    PreExecutionAuthority, SetupRegistry, SetupRegistryStatus,
 };
 pub use data::{
     DataCycleReadiness, DataHealth, GammaContext, GammaInterpretation, GammaRegime,
@@ -95,8 +95,7 @@ pub use short_orderflow::{
     second_test_has_real_buying, seller_reconfirmation,
 };
 pub use strategy_validator::{
-    OrderflowSequenceEvidence, StrategyValidationInputs, StrategyValidationProof,
-    validate_strategy,
+    OrderflowSequenceEvidence, StrategyValidationInputs, StrategyValidationProof, validate_strategy,
 };
 pub use swings::{
     Bar15, ConfirmedSwing, SwingImpulse, SwingKind, confirmed_swings, latest_bearish_impulse,

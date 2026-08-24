@@ -3,30 +3,14 @@
 use auction_core::{
     Condition, DataCycleReadiness, DataHealth, Direction, EnvironmentInput, EtTime,
     FootprintCandle5m, FootprintLevel, FrozenPremarketScenario, HourlyStructure, LocationEvent,
-    LocationSetup, LongOrderflowSequence, MarketState, OrderProposal, OrderProposalInputs,
-    ParticipationContext, ParticipationRule, PortfolioRiskLimits, PremarketPlanComponents,
-    PremarketReferences, RequiredMarketDataStatus, RequiredVolumeProfileStatus, SessionValue,
-    ShortOrderflowSequence, StrategyValidationInputs, StrategyValidationProof, SwingImpulse,
-    build_order_proposal, validate_strategy,
+    LocationSetup, LongOrderflowSequence, MarketState, ParticipationContext, ParticipationRule,
+    PremarketPlanComponents, PremarketReferences, RequiredMarketDataStatus,
+    RequiredVolumeProfileStatus, SessionValue, ShortOrderflowSequence, StrategyValidationInputs,
+    StrategyValidationProof, SwingImpulse, validate_strategy,
 };
 
 pub const OWNER: &str = "MNQ_AGENT";
 pub const INSTRUMENT: &str = "MNQ";
-
-pub fn execution_config() -> auction_core::InstrumentExecutionConfig {
-    auction_core::InstrumentExecutionConfig {
-        tick_size: 0.25,
-        max_entry_slippage_ticks: 4,
-        stop_buffer_ticks: 2,
-    }
-}
-
-pub fn risk_limits() -> PortfolioRiskLimits {
-    PortfolioRiskLimits {
-        max_portfolio_open_risk_percent: 0.02,
-        max_cluster_open_risk_percent: 0.01,
-    }
-}
 
 pub fn true_data() -> DataCycleReadiness {
     DataCycleReadiness {
@@ -99,21 +83,9 @@ pub fn frozen_scenario(owner: &str, instrument: &str) -> FrozenPremarketScenario
 
 pub fn long_environment() -> EnvironmentInput {
     EnvironmentInput {
-        d1: SessionValue {
-            vah: 8.0,
-            val: 6.0,
-            poc: 7.0,
-        },
-        d2: SessionValue {
-            vah: 7.0,
-            val: 5.0,
-            poc: 6.0,
-        },
-        d3: SessionValue {
-            vah: 6.0,
-            val: 4.0,
-            poc: 5.0,
-        },
+        d1: SessionValue { vah: 8.0, val: 6.0, poc: 7.0 },
+        d2: SessionValue { vah: 7.0, val: 5.0, poc: 6.0 },
+        d3: SessionValue { vah: 6.0, val: 4.0, poc: 5.0 },
         hourly: HourlyStructure {
             latest_swing_high: 10.0,
             previous_swing_high: 9.0,
@@ -126,21 +98,9 @@ pub fn long_environment() -> EnvironmentInput {
 
 pub fn short_environment() -> EnvironmentInput {
     EnvironmentInput {
-        d1: SessionValue {
-            vah: 4.0,
-            val: 2.0,
-            poc: 3.0,
-        },
-        d2: SessionValue {
-            vah: 5.0,
-            val: 3.0,
-            poc: 4.0,
-        },
-        d3: SessionValue {
-            vah: 6.0,
-            val: 4.0,
-            poc: 5.0,
-        },
+        d1: SessionValue { vah: 4.0, val: 2.0, poc: 3.0 },
+        d2: SessionValue { vah: 5.0, val: 3.0, poc: 4.0 },
+        d3: SessionValue { vah: 6.0, val: 4.0, poc: 5.0 },
         hourly: HourlyStructure {
             latest_swing_high: 8.0,
             previous_swing_high: 9.0,
@@ -213,60 +173,20 @@ fn level(
     }
 }
 
-fn long_levels(
-    total_volume: u64,
-    delta: i64,
-    bottom_percent: u64,
-    sell_ratio: Option<f64>,
-    buy_ratio: Option<f64>,
-) -> [FootprintLevel; 4] {
-    let bottom = total_volume * bottom_percent / 100;
-    let remaining = total_volume - bottom;
-    let second = remaining / 3;
-    let third = remaining / 3;
-    let fourth = remaining - second - third;
-    [
-        level(0.0, bottom, delta, None, sell_ratio),
-        level(3.0, second, 0, None, None),
-        level(7.0, third, 0, buy_ratio, None),
-        level(10.0, fourth, 0, None, None),
-    ]
-}
-
-fn short_levels(
-    total_volume: u64,
-    delta: i64,
-    top_percent: u64,
-    buy_ratio: Option<f64>,
-    sell_ratio: Option<f64>,
-) -> [FootprintLevel; 4] {
-    let top = total_volume * top_percent / 100;
-    let remaining = total_volume - top;
-    let first = remaining / 3;
-    let second = remaining / 3;
-    let third = remaining - first - second;
-    let low_delta = if delta < 0 { delta } else { 0 };
-    let high_delta = if delta > 0 { delta } else { 0 };
-    [
-        level(0.0, first, low_delta, None, sell_ratio),
-        level(3.0, second, 0, None, None),
-        level(7.0, third, 0, None, None),
-        level(10.0, top, high_delta, buy_ratio, None),
-    ]
-}
-
 fn candle<'a>(
     levels: &'a [FootprintLevel],
     open: f64,
+    high: f64,
+    low: f64,
     close: f64,
-    total_volume: u64,
     delta: i64,
     poc: f64,
 ) -> FootprintCandle5m<'a> {
+    let total_volume = levels.iter().map(|level| level.bid_volume + level.ask_volume).sum();
     FootprintCandle5m {
         open,
-        high: 10.0,
-        low: 0.0,
+        high,
+        low,
         close,
         total_volume,
         candle_delta: delta,
@@ -276,40 +196,34 @@ fn candle<'a>(
     }
 }
 
-pub fn valid_long_proof(setup_id: &str, owner: &str, instrument: &str) -> StrategyValidationProof {
-    let location = long_location();
-    let aggression_levels = long_levels(20_000, -100, 35, Some(4.0), None);
-    let aggression = candle(&aggression_levels, 2.5, 6.0, 20_000, -100, 1.0);
-    let dominance_levels = long_levels(20_000, 100, 10, None, Some(4.0));
-    let dominance = candle(&dominance_levels, 4.0, 6.0, 20_000, 100, 7.0);
+pub fn valid_long_sequence(location: &LocationSetup) -> LongOrderflowSequence {
+    let aggression_levels = [
+        level(0.0, 7_000, -100, None, Some(4.0)),
+        level(3.0, 4_333, 0, None, None),
+        level(7.0, 4_333, 0, None, None),
+        level(10.0, 4_334, 0, None, None),
+    ];
+    let dominance_levels = [
+        level(0.0, 5_000, 0, None, None),
+        level(3.0, 5_000, 0, None, None),
+        level(7.0, 5_000, 100, Some(4.0), None),
+        level(10.0, 5_000, 0, None, None),
+    ];
     let second_levels = [
         level(2.25, 5_000, -100, None, Some(4.0)),
         level(3.0, 5_000, 0, None, None),
         level(7.0, 5_000, 0, None, None),
         level(10.0, 5_000, 0, None, None),
     ];
-    let second_test = FootprintCandle5m {
-        open: 4.0,
-        high: 10.0,
-        low: 2.25,
-        close: 3.0,
-        total_volume: 20_000,
-        candle_delta: -100,
-        volume_poc: 7.0,
-        levels: &second_levels,
-        completed: true,
-    };
-    let reconfirm_levels = long_levels(20_000, 100, 10, None, Some(4.0));
-    let reconfirmation = candle(&reconfirm_levels, 4.0, 7.0, 20_000, 100, 7.0);
+    let reconfirm_levels = dominance_levels;
+    let aggression = candle(&aggression_levels, 2.5, 10.0, 0.0, 6.0, -100, 1.0);
+    let dominance = candle(&dominance_levels, 4.0, 10.0, 0.0, 6.0, 100, 7.0);
+    let second_test = candle(&second_levels, 4.0, 10.0, 2.25, 3.0, -100, 7.0);
+    let reconfirmation = candle(&reconfirm_levels, 4.0, 10.0, 0.0, 7.0, 100, 7.0);
 
-    let mut sequence = LongOrderflowSequence::from_location_reached(&location).unwrap();
+    let mut sequence = LongOrderflowSequence::from_location_reached(location).unwrap();
     assert_eq!(
-        sequence.record_aggression(
-            aggression,
-            &[100; 20],
-            mnq_participation(),
-            Condition::True,
-        ),
+        sequence.record_aggression(aggression, &[100; 20], mnq_participation(), Condition::True),
         Condition::True
     );
     assert_eq!(sequence.record_absorption(2.0), Condition::True);
@@ -327,62 +241,37 @@ pub fn valid_long_proof(setup_id: &str, owner: &str, instrument: &str) -> Strate
         sequence.record_reconfirmation(reconfirmation, mnq_participation()),
         Condition::True
     );
-
-    let scenario = frozen_scenario(owner, instrument);
-    validate_strategy(StrategyValidationInputs {
-        setup_id,
-        owner_agent_id: owner,
-        instrument,
-        now_et: EtTime::from_hms(10, 0, 0).unwrap(),
-        data_readiness: true_data(),
-        premarket_scenario: &scenario,
-        environment: long_environment(),
-        location: &location,
-        orderflow: auction_core::OrderflowSequenceEvidence::Long(&sequence),
-        news_schedule_valid: Condition::True,
-        news_windows: &[],
-    })
-    .unwrap()
+    sequence
 }
 
-pub fn valid_short_proof(
-    setup_id: &str,
-    owner: &str,
-    instrument: &str,
-) -> StrategyValidationProof {
-    let location = short_location();
-    let aggression_levels = short_levels(20_000, 100, 35, Some(4.0), None);
-    let aggression = candle(&aggression_levels, 7.5, 4.0, 20_000, 100, 9.0);
-    let dominance_levels = short_levels(20_000, -100, 10, None, Some(4.0));
-    let dominance = candle(&dominance_levels, 6.0, 4.0, 20_000, -100, 3.0);
+pub fn valid_short_sequence(location: &LocationSetup) -> ShortOrderflowSequence {
+    let aggression_levels = [
+        level(0.0, 4_333, 0, None, None),
+        level(3.0, 4_333, 0, None, None),
+        level(7.0, 4_334, 0, None, None),
+        level(10.0, 7_000, 100, Some(4.0), None),
+    ];
+    let dominance_levels = [
+        level(0.0, 5_000, -100, None, Some(4.0)),
+        level(3.0, 5_000, 0, None, None),
+        level(7.0, 5_000, 0, None, None),
+        level(10.0, 5_000, 0, None, None),
+    ];
     let second_levels = [
         level(0.0, 5_000, 0, None, None),
         level(3.0, 5_000, 0, None, None),
         level(6.0, 5_000, 0, None, None),
         level(7.75, 5_000, 100, Some(4.0), None),
     ];
-    let second_test = FootprintCandle5m {
-        open: 6.0,
-        high: 7.75,
-        low: 0.0,
-        close: 7.0,
-        total_volume: 20_000,
-        candle_delta: 100,
-        volume_poc: 7.0,
-        levels: &second_levels,
-        completed: true,
-    };
-    let reconfirm_levels = short_levels(20_000, -100, 10, None, Some(4.0));
-    let reconfirmation = candle(&reconfirm_levels, 5.0, 3.0, 20_000, -100, 3.0);
+    let reconfirm_levels = dominance_levels;
+    let aggression = candle(&aggression_levels, 7.5, 10.0, 0.0, 4.0, 100, 9.0);
+    let dominance = candle(&dominance_levels, 6.0, 10.0, 0.0, 4.0, -100, 3.0);
+    let second_test = candle(&second_levels, 6.0, 7.75, 0.0, 7.0, 100, 7.0);
+    let reconfirmation = candle(&reconfirm_levels, 5.0, 10.0, 0.0, 3.0, -100, 3.0);
 
-    let mut sequence = ShortOrderflowSequence::from_location_reached(&location).unwrap();
+    let mut sequence = ShortOrderflowSequence::from_location_reached(location).unwrap();
     assert_eq!(
-        sequence.record_aggression(
-            aggression,
-            &[100; 20],
-            mnq_participation(),
-            Condition::True,
-        ),
+        sequence.record_aggression(aggression, &[100; 20], mnq_participation(), Condition::True),
         Condition::True
     );
     assert_eq!(sequence.record_absorption(8.0), Condition::True);
@@ -400,7 +289,32 @@ pub fn valid_short_proof(
         sequence.record_reconfirmation(reconfirmation, mnq_participation()),
         Condition::True
     );
+    sequence
+}
 
+pub fn valid_long_proof(setup_id: &str, owner: &str, instrument: &str) -> StrategyValidationProof {
+    let location = long_location();
+    let sequence = valid_long_sequence(&location);
+    let scenario = frozen_scenario(owner, instrument);
+    validate_strategy(StrategyValidationInputs {
+        setup_id,
+        owner_agent_id: owner,
+        instrument,
+        now_et: EtTime::from_hms(10, 0, 0).unwrap(),
+        data_readiness: true_data(),
+        premarket_scenario: &scenario,
+        environment: long_environment(),
+        location: &location,
+        orderflow: auction_core::OrderflowSequenceEvidence::Long(&sequence),
+        news_schedule_valid: Condition::True,
+        news_windows: &[],
+    })
+    .unwrap()
+}
+
+pub fn valid_short_proof(setup_id: &str, owner: &str, instrument: &str) -> StrategyValidationProof {
+    let location = short_location();
+    let sequence = valid_short_sequence(&location);
     let scenario = frozen_scenario(owner, instrument);
     validate_strategy(StrategyValidationInputs {
         setup_id,
@@ -414,27 +328,6 @@ pub fn valid_short_proof(
         orderflow: auction_core::OrderflowSequenceEvidence::Short(&sequence),
         news_schedule_valid: Condition::True,
         news_windows: &[],
-    })
-    .unwrap()
-}
-
-pub fn valid_long_proposal(setup_id: &str, owner: &str, instrument: &str) -> OrderProposal {
-    let proof = valid_long_proof(setup_id, owner, instrument);
-    build_order_proposal(OrderProposalInputs {
-        strategy: &proof,
-        entry_limit: 10.5,
-        target: 25.0,
-        execution_config: execution_config(),
-        account_equity: 100_000.0,
-        risk_percent: 0.0025,
-        tick_value: 1.25,
-        commissions_per_contract: 1.0,
-        slippage_reserve_per_contract: 1.0,
-        current_open_portfolio_risk: 100.0,
-        current_cluster_risk: 50.0,
-        portfolio_limits: risk_limits(),
-        cluster_id: "NASDAQ_CLUSTER",
-        existing_cluster_exposure: &[],
     })
     .unwrap()
 }

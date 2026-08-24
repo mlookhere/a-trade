@@ -1,4 +1,4 @@
-use crate::{Condition, Direction, StrategyValidationProof};
+use crate::{Condition, Direction, SetupState};
 
 /// Canonical §72 strict autonomous implementation threshold. This is not represented as a
 /// universal source-trader risk/reward rule in provenance.
@@ -33,7 +33,8 @@ impl InstrumentExecutionConfig {
     }
 }
 
-/// §59 long trigger and explicit §85 mirrored short trigger.
+/// §59 long trigger and explicit §85 mirrored short trigger. The exact short formula is a
+/// mirrored implementation, not independently source-demonstrated.
 #[must_use]
 pub fn entry_trigger(
     direction: Direction,
@@ -50,7 +51,9 @@ pub fn entry_trigger(
     })
 }
 
-/// §60 slippage cap applied to a supplied STOP_LIMIT limit price.
+/// §60 slippage cap applied to a supplied STOP_LIMIT limit price. The canonical source defines
+/// the maximum tolerated slippage but not a universal limit-price construction formula, so the
+/// caller supplies the limit and this validator only proves it stays inside the configured cap.
 #[must_use]
 pub fn entry_limit_valid(
     direction: Direction,
@@ -142,14 +145,17 @@ pub struct FuturesRiskInputs {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PositionSizing {
+    /// Canonical §66 RISK_DOLLARS budget = account equity * configured risk percent.
     pub risk_budget_dollars: f64,
     pub stop_ticks: f64,
     pub risk_per_contract: f64,
     pub size: u64,
+    /// Actual open risk represented by the integer-sized position.
     pub proposed_open_risk_dollars: f64,
 }
 
 /// §§65-66 exact futures sizing. `risk_percent` is required input; no 0.25% default exists.
+/// Returning None is NO_TRADE and the stop is never altered to force size >= 1.
 #[must_use]
 pub fn size_futures(inputs: FuturesRiskInputs) -> Option<PositionSizing> {
     if !inputs.account_equity.is_finite()
@@ -292,7 +298,8 @@ pub fn cluster_direction_clear(
     }))
 }
 
-/// §§71-72 and §§85/94 mirror.
+/// §§71-72 and §§85/94 mirror. Caller supplies the nearest predefined structural target;
+/// deterministic code validates direction and computes planned R.
 #[must_use]
 pub fn planned_r(direction: Direction, entry: f64, stop: f64, target: f64) -> Option<f64> {
     if !entry.is_finite() || !stop.is_finite() || !target.is_finite() {
@@ -324,144 +331,41 @@ pub fn structural_target_valid(
     }
 }
 
-/// Canonical §110 proposal whose pre-execution authority is non-forgeable outside this crate.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OrderProposal {
-    setup_id: String,
-    owner_agent_id: String,
-    instrument: String,
-    side: Direction,
-    order_type: OrderType,
-    entry_trigger: f64,
-    entry_limit: f64,
-    stop: f64,
-    target: f64,
-    size: u64,
-    risk_dollars: f64,
-    risk_percent: f64,
-    open_portfolio_risk_before: f64,
-    open_portfolio_risk_after: f64,
-    cluster_id: String,
-    cluster_risk_after: f64,
-    strategy_pass: Condition,
-    risk_pass: Condition,
-    portfolio_pass: Condition,
-    execution_pass: Condition,
-}
-
-impl OrderProposal {
-    #[must_use]
-    pub fn setup_id(&self) -> &str {
-        &self.setup_id
-    }
-
-    #[must_use]
-    pub(crate) fn owner_agent_id(&self) -> &str {
-        &self.owner_agent_id
-    }
-
-    #[must_use]
-    pub fn instrument(&self) -> &str {
-        &self.instrument
-    }
-
-    #[must_use]
-    pub const fn side(&self) -> Direction {
-        self.side
-    }
-
-    #[must_use]
-    pub const fn order_type(&self) -> OrderType {
-        self.order_type
-    }
-
-    #[must_use]
-    pub const fn entry_trigger(&self) -> f64 {
-        self.entry_trigger
-    }
-
-    #[must_use]
-    pub const fn entry_limit(&self) -> f64 {
-        self.entry_limit
-    }
-
-    #[must_use]
-    pub const fn stop(&self) -> f64 {
-        self.stop
-    }
-
-    #[must_use]
-    pub const fn target(&self) -> f64 {
-        self.target
-    }
-
-    #[must_use]
-    pub const fn size(&self) -> u64 {
-        self.size
-    }
-
-    #[must_use]
-    pub const fn risk_dollars(&self) -> f64 {
-        self.risk_dollars
-    }
-
-    #[must_use]
-    pub const fn risk_percent(&self) -> f64 {
-        self.risk_percent
-    }
-
-    #[must_use]
-    pub const fn open_portfolio_risk_before(&self) -> f64 {
-        self.open_portfolio_risk_before
-    }
-
-    #[must_use]
-    pub const fn open_portfolio_risk_after(&self) -> f64 {
-        self.open_portfolio_risk_after
-    }
-
-    #[must_use]
-    pub fn cluster_id(&self) -> &str {
-        &self.cluster_id
-    }
-
-    #[must_use]
-    pub const fn cluster_risk_after(&self) -> f64 {
-        self.cluster_risk_after
-    }
-
-    #[must_use]
-    pub const fn strategy_pass(&self) -> Condition {
-        self.strategy_pass
-    }
-
-    #[must_use]
-    pub const fn risk_pass(&self) -> Condition {
-        self.risk_pass
-    }
-
-    #[must_use]
-    pub const fn portfolio_pass(&self) -> Condition {
-        self.portfolio_pass
-    }
-
-    #[must_use]
-    pub const fn execution_pass(&self) -> Condition {
-        self.execution_pass
-    }
-
-    pub(crate) fn mark_execution_pass(&mut self) {
-        self.execution_pass = Condition::True;
-    }
+    pub setup_id: String,
+    pub instrument: String,
+    pub side: Direction,
+    pub order_type: OrderType,
+    pub entry_trigger: f64,
+    pub entry_limit: f64,
+    pub stop: f64,
+    pub target: f64,
+    pub size: u64,
+    pub risk_dollars: f64,
+    pub risk_percent: f64,
+    pub open_portfolio_risk_before: f64,
+    pub open_portfolio_risk_after: f64,
+    pub cluster_id: String,
+    pub cluster_risk_after: f64,
+    pub strategy_pass: Condition,
+    pub risk_pass: Condition,
+    pub portfolio_pass: Condition,
+    /// §109 execution authority is intentionally UNKNOWN until the broker Execution Gate exists.
+    pub execution_pass: Condition,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct OrderProposalInputs<'a> {
-    /// Opaque deterministic Strategy Validator proof. Identity, direction, accepted first-failure
-    /// extreme, and final reconfirmation extreme are inherited from this proof rather than
-    /// repeated as caller-supplied fields.
-    pub strategy: &'a StrategyValidationProof,
+    pub setup_id: &'a str,
+    pub instrument: &'a str,
+    pub setup_state: SetupState,
+    pub direction: Direction,
+    /// Long: reconfirmation candle high. Short: reconfirmation candle low.
+    pub reconfirmation_extreme: f64,
     pub entry_limit: f64,
+    /// Long: FIRST_FAILURE_LOW. Short: FIRST_FAILURE_HIGH.
+    pub first_failure_extreme: f64,
     pub target: f64,
     pub execution_config: InstrumentExecutionConfig,
     pub account_equity: f64,
@@ -474,31 +378,30 @@ pub struct OrderProposalInputs<'a> {
     pub portfolio_limits: PortfolioRiskLimits,
     pub cluster_id: &'a str,
     pub existing_cluster_exposure: &'a [ClusterExposure<'a>],
+    pub strategy_pass: Condition,
 }
 
-/// Canonical §§6, 59-72, 93-94, 109-110 deterministic pre-broker proposal. Strategy identity
-/// and structure-derived extrema come from the opaque proof; this function independently
-/// recalculates entry, stop, target validity, position size, portfolio/cluster exposure, and
-/// correlation conflict. `execution_pass` remains UNKNOWN until the broker Execution Gate.
+/// §110 typed pre-broker proposal. It can be built only after FINAL_RECONFIRMATION and all
+/// deterministic strategy/risk/portfolio gates pass. `execution_pass` remains UNKNOWN by design.
 #[must_use]
 pub fn build_order_proposal(inputs: OrderProposalInputs<'_>) -> Option<OrderProposal> {
-    if inputs.strategy.setup_id().trim().is_empty()
-        || inputs.strategy.owner_agent_id().trim().is_empty()
-        || inputs.strategy.instrument().trim().is_empty()
+    if inputs.setup_state != SetupState::FinalReconfirmation
+        || !inputs.strategy_pass.permits()
+        || inputs.setup_id.trim().is_empty()
+        || inputs.instrument.trim().is_empty()
         || inputs.cluster_id.trim().is_empty()
         || !inputs.execution_config.valid()
     {
         return None;
     }
 
-    let direction = inputs.strategy.direction();
     let trigger = entry_trigger(
-        direction,
-        inputs.strategy.reconfirmation_extreme(),
+        inputs.direction,
+        inputs.reconfirmation_extreme,
         inputs.execution_config.tick_size,
     )?;
     if !entry_limit_valid(
-        direction,
+        inputs.direction,
         trigger,
         inputs.entry_limit,
         inputs.execution_config,
@@ -509,11 +412,11 @@ pub fn build_order_proposal(inputs: OrderProposalInputs<'_>) -> Option<OrderProp
     }
 
     let stop = structural_stop(
-        direction,
-        inputs.strategy.first_failure_extreme(),
+        inputs.direction,
+        inputs.first_failure_extreme,
         inputs.execution_config,
     )?;
-    if !structural_target_valid(direction, trigger, stop, inputs.target).permits() {
+    if !structural_target_valid(inputs.direction, trigger, stop, inputs.target).permits() {
         return None;
     }
 
@@ -539,7 +442,7 @@ pub fn build_order_proposal(inputs: OrderProposalInputs<'_>) -> Option<OrderProp
         || !portfolio.cluster_pass.permits()
         || !cluster_direction_clear(
             inputs.cluster_id,
-            direction,
+            inputs.direction,
             inputs.existing_cluster_exposure,
         )
         .permits()
@@ -548,10 +451,9 @@ pub fn build_order_proposal(inputs: OrderProposalInputs<'_>) -> Option<OrderProp
     }
 
     Some(OrderProposal {
-        setup_id: inputs.strategy.setup_id().to_owned(),
-        owner_agent_id: inputs.strategy.owner_agent_id().to_owned(),
-        instrument: inputs.strategy.instrument().to_owned(),
-        side: direction,
+        setup_id: inputs.setup_id.to_owned(),
+        instrument: inputs.instrument.to_owned(),
+        side: inputs.direction,
         order_type: OrderType::StopLimit,
         entry_trigger: trigger,
         entry_limit: inputs.entry_limit,
