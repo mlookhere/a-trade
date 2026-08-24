@@ -1,9 +1,9 @@
+use crate::swings::SwingImpulse;
 use crate::{
     Direction, EtTime, FibLevels, MarketState, SetupState, TerminalState, bearish_fib, bullish_fib,
     direction_allowed, long_location_reached, long_location_valid, short_location_reached,
     short_location_valid,
 };
-use crate::swings::SwingImpulse;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StructureKey {
@@ -126,8 +126,10 @@ impl LocationSetup {
                 Direction::Short => short_location_reached(self.levels, price),
             };
             if reached {
-                self.state = SetupState::LocationReached;
-                return LocationEvent::Reached;
+                if let Ok(next) = self.state.advance(SetupState::LocationReached) {
+                    self.state = next;
+                    return LocationEvent::Reached;
+                }
             }
         }
 
@@ -154,7 +156,8 @@ pub fn long_886_invalidated(
     price: f64,
     state: SetupState,
 ) -> bool {
-    tick_size.is_finite()
+    levels.long_ordered()
+        && tick_size.is_finite()
         && tick_size > 0.0
         && price.is_finite()
         && invalidation_active(state)
@@ -171,7 +174,8 @@ pub fn short_886_invalidated(
     price: f64,
     state: SetupState,
 ) -> bool {
-    tick_size.is_finite()
+    levels.short_ordered()
+        && tick_size.is_finite()
         && tick_size > 0.0
         && price.is_finite()
         && invalidation_active(state)
