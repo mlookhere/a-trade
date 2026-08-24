@@ -13,6 +13,7 @@ pub mod market;
 pub mod news;
 pub mod order_risk;
 pub mod rejection;
+pub mod safety;
 pub mod session;
 pub mod setup_state;
 pub mod short_orderflow;
@@ -56,6 +57,10 @@ pub use order_risk::{
     stop_replacement_allowed, structural_stop, structural_target_valid, trigger_expired,
 };
 pub use rejection::RejectionCode;
+pub use safety::{
+    OperationalSafetyController, ProcessViolationScope, aggregate_operational_risk_clear,
+    emergency_drawdown_reached,
+};
 pub use session::{EtTime, SessionPermissions};
 pub use setup_state::{SetupState, SetupStateError, TerminalState};
 pub use short_orderflow::{
