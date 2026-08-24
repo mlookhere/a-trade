@@ -145,20 +145,18 @@ pub fn one_r_reached(
     initial_stop: f64,
     favorable_extreme_since_entry: f64,
 ) -> Condition {
-    if !entry.is_finite()
-        || !initial_stop.is_finite()
-        || !favorable_extreme_since_entry.is_finite()
+    if !entry.is_finite() || !initial_stop.is_finite() || !favorable_extreme_since_entry.is_finite()
     {
         return Condition::Unknown;
     }
 
     match direction {
-        Direction::Long if initial_stop < entry => Condition::from(
-            favorable_extreme_since_entry >= entry + (entry - initial_stop),
-        ),
-        Direction::Short if initial_stop > entry => Condition::from(
-            favorable_extreme_since_entry <= entry - (initial_stop - entry),
-        ),
+        Direction::Long if initial_stop < entry => {
+            Condition::from(favorable_extreme_since_entry >= entry + (entry - initial_stop))
+        }
+        Direction::Short if initial_stop > entry => {
+            Condition::from(favorable_extreme_since_entry <= entry - (initial_stop - entry))
+        }
         Direction::Long | Direction::Short => Condition::Unknown,
     }
 }
