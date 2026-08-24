@@ -1,9 +1,9 @@
 mod common;
 
 use auction_core::{
-    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition,
-    ExecutionCoordinator, ExecutionGateContext, ExecutionStatus, OrderProposal, RejectionCode,
-    SetupState,
+    BrokerAdapter, BrokerCapabilities, BrokerOrderCancellation, BrokerReconciliation,
+    BrokerSubmission, Condition, ExecutionCoordinator, ExecutionGateContext, ExecutionStatus,
+    OrderProposal, RejectionCode, SetupState,
 };
 
 #[derive(Debug, Clone)]
@@ -58,6 +58,16 @@ impl BrokerAdapter for MockBroker {
 
     fn flatten_instrument(&mut self, _instrument: &str) -> Result<(), Self::Error> {
         Ok(())
+    }
+}
+
+impl BrokerOrderCancellation for MockBroker {
+    fn cancel_entry_order(
+        &mut self,
+        _setup_id: &str,
+        _broker_order_id: &str,
+    ) -> Result<Condition, Self::Error> {
+        Ok(Condition::True)
     }
 }
 
@@ -147,10 +157,12 @@ fn sections_64_102_117_confirmed_fill_and_stop_reach_position_management_without
 }
 
 #[test]
-fn sections_102_117_pending_fill_reconciliation_advances_to_position_management() {
+fn sections_60_61_102_117_pending_fill_reconciliation_advances_to_position_management() {
     let setup_id = "SETUP-STATE-RECONCILE";
+    let raw = proposal(setup_id);
+    let safe_price = raw.entry_trigger();
     let mut coordinator = ready_coordinator(setup_id, MockBroker::default());
-    let permit = coordinator.gate(&proposal(setup_id), context()).unwrap();
+    let permit = coordinator.gate(&raw, context()).unwrap();
     assert!(matches!(
         coordinator.submit(permit).unwrap(),
         ExecutionStatus::Pending { .. }
@@ -162,7 +174,9 @@ fn sections_102_117_pending_fill_reconciliation_advances_to_position_management(
 
     coordinator.adapter_mut().fill_state = Ok(Condition::True);
     assert!(matches!(
-        coordinator.reconcile_fill(setup_id).unwrap(),
+        coordinator
+            .reconcile_pending_entry(setup_id, safe_price, 0)
+            .unwrap(),
         ExecutionStatus::FilledProtected { .. }
     ));
     let managed = coordinator.setup_status(setup_id).unwrap();

@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{Condition, OperationalSafetyController, OrderProposal, RejectionCode, SetupState};
+use crate::{
+    Condition, Direction, InstrumentExecutionConfig, OperationalSafetyController, OrderProposal,
+    RejectionCode, SetupState, TerminalState, slippage_guard, trigger_expired,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BrokerCapabilities {
@@ -65,6 +68,17 @@ pub trait BrokerAdapter {
     fn flatten_instrument(&mut self, instrument: &str) -> Result<(), Self::Error>;
 }
 
+/// Provider-neutral §6 execution capability used only for canonical §§60-61 pending-entry
+/// cancellation. Adapter-specific cancel transport, retries, and replace behavior stay outside
+/// the strategy core.
+pub trait BrokerOrderCancellation: BrokerAdapter {
+    fn cancel_entry_order(
+        &mut self,
+        setup_id: &str,
+        broker_order_id: &str,
+    ) -> Result<Condition, Self::Error>;
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BrokerSubmission {
     pub broker_order_id: String,
@@ -74,6 +88,7 @@ pub struct BrokerSubmission {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutionStatus {
     Pending { broker_order_id: String },
+    Missed { broker_order_id: String },
     FilledProtected { broker_order_id: String },
 }
 
@@ -86,7 +101,14 @@ pub struct SetupRegistryStatus {
     pub state: Option<SetupState>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PendingEntryGuard {
+    direction: Direction,
+    trigger: f64,
+    execution_config: InstrumentExecutionConfig,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct SetupRecord {
     owner_agent_id: String,
     consumed: bool,
@@ -94,6 +116,7 @@ struct SetupRecord {
     instrument: Option<String>,
     broker_order_id: Option<String>,
     state: Option<SetupState>,
+    pending_entry_guard: Option<PendingEntryGuard>,
 }
 
 #[derive(Debug, Default)]
@@ -122,6 +145,7 @@ impl SetupRegistry {
                 instrument: None,
                 broker_order_id: None,
                 state: None,
+                pending_entry_guard: None,
             },
         );
         Ok(())
@@ -146,7 +170,7 @@ impl SetupRegistry {
         &mut self,
         setup_id: &str,
         owner_agent_id: &str,
-        instrument: &str,
+        proposal: &OrderProposal,
     ) -> Result<(), RejectionCode> {
         let Some(record) = self.setups.get_mut(setup_id) else {
             return Err(RejectionCode::ProcessError);
@@ -157,7 +181,7 @@ impl SetupRegistry {
         if record.consumed || record.order_active_or_reserved {
             return Err(RejectionCode::DuplicateSetup);
         }
-        if instrument.trim().is_empty() {
+        if proposal.instrument().trim().is_empty() || proposal.setup_id() != setup_id {
             return Err(RejectionCode::ProcessError);
         }
 
@@ -173,7 +197,12 @@ impl SetupRegistry {
         }
 
         record.order_active_or_reserved = true;
-        record.instrument = Some(instrument.to_owned());
+        record.instrument = Some(proposal.instrument().to_owned());
+        record.pending_entry_guard = Some(PendingEntryGuard {
+            direction: proposal.side(),
+            trigger: proposal.entry_trigger(),
+            execution_config: proposal.execution_config(),
+        });
         Ok(())
     }
 
@@ -187,6 +216,7 @@ impl SetupRegistry {
         record.order_active_or_reserved = false;
         record.instrument = None;
         record.broker_order_id = None;
+        record.pending_entry_guard = None;
     }
 
     fn record_pending_order(
@@ -201,6 +231,7 @@ impl SetupRegistry {
             || record.consumed
             || broker_order_id.trim().is_empty()
             || record.state != Some(SetupState::EntryAuthorized)
+            || record.pending_entry_guard.is_none()
         {
             return Err(RejectionCode::ProcessError);
         }
@@ -227,7 +258,25 @@ impl SetupRegistry {
             .map_err(|_| RejectionCode::ProcessError)?;
         record.consumed = true;
         record.order_active_or_reserved = false;
+        record.pending_entry_guard = None;
         record.state = Some(next);
+        Ok(())
+    }
+
+    fn mark_missed(&mut self, setup_id: &str) -> Result<(), RejectionCode> {
+        let Some(record) = self.setups.get_mut(setup_id) else {
+            return Err(RejectionCode::ProcessError);
+        };
+        if record.consumed
+            || !record.order_active_or_reserved
+            || record.broker_order_id.is_none()
+            || record.state != Some(SetupState::OrderPending)
+        {
+            return Err(RejectionCode::ProcessError);
+        }
+        record.order_active_or_reserved = false;
+        record.pending_entry_guard = None;
+        record.state = Some(SetupState::OrderPending.terminate(TerminalState::Missed));
         Ok(())
     }
 
@@ -405,7 +454,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         self.registry.reserve_for_submission(
             proposal.setup_id(),
             context.submitting_agent_id,
-            proposal.instrument(),
+            proposal,
         )?;
         let mut approved = proposal.clone();
         approved.mark_execution_pass();
@@ -478,7 +527,9 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         self.verify_protection_after_fill(&setup_id, &submission.broker_order_id)
     }
 
-    pub fn reconcile_fill(&mut self, setup_id: &str) -> Result<ExecutionStatus, RejectionCode> {
+    /// Internal fill-only reconciliation used by the guarded pending-entry path below. Keeping it
+    /// private prevents callers from bypassing canonical §§60-61 cancellation checks indefinitely.
+    fn reconcile_fill_only(&mut self, setup_id: &str) -> Result<ExecutionStatus, RejectionCode> {
         if !self.engine_safe {
             return Err(RejectionCode::BrokerUnsafe);
         }
@@ -571,6 +622,11 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
     }
 
     fn reservation_valid(&self, proposal: &OrderProposal) -> bool {
+        let expected_guard = PendingEntryGuard {
+            direction: proposal.side(),
+            trigger: proposal.entry_trigger(),
+            execution_config: proposal.execution_config(),
+        };
         self.registry
             .execution_record(proposal.setup_id())
             .is_some_and(|record| {
@@ -579,6 +635,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
                     && record.broker_order_id.is_none()
                     && record.instrument.as_deref() == Some(proposal.instrument())
                     && record.state == Some(SetupState::EntryAuthorized)
+                    && record.pending_entry_guard == Some(expected_guard)
             })
     }
 
@@ -604,6 +661,72 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             .ok_or(RejectionCode::ProcessError)?;
         let _ = self.adapter.flatten_instrument(&instrument);
         Err(RejectionCode::BrokerUnsafe)
+    }
+}
+
+impl<A: BrokerOrderCancellation> ExecutionCoordinator<A> {
+    /// Canonical §§60-61/102/117 pending-entry lifecycle. This is the public reconciliation path
+    /// for an accepted but unfilled entry; it cannot skip the configured slippage or stale-trigger
+    /// cancellation rules.
+    pub fn reconcile_pending_entry(
+        &mut self,
+        setup_id: &str,
+        current_price: f64,
+        completed_5m_candles_since_reconfirmation: u32,
+    ) -> Result<ExecutionStatus, RejectionCode> {
+        let (broker_order_id, guard) = {
+            let Some(record) = self.registry.execution_record(setup_id) else {
+                return Err(RejectionCode::ProcessError);
+            };
+            if record.consumed
+                || !record.order_active_or_reserved
+                || record.state != Some(SetupState::OrderPending)
+            {
+                return Err(RejectionCode::ProcessError);
+            }
+            let Some(broker_order_id) = record.broker_order_id.clone() else {
+                return Err(RejectionCode::ProcessError);
+            };
+            let Some(guard) = record.pending_entry_guard else {
+                return Err(RejectionCode::ProcessError);
+            };
+            (broker_order_id, guard)
+        };
+
+        match self.reconcile_fill_only(setup_id)? {
+            ExecutionStatus::FilledProtected { broker_order_id } => {
+                return Ok(ExecutionStatus::FilledProtected { broker_order_id });
+            }
+            ExecutionStatus::Missed { .. } => return Err(RejectionCode::ProcessError),
+            ExecutionStatus::Pending { .. } => {}
+        }
+
+        let slippage_clear = slippage_guard(
+            guard.direction,
+            guard.trigger,
+            current_price,
+            guard.execution_config,
+        );
+        if slippage_clear == Condition::Unknown {
+            self.engine_safe = false;
+            return Err(RejectionCode::BrokerUnsafe);
+        }
+        if slippage_clear == Condition::True
+            && !trigger_expired(completed_5m_candles_since_reconfirmation)
+        {
+            return Ok(ExecutionStatus::Pending { broker_order_id });
+        }
+
+        match self.adapter.cancel_entry_order(setup_id, &broker_order_id) {
+            Ok(Condition::True) => {
+                self.registry.mark_missed(setup_id)?;
+                Ok(ExecutionStatus::Missed { broker_order_id })
+            }
+            Ok(Condition::False | Condition::Unknown) | Err(_) => {
+                self.engine_safe = false;
+                Err(RejectionCode::BrokerUnsafe)
+            }
+        }
     }
 }
 

@@ -334,6 +334,7 @@ pub struct OrderProposal {
     order_type: OrderType,
     entry_trigger: f64,
     entry_limit: f64,
+    execution_config: InstrumentExecutionConfig,
     stop: f64,
     target: f64,
     size: u64,
@@ -383,6 +384,11 @@ impl OrderProposal {
     #[must_use]
     pub const fn entry_limit(&self) -> f64 {
         self.entry_limit
+    }
+
+    #[must_use]
+    pub(crate) const fn execution_config(&self) -> InstrumentExecutionConfig {
+        self.execution_config
     }
 
     #[must_use]
@@ -555,6 +561,7 @@ pub fn build_order_proposal(inputs: OrderProposalInputs<'_>) -> Option<OrderProp
         order_type: OrderType::StopLimit,
         entry_trigger: trigger,
         entry_limit: inputs.entry_limit,
+        execution_config: inputs.execution_config,
         stop,
         target: inputs.target,
         size: sizing.size,
