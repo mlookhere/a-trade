@@ -9,6 +9,7 @@ pub mod footprint;
 pub mod location;
 pub mod long_orderflow;
 pub mod market;
+pub mod order_risk;
 pub mod rejection;
 pub mod session;
 pub mod setup_state;
@@ -39,6 +40,13 @@ pub use long_orderflow::{
     second_test_has_real_selling, seller_aggression,
 };
 pub use market::{Direction, MarketState, direction_allowed};
+pub use order_risk::{
+    ClusterExposure, FuturesRiskInputs, InstrumentExecutionConfig, OrderProposal,
+    OrderProposalInputs, OrderType, PortfolioRiskEvaluation, PortfolioRiskLimits, PositionSizing,
+    STRICT_MIN_PLANNED_R, build_order_proposal, cluster_direction_clear, entry_limit_valid,
+    entry_trigger, evaluate_portfolio_risk, planned_r, size_futures, slippage_guard,
+    stop_replacement_allowed, structural_stop, structural_target_valid, trigger_expired,
+};
 pub use rejection::RejectionCode;
 pub use session::{EtTime, SessionPermissions};
 pub use setup_state::{SetupState, SetupStateError, TerminalState};
