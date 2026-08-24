@@ -358,3 +358,35 @@ pub fn valid_short_proof(setup_id: &str, owner: &str, instrument: &str) -> Strat
     })
     .unwrap()
 }
+
+pub fn valid_long_proposal(
+    setup_id: &str,
+    owner: &str,
+    instrument: &str,
+) -> auction_core::OrderProposal {
+    let proof = valid_long_proof(setup_id, owner, instrument);
+    auction_core::build_order_proposal(auction_core::OrderProposalInputs {
+        strategy: &proof,
+        entry_limit: 10.5,
+        target: 25.0,
+        execution_config: auction_core::InstrumentExecutionConfig {
+            tick_size: 0.25,
+            max_entry_slippage_ticks: 4,
+            stop_buffer_ticks: 2,
+        },
+        account_equity: 100_000.0,
+        risk_percent: 0.0025,
+        tick_value: 1.25,
+        commissions_per_contract: 1.0,
+        slippage_reserve_per_contract: 1.0,
+        current_open_portfolio_risk: 100.0,
+        current_cluster_risk: 50.0,
+        portfolio_limits: auction_core::PortfolioRiskLimits {
+            max_portfolio_open_risk_percent: 0.02,
+            max_cluster_open_risk_percent: 0.01,
+        },
+        cluster_id: "NASDAQ_CLUSTER",
+        existing_cluster_exposure: &[],
+    })
+    .unwrap()
+}
