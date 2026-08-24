@@ -27,9 +27,10 @@ impl AgentRole {
         matches!(self, Self::OrderFlow)
     }
 
-    /// Advisory LLM output never has broker-transmission authority under §§6,109,122.
+    /// No LLM advisory output, including one labeled with the Execution Engine role, receives
+    /// broker-transmission authority. Real deterministic execution remains in ExecutionCoordinator.
     #[must_use]
-    pub const fn may_submit_order(self) -> bool {
+    pub const fn llm_may_submit_order(self) -> bool {
         false
     }
 }
