@@ -55,12 +55,7 @@ impl LocationSetup {
         if time_et != open {
             return None;
         }
-        Self::build_waiting(
-            market_state,
-            impulse,
-            reference_value_boundary,
-            tick_size,
-        )
+        Self::build_waiting(market_state, impulse, reference_value_boundary, tick_size)
     }
 
     /// Canonical §37 and §117: while new entries are enabled, genuinely new confirmed structure
@@ -82,12 +77,7 @@ impl LocationSetup {
         if known_structures.contains(&structure) {
             return None;
         }
-        Self::build_waiting(
-            market_state,
-            impulse,
-            reference_value_boundary,
-            tick_size,
-        )
+        Self::build_waiting(market_state, impulse, reference_value_boundary, tick_size)
     }
 
     fn build_waiting(
