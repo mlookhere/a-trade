@@ -182,6 +182,44 @@
       "provenance": "ExecutionCoordinator requires operational safety TRUE before issuing a permit and rechecks the permit owner immediately before broker transmission; default operational safety is UNKNOWN and fail-closed"
     }
   },
+  "implemented_in_issue_20": {
+    "position_management_state_boundary": {
+      "sections": [73, 102, 118],
+      "provenance": "post-fill management uses the existing FILLED -> POSITION_MANAGEMENT -> CLOSED canonical state sequence; no alternate state skip is added"
+    },
+    "long_value_reclaim": {
+      "sections": [74, 77],
+      "provenance": "exact completed-5M rule close >= REFERENCE_VAL"
+    },
+    "buyer_effort_without_value_reclaim": {
+      "sections": [75],
+      "provenance": "exact two completed-5M positive-delta candles; at least one shared 4.0 buy imbalance; neither close strictly above REFERENCE_VAL; equality is preserved independently from the >= reclaim fact"
+    },
+    "in_trade_effort_result": {
+      "sections": [78, 79, 80],
+      "provenance": "healthy buyer and buyer-failure candle rules are deterministic canonical comparisons on completed 5M footprint candles"
+    },
+    "defensive_stop_validation": {
+      "sections": [63, 76],
+      "provenance": "caller supplies the predefined structural or breakeven candidate and explicit structure-permits fact; deterministic code only enforces strict tightening and never widening"
+    },
+    "structural_trailing": {
+      "sections": [81],
+      "provenance": "+1R is deterministically measured from original entry-to-initial-stop risk distance; structural pivot validity is externally supplied; buffer is externally configured; candidate must strictly tighten current stop"
+    },
+    "poc_gamma_reference_management": {
+      "sections": [82, 83],
+      "provenance": "favorable effort success returns MAINTAIN_OR_TRAIL without choosing between hold and trail; favorable effort failure returns TIGHTEN; POC/gamma references never auto-exit or reverse"
+    },
+    "strict_final_long_target": {
+      "sections": [84],
+      "provenance": "preidentified swing high touch or overshoot returns EXIT_REMAINING; v1 exposes no arbitrary runner path"
+    },
+    "mirrored_short_management": {
+      "sections": [85, 94, 119],
+      "provenance": "explicit mirrored bearish implementation: reclaim into value at close <= REFERENCE_VAH, seller effort/result mirror, lower-high structural trailing, put-wall/POC contextual management, and preidentified swing-low final exit"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
@@ -207,6 +245,26 @@
       "section": 91,
       "status": "canonical knowledge says store FIRST_FAILURE_HIGH but does not define a machine extraction algorithm",
       "live_behavior": "requires an explicit finite first-failure-high input; it is not silently assumed to equal a particular candle high"
+    },
+    "post_entry_structural_pivot_extraction": {
+      "sections": [76, 81, 94],
+      "status": "canonical knowledge requires a valid higher low for long trailing and mirrored lower high for shorts but does not define a new post-entry pivot extraction algorithm",
+      "live_behavior": "requires explicit structural-pivot validity plus a finite supplied pivot; UNKNOWN cannot tighten"
+    },
+    "breakeven_structure_permission": {
+      "section": 76,
+      "status": "canonical knowledge permits breakeven only if structure permits it but does not define a deterministic permission algorithm",
+      "live_behavior": "candidate stop and TRUE/FALSE/UNKNOWN structure-permits fact must be supplied; deterministic code never chooses breakeven itself"
+    },
+    "structural_reclaim_failure_exit": {
+      "section": 118,
+      "status": "full position algorithm says exit if structural reclaim fails but does not specify a numeric or state-machine definition for that failure beyond the explicit effort/result and value-reclaim rules",
+      "live_behavior": "no autonomous exit is inferred from this phrase; only explicit canonical exit/management rules are implemented until a versioned specification defines it"
+    },
+    "continuous_open_position_broker_reconciliation": {
+      "section": 118,
+      "status": "full position algorithm requires ongoing broker-state and stop-existence verification, but provider-specific position-close, target-fill, stop-fill, and reconciliation semantics are not specified",
+      "live_behavior": "existing protected-entry and broker-safety mechanisms remain authoritative; provider-specific continuous position reconciliation stays outside live authorization until exact adapter contracts are supplied"
     }
   }
 }

@@ -12,6 +12,7 @@ pub mod long_orderflow;
 pub mod market;
 pub mod news;
 pub mod order_risk;
+pub mod position_management;
 pub mod rejection;
 pub mod safety;
 pub mod session;
@@ -55,6 +56,12 @@ pub use order_risk::{
     STRICT_MIN_PLANNED_R, build_order_proposal, cluster_direction_clear, entry_limit_valid,
     entry_trigger, evaluate_portfolio_risk, planned_r, size_futures, slippage_guard,
     stop_replacement_allowed, structural_stop, structural_target_valid, trigger_expired,
+};
+pub use position_management::{
+    ManagementDirective, StructuralTrailEvaluation, defensive_stop_candidate_allowed,
+    effort_without_value_reclaim, favorable_effort_failure, favorable_effort_successful,
+    final_target_directive, one_r_reached, reference_management_directive, structural_trail,
+    value_reclaimed,
 };
 pub use rejection::RejectionCode;
 pub use safety::{
