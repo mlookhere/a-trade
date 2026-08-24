@@ -115,7 +115,8 @@ impl DataCycleReadiness {
     }
 }
 
-/// Canonical §§14-15. Gamma is volatility context only and exposes no directional permission.
+/// Canonical §§14-15. Gamma is contextual information only and exposes no directional
+/// permission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GammaRegime {
     Positive,
@@ -130,6 +131,22 @@ pub enum VolatilityExpectation {
     Unknown,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelativeExpectation {
+    Higher,
+    Lower,
+}
+
+/// Exact §15 interpretation outputs. Fields omitted by the canonical rule for a regime remain
+/// `None`; the implementation does not infer them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GammaInterpretation {
+    pub volatility: VolatilityExpectation,
+    pub mean_reversion: Option<RelativeExpectation>,
+    pub breakout_persistence: Option<RelativeExpectation>,
+    pub move_acceleration: Option<RelativeExpectation>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GammaContext {
     pub regime: GammaRegime,
@@ -141,11 +158,104 @@ pub struct GammaContext {
 impl GammaContext {
     #[must_use]
     pub const fn volatility_expectation(self) -> VolatilityExpectation {
+        self.interpretation().volatility
+    }
+
+    /// Canonical §15 only. No direction is produced from gamma regime.
+    #[must_use]
+    pub const fn interpretation(self) -> GammaInterpretation {
         match self.regime {
-            GammaRegime::Positive => VolatilityExpectation::Dampened,
-            GammaRegime::Negative => VolatilityExpectation::Amplified,
-            GammaRegime::Unavailable => VolatilityExpectation::Unknown,
+            GammaRegime::Positive => GammaInterpretation {
+                volatility: VolatilityExpectation::Dampened,
+                mean_reversion: Some(RelativeExpectation::Higher),
+                breakout_persistence: Some(RelativeExpectation::Lower),
+                move_acceleration: None,
+            },
+            GammaRegime::Negative => GammaInterpretation {
+                volatility: VolatilityExpectation::Amplified,
+                mean_reversion: None,
+                breakout_persistence: None,
+                move_acceleration: Some(RelativeExpectation::Higher),
+            },
+            GammaRegime::Unavailable => GammaInterpretation {
+                volatility: VolatilityExpectation::Unknown,
+                mean_reversion: None,
+                breakout_persistence: None,
+                move_acceleration: None,
+            },
         }
+    }
+
+    #[must_use]
+    pub fn levels_valid(self) -> bool {
+        self.flip.is_none_or(f64::is_finite)
+            && self.call_wall.is_none_or(f64::is_finite)
+            && self.put_wall.is_none_or(f64::is_finite)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GammaSnapshotError {
+    MissingUnderlying,
+    MissingTimestamp,
+    UnavailableRegime,
+    InvalidLevel,
+}
+
+/// Provider-neutral §14 metadata for a reliable GEX observation. Timestamp text is intentionally
+/// opaque: canonical knowledge requires that it be obtained but does not specify a timezone,
+/// serialization format, or freshness duration.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReliableGammaSnapshot {
+    underlying: String,
+    timestamp: String,
+    context: GammaContext,
+}
+
+impl ReliableGammaSnapshot {
+    pub fn new(
+        underlying: &str,
+        timestamp: &str,
+        context: GammaContext,
+    ) -> Result<Self, GammaSnapshotError> {
+        if underlying.trim().is_empty() {
+            return Err(GammaSnapshotError::MissingUnderlying);
+        }
+        if timestamp.trim().is_empty() {
+            return Err(GammaSnapshotError::MissingTimestamp);
+        }
+        if context.regime == GammaRegime::Unavailable {
+            return Err(GammaSnapshotError::UnavailableRegime);
+        }
+        if !context.levels_valid() {
+            return Err(GammaSnapshotError::InvalidLevel);
+        }
+
+        Ok(Self {
+            underlying: underlying.to_owned(),
+            timestamp: timestamp.to_owned(),
+            context,
+        })
+    }
+
+    #[must_use]
+    pub fn underlying(&self) -> &str {
+        &self.underlying
+    }
+
+    #[must_use]
+    pub fn timestamp(&self) -> &str {
+        &self.timestamp
+    }
+
+    #[must_use]
+    pub const fn context(&self) -> GammaContext {
+        self.context
+    }
+
+    #[must_use]
+    pub const fn interpretation(&self) -> GammaInterpretation {
+        self.context.interpretation()
     }
 }
 
