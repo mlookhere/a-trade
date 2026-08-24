@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::{Condition, Direction, GammaRegime, MarketState, RejectionCode};
+use crate::{Condition, Direction, GammaRegime, MarketState, RejectionCode, SetupState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EffortResultSnapshot {
@@ -12,6 +12,15 @@ pub struct EffortResultSnapshot {
 pub struct EffortResultChange {
     pub from: EffortResultSnapshot,
     pub to: EffortResultSnapshot,
+}
+
+/// Minimal append-only §118 state-change journal record. Audit deliberately does not validate or
+/// repair the transition itself; an illegal observed transition must remain visible to audit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateChangeRecord {
+    pub setup_id: String,
+    pub from: SetupState,
+    pub to: SetupState,
 }
 
 /// Canonical §111 completed-trade payload. Audit validation is structural only; a
@@ -104,6 +113,7 @@ pub struct DailyMetrics {
 #[derive(Debug, Default)]
 pub struct AuditLedger {
     qualified_setup_ids: Vec<String>,
+    state_changes: Vec<StateChangeRecord>,
     completed_trades: Vec<CompletedTradeRecord>,
     rejected_setups: Vec<StoredRejectedSetupRecord>,
     portfolio_heat_observations: Vec<f64>,
@@ -131,6 +141,23 @@ impl AuditLedger {
             return Err(AuditError::DuplicateRecord);
         }
         self.qualified_setup_ids.push(setup_id.to_owned());
+        Ok(())
+    }
+
+    pub fn record_state_change(
+        &mut self,
+        setup_id: &str,
+        from: SetupState,
+        to: SetupState,
+    ) -> Result<(), AuditError> {
+        if setup_id.trim().is_empty() {
+            return Err(AuditError::InvalidRecord);
+        }
+        self.state_changes.push(StateChangeRecord {
+            setup_id: setup_id.to_owned(),
+            from,
+            to,
+        });
         Ok(())
     }
 
@@ -187,6 +214,11 @@ impl AuditLedger {
 
     pub fn record_execution_failure(&mut self) {
         self.execution_failures = self.execution_failures.saturating_add(1);
+    }
+
+    #[must_use]
+    pub fn state_changes(&self) -> &[StateChangeRecord] {
+        &self.state_changes
     }
 
     #[must_use]
