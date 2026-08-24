@@ -467,10 +467,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
     /// Canonical §§16,64,73,98,100,118 provider-neutral open-position safety cycle.
     /// Callers invoke this while a position is believed open. Polling cadence and broker-specific
     /// transport semantics remain outside the strategy core.
-    pub fn verify_open_position_safety(
-        &mut self,
-        setup_id: &str,
-    ) -> Result<(), RejectionCode> {
+    pub fn verify_open_position_safety(&mut self, setup_id: &str) -> Result<(), RejectionCode> {
         if !self.engine_safe {
             return Err(RejectionCode::BrokerUnsafe);
         }
