@@ -313,7 +313,7 @@ fn sections_42_55_and_102_advance_every_state_without_entry_authorization() {
         completed: true,
     };
     let reconfirmation_data = levels(20_000, 100, 10, None, None, Some(4.0));
-    let reconfirmation = candle(&reconfirmation_data, 4.0, 6.0, 20_000, 100, 7.0);
+    let reconfirmation = candle(&reconfirmation_data, 4.0, 7.0, 20_000, 100, 7.0);
 
     let mut sequence = LongOrderflowSequence::from_location_reached(SetupState::LocationReached)
         .unwrap();
