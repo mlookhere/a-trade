@@ -286,7 +286,9 @@ pub fn cluster_direction_clear(
     existing: &[ClusterExposure<'_>],
 ) -> Condition {
     if candidate_cluster_id.trim().is_empty()
-        || existing.iter().any(|exposure| exposure.cluster_id.trim().is_empty())
+        || existing
+            .iter()
+            .any(|exposure| exposure.cluster_id.trim().is_empty())
     {
         return Condition::Unknown;
     }
@@ -299,12 +301,7 @@ pub fn cluster_direction_clear(
 /// §§71-72 and §§85/94 mirror. Caller supplies the nearest predefined structural target;
 /// deterministic code validates direction and computes planned R.
 #[must_use]
-pub fn planned_r(
-    direction: Direction,
-    entry: f64,
-    stop: f64,
-    target: f64,
-) -> Option<f64> {
+pub fn planned_r(direction: Direction, entry: f64, stop: f64, target: f64) -> Option<f64> {
     if !entry.is_finite() || !stop.is_finite() || !target.is_finite() {
         return None;
     }
