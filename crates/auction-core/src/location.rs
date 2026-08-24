@@ -140,10 +140,8 @@ impl LocationSetup {
     /// SETUP_ID only when genuinely new confirmed swing structure produces a different key.
     #[must_use]
     pub fn requires_new_setup_id_for(self, candidate: StructureKey) -> bool {
-        matches!(
-            self.state,
-            SetupState::Terminal(TerminalState::Invalidated)
-        ) && candidate != self.structure
+        matches!(self.state, SetupState::Terminal(TerminalState::Invalidated))
+            && candidate != self.structure
     }
 }
 
