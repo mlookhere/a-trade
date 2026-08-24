@@ -16,7 +16,10 @@ fn sections_98_108_default_safety_state_is_unknown_and_fails_closed() {
     assert_eq!(safety.operational_risk_clear(), Condition::Unknown);
     assert_eq!(safety.emergency_drawdown_clear(), Condition::Unknown);
     assert_eq!(safety.system_automation_allowed(), Condition::Unknown);
-    assert_eq!(safety.agent_automation_allowed("MNQ_AGENT"), Condition::Unknown);
+    assert_eq!(
+        safety.agent_automation_allowed("MNQ_AGENT"),
+        Condition::Unknown
+    );
 }
 
 #[test]
@@ -45,11 +48,7 @@ fn section_98_generic_operational_signal_aggregation_is_tri_state() {
         Condition::Unknown
     );
     assert_eq!(
-        aggregate_operational_risk_clear(&[
-            Condition::True,
-            Condition::Unknown,
-            Condition::False,
-        ]),
+        aggregate_operational_risk_clear(&[Condition::True, Condition::Unknown, Condition::False,]),
         Condition::False
     );
     assert_eq!(aggregate_operational_risk_clear(&[]), Condition::True);
@@ -57,8 +56,14 @@ fn section_98_generic_operational_signal_aggregation_is_tri_state() {
 
 #[test]
 fn section_99_drawdown_threshold_has_no_default_and_uses_exact_configured_boundary() {
-    assert_eq!(emergency_drawdown_reached(None, Some(0.01)), Condition::Unknown);
-    assert_eq!(emergency_drawdown_reached(Some(0.01), None), Condition::Unknown);
+    assert_eq!(
+        emergency_drawdown_reached(None, Some(0.01)),
+        Condition::Unknown
+    );
+    assert_eq!(
+        emergency_drawdown_reached(Some(0.01), None),
+        Condition::Unknown
+    );
     assert_eq!(
         emergency_drawdown_reached(Some(0.0099), Some(0.01)),
         Condition::False
@@ -95,7 +100,10 @@ fn section_99_confirmed_emergency_drawdown_latches_whole_system_disabled() {
     safety.observe_emergency_drawdown(Condition::True);
     assert!(safety.system_disabled());
     assert_eq!(safety.system_automation_allowed(), Condition::False);
-    assert_eq!(safety.agent_automation_allowed("MNQ_AGENT"), Condition::False);
+    assert_eq!(
+        safety.agent_automation_allowed("MNQ_AGENT"),
+        Condition::False
+    );
 
     // A later non-breach observation does not invent an automatic session reset.
     safety.observe_emergency_drawdown(Condition::False);
@@ -123,7 +131,10 @@ fn sections_100_101_agent_local_violation_disables_only_that_agent() {
         .unwrap();
 
     assert!(safety.agent_disabled("MNQ_AGENT"));
-    assert_eq!(safety.agent_automation_allowed("MNQ_AGENT"), Condition::False);
+    assert_eq!(
+        safety.agent_automation_allowed("MNQ_AGENT"),
+        Condition::False
+    );
     assert_eq!(safety.agent_automation_allowed("ES_AGENT"), Condition::True);
     assert!(!safety.system_disabled());
     assert_eq!(safety.system_automation_allowed(), Condition::True);
@@ -138,8 +149,14 @@ fn sections_100_101_shared_infrastructure_violation_disables_whole_system() {
 
     assert!(safety.system_disabled());
     assert_eq!(safety.system_automation_allowed(), Condition::False);
-    assert_eq!(safety.agent_automation_allowed("MNQ_AGENT"), Condition::False);
-    assert_eq!(safety.agent_automation_allowed("ES_AGENT"), Condition::False);
+    assert_eq!(
+        safety.agent_automation_allowed("MNQ_AGENT"),
+        Condition::False
+    );
+    assert_eq!(
+        safety.agent_automation_allowed("ES_AGENT"),
+        Condition::False
+    );
 }
 
 #[test]
@@ -153,7 +170,10 @@ fn section_100_invalid_agent_identifier_fails_closed_without_reclassifying_scope
     assert!(!safety.system_disabled());
     assert!(!safety.agent_disabled(""));
     assert_eq!(safety.operational_risk_clear(), Condition::Unknown);
-    assert_eq!(safety.agent_automation_allowed("MNQ_AGENT"), Condition::Unknown);
+    assert_eq!(
+        safety.agent_automation_allowed("MNQ_AGENT"),
+        Condition::Unknown
+    );
     assert_eq!(safety.agent_automation_allowed(""), Condition::Unknown);
 }
 
@@ -166,6 +186,9 @@ fn sections_100_101_agent_disable_is_latched() {
     safety.set_operational_risk_clear(Condition::True);
     safety.observe_emergency_drawdown(Condition::False);
 
-    assert_eq!(safety.agent_automation_allowed("MNQ_AGENT"), Condition::False);
+    assert_eq!(
+        safety.agent_automation_allowed("MNQ_AGENT"),
+        Condition::False
+    );
     assert_eq!(safety.agent_automation_allowed("ES_AGENT"), Condition::True);
 }
