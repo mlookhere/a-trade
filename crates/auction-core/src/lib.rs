@@ -2,6 +2,7 @@
 
 pub mod authority;
 pub mod authorization;
+pub mod broker_execution;
 pub mod data;
 pub mod environment;
 pub mod fibonacci;
@@ -18,6 +19,11 @@ pub mod swings;
 pub mod truth;
 
 pub use authorization::{AuthorizationInputs, ProductionConditions, trade_authorized};
+pub use broker_execution::{
+    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission,
+    ExecutionCoordinator, ExecutionGateContext, ExecutionPermit, ExecutionStatus,
+    PreExecutionAuthority, SetupRegistry, SetupRegistryStatus,
+};
 pub use data::{DataHealth, GammaContext, GammaRegime, VolatilityExpectation};
 pub use environment::{
     EnvironmentEvaluation, EnvironmentInput, HourlyStructure, PremarketReferences, SessionValue,
