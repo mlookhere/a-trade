@@ -57,7 +57,9 @@ fn section_121_master_prompt_is_embedded_without_runtime_rewrite() {
     assert!(CANONICAL_AGENT_MASTER_PROMPT.contains(
         "The trading strategy must always progress in this order: environment, location, participation, effort versus result, absorption, dominance shift, second attempt, second failure, reconfirmation, risk validation, execution."
     ));
-    assert!(CANONICAL_AGENT_MASTER_PROMPT.ends_with("If the system must guess, output NO_TRADE.\n"));
+    assert!(
+        CANONICAL_AGENT_MASTER_PROMPT.ends_with("If the system must guess, output NO_TRADE.\n")
+    );
 }
 
 #[test]
@@ -135,5 +137,8 @@ fn sections_10_107_missing_or_invalid_advisory_data_is_unknown_not_invented() {
 
 #[test]
 fn section_107_default_condition_set_is_unknown_and_cannot_pass() {
-    assert_eq!(AdvisoryConditions::default().setup_pass(), Condition::Unknown);
+    assert_eq!(
+        AdvisoryConditions::default().setup_pass(),
+        Condition::Unknown
+    );
 }
