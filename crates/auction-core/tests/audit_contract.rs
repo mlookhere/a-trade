@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use auction_core::{
     AuditError, AuditLedger, CompletedTradeRecord, Condition, Direction, EffortResultChange,
-    EffortResultSnapshot, GammaRegime, MarketState, RejectedSetupRecord, RejectionCode,
+    EffortResultSnapshot, GammaRegime, MarketState, RejectedSetupRecord, RejectionCode, SetupState,
 };
 
 fn trade(setup_id: &str, realized_r: f64) -> CompletedTradeRecord {
@@ -65,6 +65,45 @@ fn section_111_completed_trade_preserves_every_required_audit_field() {
     assert_eq!(stored.value_reclaim_outcome, Condition::True);
     assert_eq!(stored.effort_vs_result_changes.len(), 1);
     assert_eq!(stored.exit_reason, "FINAL_SWING_TARGET");
+}
+
+#[test]
+fn section_118_state_change_journal_records_observed_transitions_without_hiding_violations() {
+    let mut ledger = AuditLedger::new();
+    ledger
+        .record_state_change(
+            "SETUP-STATE",
+            SetupState::Filled,
+            SetupState::PositionManagement,
+        )
+        .unwrap();
+    // Audit records an observed illegal skip too; validator authority lives outside Audit.
+    ledger
+        .record_state_change(
+            "SETUP-STATE",
+            SetupState::PositionManagement,
+            SetupState::EntryAuthorized,
+        )
+        .unwrap();
+
+    assert_eq!(ledger.state_changes().len(), 2);
+    assert_eq!(ledger.state_changes()[0].setup_id, "SETUP-STATE");
+    assert_eq!(ledger.state_changes()[0].from, SetupState::Filled);
+    assert_eq!(
+        ledger.state_changes()[0].to,
+        SetupState::PositionManagement
+    );
+    assert_eq!(
+        ledger.state_changes()[1].from,
+        SetupState::PositionManagement
+    );
+    assert_eq!(ledger.state_changes()[1].to, SetupState::EntryAuthorized);
+
+    assert_eq!(
+        ledger.record_state_change("   ", SetupState::Filled, SetupState::Closed),
+        Err(AuditError::InvalidRecord)
+    );
+    assert_eq!(ledger.state_changes().len(), 2);
 }
 
 #[test]
