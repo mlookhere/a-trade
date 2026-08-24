@@ -37,7 +37,7 @@
   },
   "stages": {
     "fast": ["workflow_self_test", "quality", "rust_format", "rust_lint"],
-    "pr": ["rust_test"],
+    "pr": ["rust_test", "rust_release_build"],
     "audit": ["dependency_audit"],
     "release": ["workflow_self_test", "quality", "rust_format", "rust_lint", "rust_test", "rust_release_build", "dependency_audit"],
     "nightly": ["workflow_self_test", "quality", "rust_format", "rust_lint", "rust_test", "rust_release_build", "dependency_audit"]
