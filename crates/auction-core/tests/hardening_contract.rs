@@ -1,8 +1,8 @@
 use auction_core::{
-    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition, Direction,
-    EtTime, ExecutionCoordinator, ExecutionGateContext, LocationSetup, MarketState, OrderProposal,
-    OrderType, PreExecutionAuthority, ProductionConditions, RejectionCode, StructureKey,
-    SwingImpulse,
+    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition,
+    Direction, EtTime, ExecutionCoordinator, ExecutionGateContext, LocationSetup, MarketState,
+    OrderProposal, OrderType, PreExecutionAuthority, ProductionConditions, RejectionCode,
+    StructureKey, SwingImpulse,
 };
 
 fn long_impulse(start_index: usize, end_index: usize) -> SwingImpulse {
