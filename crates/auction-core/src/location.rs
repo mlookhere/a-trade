@@ -1,8 +1,8 @@
 use crate::swings::SwingImpulse;
 use crate::{
-    Direction, EtTime, FibLevels, MarketState, SetupState, TerminalState, bearish_fib, bullish_fib,
-    direction_allowed, long_location_reached, long_location_valid, short_location_reached,
-    short_location_valid,
+    Direction, EtTime, FibLevels, MarketState, SessionPermissions, SetupState, TerminalState,
+    bearish_fib, bullish_fib, direction_allowed, long_location_reached, long_location_valid,
+    short_location_reached, short_location_valid,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,7 +29,7 @@ pub enum LocationEvent {
     Invalidated,
 }
 
-/// Opening location lifecycle for canonical §§34-37. It owns only location and Fib
+/// Opening/location lifecycle for canonical §§34-37 and §117. It owns only location and Fib
 /// invalidation state; order-flow confirmation is handled by later deterministic components.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LocationSetup {
@@ -40,9 +40,9 @@ pub struct LocationSetup {
 }
 
 impl LocationSetup {
-    /// Canonical §§24, 29-35: an opening setup can begin only at exactly 09:30 ET, in the
-    /// direction authorized by market state, with a complete qualified impulse and a Fib zone
-    /// completely outside value.
+    /// Canonical §§24, 29-35: the initial opening setup starts at exactly 09:30 ET, in the
+    /// direction authorized by market state, with a qualified impulse and a Fib zone completely
+    /// outside value.
     #[must_use]
     pub fn at_open(
         time_et: EtTime,
@@ -52,8 +52,51 @@ impl LocationSetup {
         tick_size: f64,
     ) -> Option<Self> {
         let open = EtTime::from_hms(9, 30, 0)?;
-        if time_et != open
-            || !direction_allowed(market_state, impulse.direction)
+        if time_et != open {
+            return None;
+        }
+        Self::build_waiting(
+            market_state,
+            impulse,
+            reference_value_boundary,
+            tick_size,
+        )
+    }
+
+    /// Canonical §37 and §117: while new entries are enabled, genuinely new confirmed structure
+    /// may create a fresh setup. The Setup Coordinator supplies every structure key already used
+    /// for the instrument/session; reusing any known structure fails closed.
+    #[must_use]
+    pub fn from_new_structure(
+        time_et: EtTime,
+        market_state: MarketState,
+        impulse: SwingImpulse,
+        reference_value_boundary: f64,
+        tick_size: f64,
+        known_structures: &[StructureKey],
+    ) -> Option<Self> {
+        if !SessionPermissions::at(time_et).allow_new_entries {
+            return None;
+        }
+        let structure = StructureKey::from(impulse);
+        if known_structures.contains(&structure) {
+            return None;
+        }
+        Self::build_waiting(
+            market_state,
+            impulse,
+            reference_value_boundary,
+            tick_size,
+        )
+    }
+
+    fn build_waiting(
+        market_state: MarketState,
+        impulse: SwingImpulse,
+        reference_value_boundary: f64,
+        tick_size: f64,
+    ) -> Option<Self> {
+        if !direction_allowed(market_state, impulse.direction)
             || !reference_value_boundary.is_finite()
             || !tick_size.is_finite()
             || tick_size <= 0.0
