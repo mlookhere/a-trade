@@ -167,7 +167,7 @@
   "implemented_in_issue_18": {
     "operational_risk_gate": {
       "sections": [98, 108],
-      "provenance": "caller-validated operational-clear facts are aggregated as TRUE/FALSE/UNKNOWN; canonical §98 malfunction examples are not promoted into an exhaustive hard-coded taxonomy"
+      "provenance": "caller-validated operational-clear facts are aggregated as TRUE/FALSE/UNKNOWN; canonical §98 malfunction examples are not promoted into an exhaustive hard-coded fault taxonomy"
     },
     "emergency_session_drawdown": {
       "sections": [99],
@@ -262,6 +262,24 @@
     "execution_gate_upstream_preservation": {
       "sections": [56, 109, 122],
       "provenance": "broker exact-SETUP_ID reconciliation supplements rather than replaces upstream effective duplicate and conflicting-order gates; FALSE or UNKNOWN upstream facts remain fail-closed"
+    }
+  },
+  "implemented_in_issue_30": {
+    "canonical_agent_master_prompt": {
+      "sections": [121],
+      "provenance": "verbatim canonical prompt asset embedded at compile time; runtime code does not rewrite, tune, or add strategy thresholds"
+    },
+    "advisory_agent_roles": {
+      "sections": [5, 6, 7],
+      "provenance": "typed canonical architecture roles; only Order-Flow may propose a trade under §6 and no advisory role exposes broker submission authority"
+    },
+    "advisory_setup_evaluation": {
+      "sections": [107, 108],
+      "provenance": "runtime LLM-facing setup evaluation follows the §107 field families while representing mandatory conditions as TRUE/FALSE/UNKNOWN per §108; missing or invalid advisory data remains UNKNOWN"
+    },
+    "llm_authority_boundary": {
+      "sections": [109, 122],
+      "provenance": "advisory output exposes only LLM_SETUP_PASS; trade_allowed=true is rejected as an LLM authority violation and deterministic strategy, risk, portfolio, broker, and execution gates remain independently authoritative"
     }
   },
   "unresolved_strategy_algorithms": {
