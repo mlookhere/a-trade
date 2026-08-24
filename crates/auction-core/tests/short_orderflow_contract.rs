@@ -1,3 +1,5 @@
+mod common;
+
 use auction_core::{
     Condition, FootprintCandle5m, FootprintLevel, SetupState, ShortOrderflowSequence,
     buyer_aggression, first_seller_dominance_shift, genuine_second_buyer_attempt,
@@ -119,13 +121,13 @@ fn sections_85_89_upper_wick_25pct_is_inclusive_and_unknown_failure_cannot_advan
         Condition::True
     );
 
-    let mut sequence =
-        ShortOrderflowSequence::from_location_reached(SetupState::LocationReached).unwrap();
+    let location = common::short_location();
+    let mut sequence = ShortOrderflowSequence::from_location_reached(&location).unwrap();
     assert_eq!(
         sequence.record_aggression(
             aggression,
             &prior_deltas(100),
-            Condition::True,
+            common::mnq_participation(),
             Condition::Unknown
         ),
         Condition::Unknown
@@ -231,13 +233,13 @@ fn sections_85_92_and_102_advance_mirrored_states_without_short_authorization() 
     let reconfirmation_data = levels(20_000, -100, 10, None, Some(4.0));
     let reconfirmation = candle(&reconfirmation_data, 5.0, 3.0, 20_000, -100, 3.0);
 
-    let mut sequence =
-        ShortOrderflowSequence::from_location_reached(SetupState::LocationReached).unwrap();
+    let location = common::short_location();
+    let mut sequence = ShortOrderflowSequence::from_location_reached(&location).unwrap();
     assert_eq!(
         sequence.record_aggression(
             aggression,
             &prior_deltas(100),
-            Condition::True,
+            common::mnq_participation(),
             Condition::True
         ),
         Condition::True
@@ -248,7 +250,7 @@ fn sections_85_92_and_102_advance_mirrored_states_without_short_authorization() 
     assert_eq!(sequence.state(), SetupState::PotentialAbsorption);
 
     assert_eq!(
-        sequence.record_first_dominance_shift(dominance, Condition::True),
+        sequence.record_first_dominance_shift(dominance, common::mnq_participation()),
         Condition::True
     );
     assert_eq!(sequence.state(), SetupState::FirstDominanceShift);
@@ -257,7 +259,7 @@ fn sections_85_92_and_102_advance_mirrored_states_without_short_authorization() 
     assert_eq!(sequence.state(), SetupState::WaitingSecondTest);
 
     assert_eq!(
-        sequence.record_second_test(second_test, Condition::True),
+        sequence.record_second_test(second_test, common::mnq_participation()),
         Condition::True
     );
     assert_eq!(sequence.state(), SetupState::SecondTest);
@@ -266,7 +268,7 @@ fn sections_85_92_and_102_advance_mirrored_states_without_short_authorization() 
     assert_eq!(sequence.state(), SetupState::SecondFailure);
 
     assert_eq!(
-        sequence.record_reconfirmation(reconfirmation, Condition::True),
+        sequence.record_reconfirmation(reconfirmation, common::mnq_participation()),
         Condition::True
     );
     assert_eq!(sequence.state(), SetupState::FinalReconfirmation);

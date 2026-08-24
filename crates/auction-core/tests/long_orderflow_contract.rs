@@ -1,3 +1,5 @@
+mod common;
+
 use auction_core::{
     Condition, FootprintCandle5m, FootprintLevel, LongOrderflowSequence, ParticipationRule,
     SetupState, buyer_reconfirmation, first_buyer_dominance_shift, genuine_second_seller_attempt,
@@ -183,13 +185,13 @@ fn sections_45_48_unknown_effort_result_cannot_advance_and_wick_25pct_is_inclusi
         Condition::True
     );
 
-    let mut sequence =
-        LongOrderflowSequence::from_location_reached(SetupState::LocationReached).unwrap();
+    let location = common::long_location();
+    let mut sequence = LongOrderflowSequence::from_location_reached(&location).unwrap();
     assert_eq!(
         sequence.record_aggression(
             aggression,
             &prior_deltas(100),
-            Condition::True,
+            common::mnq_participation(),
             Condition::Unknown
         ),
         Condition::Unknown
@@ -200,7 +202,7 @@ fn sections_45_48_unknown_effort_result_cannot_advance_and_wick_25pct_is_inclusi
         sequence.record_aggression(
             aggression,
             &prior_deltas(100),
-            Condition::True,
+            common::mnq_participation(),
             Condition::False
         ),
         Condition::False
@@ -309,13 +311,13 @@ fn sections_42_55_and_102_advance_every_state_without_entry_authorization() {
     let reconfirmation_data = levels(20_000, 100, 10, None, None, Some(4.0));
     let reconfirmation = candle(&reconfirmation_data, 4.0, 7.0, 20_000, 100, 7.0);
 
-    let mut sequence =
-        LongOrderflowSequence::from_location_reached(SetupState::LocationReached).unwrap();
+    let location = common::long_location();
+    let mut sequence = LongOrderflowSequence::from_location_reached(&location).unwrap();
     assert_eq!(
         sequence.record_aggression(
             aggression,
             &prior_deltas(100),
-            Condition::True,
+            common::mnq_participation(),
             Condition::True
         ),
         Condition::True
@@ -326,7 +328,7 @@ fn sections_42_55_and_102_advance_every_state_without_entry_authorization() {
     assert_eq!(sequence.state(), SetupState::PotentialAbsorption);
 
     assert_eq!(
-        sequence.record_first_dominance_shift(dominance, Condition::True),
+        sequence.record_first_dominance_shift(dominance, common::mnq_participation()),
         Condition::True
     );
     assert_eq!(sequence.state(), SetupState::FirstDominanceShift);
@@ -335,7 +337,7 @@ fn sections_42_55_and_102_advance_every_state_without_entry_authorization() {
     assert_eq!(sequence.state(), SetupState::WaitingSecondTest);
 
     assert_eq!(
-        sequence.record_second_test(second_test, Condition::True),
+        sequence.record_second_test(second_test, common::mnq_participation()),
         Condition::True
     );
     assert_eq!(sequence.state(), SetupState::SecondTest);
@@ -344,7 +346,7 @@ fn sections_42_55_and_102_advance_every_state_without_entry_authorization() {
     assert_eq!(sequence.state(), SetupState::SecondFailure);
 
     assert_eq!(
-        sequence.record_reconfirmation(reconfirmation, Condition::True),
+        sequence.record_reconfirmation(reconfirmation, common::mnq_participation()),
         Condition::True
     );
     assert_eq!(sequence.state(), SetupState::FinalReconfirmation);

@@ -196,6 +196,22 @@ pub enum ParticipationRule {
     NonMnqTimeNormalizedRvol,
 }
 
+/// Raw market-history inputs needed for the deterministic §§38-40 participation calculation.
+/// Order-flow state coordinators receive this context rather than a caller-asserted
+/// `PARTICIPATION_VALID` boolean.
+#[derive(Debug, Clone, Copy)]
+pub struct ParticipationContext<'a> {
+    pub rule: ParticipationRule,
+    pub prior_same_bucket_volumes: Option<&'a [u64]>,
+}
+
+impl ParticipationContext<'_> {
+    #[must_use]
+    pub fn evaluate(self, candle: FootprintCandle5m<'_>) -> Condition {
+        participation_valid(candle, self.rule, self.prior_same_bucket_volumes)
+    }
+}
+
 /// Canonical §§38-40. The MNQ source threshold is isolated from the non-MNQ starting model.
 /// Non-MNQ requires exactly 20 prior same-time-bucket session volumes and compares current
 /// volume to their median without floating-point division.
