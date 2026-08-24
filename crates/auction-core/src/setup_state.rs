@@ -56,7 +56,7 @@ impl SetupState {
         }
     }
 
-    pub const fn advance(self, requested: Self) -> Result<Self, SetupStateError> {
+    pub fn advance(self, requested: Self) -> Result<Self, SetupStateError> {
         if matches!(self, Self::Terminal(_)) {
             return Err(SetupStateError::AlreadyTerminal);
         }
