@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{Condition, OperationalSafetyController, OrderProposal, RejectionCode};
+use crate::{Condition, OperationalSafetyController, OrderProposal, RejectionCode, SetupState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BrokerCapabilities {
@@ -83,6 +83,7 @@ pub struct SetupRegistryStatus {
     pub consumed: bool,
     pub order_active_or_reserved: bool,
     pub broker_order_id: Option<String>,
+    pub state: Option<SetupState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +93,7 @@ struct SetupRecord {
     order_active_or_reserved: bool,
     instrument: Option<String>,
     broker_order_id: Option<String>,
+    state: Option<SetupState>,
 }
 
 #[derive(Debug, Default)]
@@ -119,6 +121,7 @@ impl SetupRegistry {
                 order_active_or_reserved: false,
                 instrument: None,
                 broker_order_id: None,
+                state: None,
             },
         );
         Ok(())
@@ -131,9 +134,14 @@ impl SetupRegistry {
             consumed: record.consumed,
             order_active_or_reserved: record.order_active_or_reserved,
             broker_order_id: record.broker_order_id.clone(),
+            state: record.state,
         })
     }
 
+    /// Canonical §§102-103: a sealed strategy-validated setup reaches the live execution tail
+    /// from FINAL_RECONFIRMATION. A successful gate binds the owner at ENTRY_AUTHORIZED. If a
+    /// pre-transmission safety recheck clears the reservation, ENTRY_AUTHORIZED is retained rather
+    /// than regressing state; the same owner may reserve it again only while no order is active.
     fn reserve_for_submission(
         &mut self,
         setup_id: &str,
@@ -152,6 +160,18 @@ impl SetupRegistry {
         if instrument.trim().is_empty() {
             return Err(RejectionCode::ProcessError);
         }
+
+        match record.state {
+            None => {
+                let next = SetupState::FinalReconfirmation
+                    .advance(SetupState::EntryAuthorized)
+                    .map_err(|_| RejectionCode::ProcessError)?;
+                record.state = Some(next);
+            }
+            Some(SetupState::EntryAuthorized) => {}
+            Some(_) => return Err(RejectionCode::DuplicateSetup),
+        }
+
         record.order_active_or_reserved = true;
         record.instrument = Some(instrument.to_owned());
         Ok(())
@@ -177,11 +197,18 @@ impl SetupRegistry {
         let Some(record) = self.setups.get_mut(setup_id) else {
             return Err(RejectionCode::ProcessError);
         };
-        if !record.order_active_or_reserved || record.consumed || broker_order_id.trim().is_empty()
+        if !record.order_active_or_reserved
+            || record.consumed
+            || broker_order_id.trim().is_empty()
+            || record.state != Some(SetupState::EntryAuthorized)
         {
             return Err(RejectionCode::ProcessError);
         }
+        let next = SetupState::EntryAuthorized
+            .advance(SetupState::OrderPending)
+            .map_err(|_| RejectionCode::ProcessError)?;
         record.broker_order_id = Some(broker_order_id.to_owned());
+        record.state = Some(next);
         Ok(())
     }
 
@@ -192,11 +219,33 @@ impl SetupRegistry {
         if record.consumed {
             return Err(RejectionCode::DuplicateSetup);
         }
-        if !record.order_active_or_reserved {
+        if !record.order_active_or_reserved || record.state != Some(SetupState::OrderPending) {
             return Err(RejectionCode::ProcessError);
         }
+        let next = SetupState::OrderPending
+            .advance(SetupState::Filled)
+            .map_err(|_| RejectionCode::ProcessError)?;
         record.consumed = true;
         record.order_active_or_reserved = false;
+        record.state = Some(next);
+        Ok(())
+    }
+
+    fn mark_position_management(&mut self, setup_id: &str) -> Result<(), RejectionCode> {
+        let Some(record) = self.setups.get_mut(setup_id) else {
+            return Err(RejectionCode::ProcessError);
+        };
+        if !record.consumed
+            || record.order_active_or_reserved
+            || record.broker_order_id.is_none()
+            || record.state != Some(SetupState::Filled)
+        {
+            return Err(RejectionCode::ProcessError);
+        }
+        let next = SetupState::Filled
+            .advance(SetupState::PositionManagement)
+            .map_err(|_| RejectionCode::ProcessError)?;
+        record.state = Some(next);
         Ok(())
     }
 
@@ -286,8 +335,9 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         self.registry.status(setup_id)
     }
 
-    /// Canonical §§6,56,64,103,109,122 live Execution Gate. Strategy/Risk/Portfolio pass flags
-    /// cannot be supplied here; they are sealed by deterministic upstream components.
+    /// Canonical §§6,56,64,102-103,109,122 live Execution Gate. Strategy/Risk/Portfolio pass
+    /// flags cannot be supplied here; they are sealed by deterministic upstream components.
+    /// The accepted sealed proposal binds the execution-tail state at ENTRY_AUTHORIZED.
     pub fn gate(
         &mut self,
         proposal: &OrderProposal,
@@ -438,7 +488,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         if record.consumed {
             return Err(RejectionCode::DuplicateSetup);
         }
-        if !record.order_active_or_reserved {
+        if !record.order_active_or_reserved || record.state != Some(SetupState::OrderPending) {
             return Err(RejectionCode::ProcessError);
         }
         let Some(broker_order_id) = record.broker_order_id.clone() else {
@@ -464,7 +514,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         }
     }
 
-    /// Canonical §§16,64,73,98,100,118 provider-neutral open-position safety cycle.
+    /// Canonical §§16,64,73,98,100,102,118 provider-neutral open-position safety cycle.
     /// Callers invoke this while a position is believed open. Polling cadence and broker-specific
     /// transport semantics remain outside the strategy core.
     pub fn verify_open_position_safety(&mut self, setup_id: &str) -> Result<(), RejectionCode> {
@@ -482,6 +532,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             if !record.consumed
                 || record.order_active_or_reserved
                 || record.broker_order_id.is_none()
+                || record.state != Some(SetupState::PositionManagement)
             {
                 return Err(RejectionCode::ProcessError);
             }
@@ -527,6 +578,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
                     && !record.consumed
                     && record.broker_order_id.is_none()
                     && record.instrument.as_deref() == Some(proposal.instrument())
+                    && record.state == Some(SetupState::EntryAuthorized)
             })
     }
 
@@ -539,6 +591,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             self.adapter.hard_stop_confirmed(setup_id),
             Ok(Condition::True)
         ) {
+            self.registry.mark_position_management(setup_id)?;
             return Ok(ExecutionStatus::FilledProtected {
                 broker_order_id: broker_order_id.to_owned(),
             });
