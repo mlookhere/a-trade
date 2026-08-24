@@ -6,7 +6,6 @@ struct CandleSnapshot {
     high: f64,
     low: f64,
     close: f64,
-    candle_delta: i64,
 }
 
 impl From<FootprintCandle5m<'_>> for CandleSnapshot {
@@ -16,7 +15,6 @@ impl From<FootprintCandle5m<'_>> for CandleSnapshot {
             high: candle.high,
             low: candle.low,
             close: candle.close,
-            candle_delta: candle.candle_delta,
         }
     }
 }
@@ -67,7 +65,8 @@ pub fn potential_absorption(
     let range = candle.high - candle.low;
     let lower_wick = candle.open.min(candle.close) - candle.low;
     let wick_rejection = lower_wick >= range * 0.25;
-    let bullish_or_upper_half = candle.close > candle.open || candle.close >= (candle.high + candle.low) / 2.0;
+    let bullish_or_upper_half =
+        candle.close > candle.open || candle.close >= (candle.high + candle.low) / 2.0;
 
     all_conditions(&[
         seller_aggression_present,
@@ -228,8 +227,11 @@ impl LongOrderflowSequence {
     /// structure but does not define an extraction algorithm, so it is an explicit finite input
     /// rather than silently assumed to equal one particular candle low.
     pub fn record_absorption(&mut self, first_failure_low: f64) -> Condition {
-        if self.state != SetupState::AggressionPresent || !first_failure_low.is_finite() {
+        if self.state != SetupState::AggressionPresent {
             return Condition::False;
+        }
+        if !first_failure_low.is_finite() {
+            return Condition::Unknown;
         }
         let Some(aggression) = self.aggression else {
             return Condition::Unknown;
