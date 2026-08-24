@@ -24,7 +24,7 @@ pub mod truth;
 
 pub use audit::{
     AuditError, AuditLedger, CompletedTradeRecord, DailyMetrics, EffortResultChange,
-    EffortResultSnapshot, RejectedSetupRecord, StoredRejectedSetupRecord,
+    EffortResultSnapshot, RejectedSetupRecord, StateChangeRecord, StoredRejectedSetupRecord,
 };
 pub use authorization::{AuthorizationInputs, ProductionConditions, trade_authorized};
 pub use broker_execution::{
