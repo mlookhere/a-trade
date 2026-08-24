@@ -5,7 +5,9 @@ pub mod authorization;
 pub mod data;
 pub mod environment;
 pub mod fibonacci;
+pub mod footprint;
 pub mod location;
+pub mod long_orderflow;
 pub mod market;
 pub mod rejection;
 pub mod session;
@@ -23,8 +25,17 @@ pub use fibonacci::{
     FibLevels, bearish_fib, bullish_fib, long_location_reached, long_location_valid,
     short_location_reached, short_location_valid,
 };
+pub use footprint::{
+    EXTREME_VOLUME_PERCENT, FootprintCandle5m, FootprintLevel, IMBALANCE_THRESHOLD,
+    MNQ_PARTICIPATION_THRESHOLD, ParticipationRule, participation_valid,
+};
 pub use location::{
     LocationEvent, LocationSetup, StructureKey, long_886_invalidated, short_886_invalidated,
+};
+pub use long_orderflow::{
+    LongOrderflowSequence, buyer_reconfirmation, candle_participation, first_buyer_dominance_shift,
+    genuine_second_seller_attempt, potential_absorption, second_failure_higher,
+    second_test_has_real_selling, seller_aggression,
 };
 pub use market::{Direction, MarketState, direction_allowed};
 pub use rejection::RejectionCode;

@@ -33,11 +33,45 @@
       "provenance": "mirrored bearish implementation; detailed source example primarily bullish"
     }
   },
+  "implemented_in_issue_8": {
+    "footprint_execution_contract": [12, 40],
+    "mnq_participation": {
+      "sections": [38],
+      "provenance": "source-stated approximate MNQ threshold preserved as 20000"
+    },
+    "non_mnq_participation": {
+      "sections": [39],
+      "provenance": "deterministic starting implementation; prior-20 same-time-bucket median RVOL >= 1.0"
+    },
+    "imbalance_threshold": {
+      "sections": [41],
+      "provenance": "source-stated approximate 400% threshold converted to centralized 4.0 configuration"
+    },
+    "seller_aggression": {
+      "sections": [42, 43],
+      "provenance": "deterministic implementation threshold"
+    },
+    "aggression_at_extreme": {
+      "sections": [44],
+      "provenance": "deterministic implementation; 35% bottom-quarter threshold remains implementation-defined"
+    },
+    "absorption_and_long_confirmation_sequence": [47, 48, 49, 50, 51, 53, 54, 55, 102]
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
       "status": "not numerically specified by canonical knowledge",
       "live_behavior": "requires externally validated TRUE fact; UNKNOWN classifies UNCLEAR"
+    },
+    "seller_effort_vs_meaningful_price_progression": {
+      "sections": [45, 46],
+      "status": "canonical qualitative judgment has no numeric meaningful-new-low algorithm",
+      "live_behavior": "supplied as TRUE/FALSE/UNKNOWN interpretation; UNKNOWN cannot advance the setup"
+    },
+    "first_failure_low_extraction": {
+      "section": 52,
+      "status": "canonical knowledge says store the low from the original absorption structure but does not define a machine extraction algorithm",
+      "live_behavior": "requires an explicit finite first-failure-low input; it is not silently assumed to equal a particular candle low"
     }
   }
 }
