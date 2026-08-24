@@ -71,7 +71,8 @@ pub struct StrategyValidationInputs<'a> {
 }
 
 /// Opaque proof that the Strategy Validator passed its pre-risk responsibilities. It has no
-/// public constructor and carries the exact setup evidence needed by later risk/order stages.
+/// public constructor. Accepted first-failure and reconfirmation evidence remains sealed inside
+/// the bound order-flow sequence until the later order/risk authority unit consumes it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StrategyValidationProof {
     setup_id: String,
@@ -79,8 +80,6 @@ pub struct StrategyValidationProof {
     instrument: String,
     direction: Direction,
     market_state: MarketState,
-    first_failure_extreme: f64,
-    reconfirmation_extreme: f64,
 }
 
 impl StrategyValidationProof {
@@ -107,16 +106,6 @@ impl StrategyValidationProof {
     #[must_use]
     pub const fn market_state(&self) -> MarketState {
         self.market_state
-    }
-
-    #[must_use]
-    pub(crate) const fn first_failure_extreme(&self) -> f64 {
-        self.first_failure_extreme
-    }
-
-    #[must_use]
-    pub(crate) const fn reconfirmation_extreme(&self) -> f64 {
-        self.reconfirmation_extreme
     }
 }
 
@@ -223,12 +212,12 @@ pub fn validate_strategy(
         return Err(RejectionCode::NewsBlackout);
     }
 
-    let first_failure_extreme = inputs
+    inputs
         .orderflow
         .first_failure_extreme()
         .filter(|value| value.is_finite())
         .ok_or(RejectionCode::ProcessError)?;
-    let reconfirmation_extreme = inputs
+    inputs
         .orderflow
         .reconfirmation_extreme()
         .filter(|value| value.is_finite())
@@ -240,7 +229,5 @@ pub fn validate_strategy(
         instrument: inputs.instrument.to_owned(),
         direction,
         market_state,
-        first_failure_extreme,
-        reconfirmation_extreme,
     })
 }
