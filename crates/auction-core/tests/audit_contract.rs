@@ -89,10 +89,7 @@ fn section_118_state_change_journal_records_observed_transitions_without_hiding_
     assert_eq!(ledger.state_changes().len(), 2);
     assert_eq!(ledger.state_changes()[0].setup_id, "SETUP-STATE");
     assert_eq!(ledger.state_changes()[0].from, SetupState::Filled);
-    assert_eq!(
-        ledger.state_changes()[0].to,
-        SetupState::PositionManagement
-    );
+    assert_eq!(ledger.state_changes()[0].to, SetupState::PositionManagement);
     assert_eq!(
         ledger.state_changes()[1].from,
         SetupState::PositionManagement
@@ -220,10 +217,7 @@ fn section_114_empty_day_has_zero_counts_and_no_fabricated_ratio_or_heat_metrics
 #[test]
 fn section_114_reporting_metrics_follow_explicit_r_space_formalizations() {
     let mut ledger = AuditLedger::new();
-    for (index, realized_r) in [1.0, -0.5, 0.0, 2.0, -1.0, -1.0]
-        .into_iter()
-        .enumerate()
-    {
+    for (index, realized_r) in [1.0, -0.5, 0.0, 2.0, -1.0, -1.0].into_iter().enumerate() {
         let mut record = trade(&format!("SETUP-M{index}"), realized_r);
         record.mfe = index as f64 + 1.0;
         record.mae = index as f64 * 0.5;
@@ -268,10 +262,7 @@ fn profit_factor_is_none_without_realized_losses_instead_of_inventing_infinity()
 #[test]
 fn section_97_rolling_expectancy_requires_explicit_nonzero_window_and_enough_trades() {
     let mut ledger = AuditLedger::new();
-    for (index, realized_r) in [1.0, -0.5, 0.0, 2.0, -1.0, -1.0]
-        .into_iter()
-        .enumerate()
-    {
+    for (index, realized_r) in [1.0, -0.5, 0.0, 2.0, -1.0, -1.0].into_iter().enumerate() {
         ledger
             .record_completed_trade(trade(&format!("SETUP-R{index}"), realized_r))
             .unwrap();
