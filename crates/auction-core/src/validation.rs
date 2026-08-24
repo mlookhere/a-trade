@@ -225,9 +225,8 @@ impl ReplayReport {
     #[must_use]
     pub const fn structurally_valid(self) -> bool {
         self.total_cases > 0
-            && self.exact_matches <= self.total_cases
             && self.mismatches <= self.total_cases
-            && self.exact_matches + self.mismatches == self.total_cases
+            && self.exact_matches == self.total_cases - self.mismatches
             && self.authorization_mismatches <= self.mismatches
             && self.rejection_mismatches <= self.mismatches
             && self.state_mismatches <= self.mismatches
