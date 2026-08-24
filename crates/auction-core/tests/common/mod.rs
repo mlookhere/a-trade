@@ -83,9 +83,21 @@ pub fn frozen_scenario(owner: &str, instrument: &str) -> FrozenPremarketScenario
 
 pub fn long_environment() -> EnvironmentInput {
     EnvironmentInput {
-        d1: SessionValue { vah: 8.0, val: 6.0, poc: 7.0 },
-        d2: SessionValue { vah: 7.0, val: 5.0, poc: 6.0 },
-        d3: SessionValue { vah: 6.0, val: 4.0, poc: 5.0 },
+        d1: SessionValue {
+            vah: 8.0,
+            val: 6.0,
+            poc: 7.0,
+        },
+        d2: SessionValue {
+            vah: 7.0,
+            val: 5.0,
+            poc: 6.0,
+        },
+        d3: SessionValue {
+            vah: 6.0,
+            val: 4.0,
+            poc: 5.0,
+        },
         hourly: HourlyStructure {
             latest_swing_high: 10.0,
             previous_swing_high: 9.0,
@@ -98,9 +110,21 @@ pub fn long_environment() -> EnvironmentInput {
 
 pub fn short_environment() -> EnvironmentInput {
     EnvironmentInput {
-        d1: SessionValue { vah: 4.0, val: 2.0, poc: 3.0 },
-        d2: SessionValue { vah: 5.0, val: 3.0, poc: 4.0 },
-        d3: SessionValue { vah: 6.0, val: 4.0, poc: 5.0 },
+        d1: SessionValue {
+            vah: 4.0,
+            val: 2.0,
+            poc: 3.0,
+        },
+        d2: SessionValue {
+            vah: 5.0,
+            val: 3.0,
+            poc: 4.0,
+        },
+        d3: SessionValue {
+            vah: 6.0,
+            val: 4.0,
+            poc: 5.0,
+        },
         hourly: HourlyStructure {
             latest_swing_high: 8.0,
             previous_swing_high: 9.0,
@@ -182,7 +206,10 @@ fn candle<'a>(
     delta: i64,
     poc: f64,
 ) -> FootprintCandle5m<'a> {
-    let total_volume = levels.iter().map(|level| level.bid_volume + level.ask_volume).sum();
+    let total_volume = levels
+        .iter()
+        .map(|level| level.bid_volume + level.ask_volume)
+        .sum();
     FootprintCandle5m {
         open,
         high,

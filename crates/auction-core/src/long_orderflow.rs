@@ -325,11 +325,7 @@ impl LongOrderflowSequence {
 
         let result = all_conditions(&[
             genuine_second_seller_attempt(candle, dominance.midpoint()),
-            second_test_has_real_selling(
-                candle,
-                participation.evaluate(candle),
-                first_failure_low,
-            ),
+            second_test_has_real_selling(candle, participation.evaluate(candle), first_failure_low),
         ]);
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::SecondTest)
@@ -370,11 +366,7 @@ impl LongOrderflowSequence {
             return Condition::Unknown;
         };
 
-        let result = buyer_reconfirmation(
-            candle,
-            test.midpoint(),
-            participation.evaluate(candle),
-        );
+        let result = buyer_reconfirmation(candle, test.midpoint(), participation.evaluate(candle));
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::FinalReconfirmation)
         {

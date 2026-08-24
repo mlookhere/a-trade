@@ -319,11 +319,7 @@ impl ShortOrderflowSequence {
 
         let result = all_conditions(&[
             genuine_second_buyer_attempt(candle, dominance.midpoint()),
-            second_test_has_real_buying(
-                candle,
-                participation.evaluate(candle),
-                first_failure_high,
-            ),
+            second_test_has_real_buying(candle, participation.evaluate(candle), first_failure_high),
         ]);
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::SecondTest)
@@ -364,11 +360,7 @@ impl ShortOrderflowSequence {
             return Condition::Unknown;
         };
 
-        let result = seller_reconfirmation(
-            candle,
-            test.midpoint(),
-            participation.evaluate(candle),
-        );
+        let result = seller_reconfirmation(candle, test.midpoint(), participation.evaluate(candle));
         if result.permits()
             && let Ok(next) = self.state.advance(SetupState::FinalReconfirmation)
         {
