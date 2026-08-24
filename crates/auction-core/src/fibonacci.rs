@@ -7,7 +7,7 @@ pub struct FibLevels {
 }
 
 impl FibLevels {
-    fn long_ordered(self) -> bool {
+    pub(crate) fn long_ordered(self) -> bool {
         self.level_705.is_finite()
             && self.level_788.is_finite()
             && self.level_886.is_finite()
@@ -15,7 +15,7 @@ impl FibLevels {
             && self.level_788 > self.level_886
     }
 
-    fn short_ordered(self) -> bool {
+    pub(crate) fn short_ordered(self) -> bool {
         self.level_705.is_finite()
             && self.level_788.is_finite()
             && self.level_886.is_finite()
