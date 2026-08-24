@@ -40,7 +40,8 @@ pub use broker_execution::{
     PreExecutionAuthority, SetupRegistry, SetupRegistryStatus,
 };
 pub use data::{
-    DataCycleReadiness, DataHealth, GammaContext, GammaRegime, RequiredMarketDataStatus,
+    DataCycleReadiness, DataHealth, GammaContext, GammaInterpretation, GammaRegime,
+    GammaSnapshotError, RelativeExpectation, ReliableGammaSnapshot, RequiredMarketDataStatus,
     RequiredVolumeProfileStatus, VolatilityExpectation,
 };
 pub use environment::{
