@@ -261,7 +261,11 @@ fn section_117_fill_is_reconciled_before_any_miss_cancellation() {
 
 #[test]
 fn sections_98_100_unconfirmed_cancellation_fails_closed_without_false_missed_state() {
-    for cancel_state in [Ok(Condition::False), Ok(Condition::Unknown), Err(MockError::Failure)] {
+    for cancel_state in [
+        Ok(Condition::False),
+        Ok(Condition::Unknown),
+        Err(MockError::Failure),
+    ] {
         let setup_id = match cancel_state {
             Ok(Condition::False) => "SETUP-CANCEL-FALSE",
             Ok(Condition::Unknown) => "SETUP-CANCEL-UNKNOWN",
