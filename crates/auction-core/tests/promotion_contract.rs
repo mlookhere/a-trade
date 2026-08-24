@@ -63,10 +63,7 @@ fn section_116_exact_sequence_reaches_version_recorded_without_live_activation()
         .record_backtest("BACKTEST-EVIDENCE", report(ValidationPhase::Backtest))
         .unwrap();
     assert_eq!(promotion.state(), PromotionState::BacktestRecorded);
-    assert_eq!(
-        promotion.backtest_evidence_id(),
-        Some("BACKTEST-EVIDENCE")
-    );
+    assert_eq!(promotion.backtest_evidence_id(), Some("BACKTEST-EVIDENCE"));
 
     promotion
         .record_out_of_sample("OOS-EVIDENCE", report(ValidationPhase::OutOfSample))
