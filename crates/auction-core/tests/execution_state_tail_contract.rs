@@ -189,10 +189,7 @@ fn sections_64_102_unprotected_fill_stays_filled_without_inventing_terminal_stat
     let mut coordinator = ready_coordinator(setup_id, broker);
     let permit = coordinator.gate(&proposal(setup_id), context()).unwrap();
 
-    assert_eq!(
-        coordinator.submit(permit),
-        Err(RejectionCode::BrokerUnsafe)
-    );
+    assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
     let filled = coordinator.setup_status(setup_id).unwrap();
     assert_eq!(filled.state, Some(SetupState::Filled));
     assert!(filled.consumed);
