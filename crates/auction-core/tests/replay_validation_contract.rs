@@ -107,7 +107,10 @@ fn section_116_manifest_keeps_backtest_and_out_of_sample_sessions_disjoint() {
         backtest_session_ids: vec!["SAME".to_owned()],
         out_of_sample_session_ids: vec!["SAME".to_owned()],
     };
-    assert_eq!(overlap.validate(), Err(ValidationManifestError::SplitOverlap));
+    assert_eq!(
+        overlap.validate(),
+        Err(ValidationManifestError::SplitOverlap)
+    );
 }
 
 #[test]
@@ -181,6 +184,27 @@ fn section_116_replay_case_must_match_the_frozen_validation_split() {
         outcome(false),
     );
     assert_eq!(unknown, Err(ReplayEvidenceError::UnknownSession));
+}
+
+#[test]
+fn section_116_out_of_sample_evidence_records_only_in_the_oos_phase() {
+    let evidence = record_replay_case(
+        &manifest(),
+        "OOS-CASE-1",
+        "OOS-SETUP-1",
+        "OOS-001",
+        ValidationPhase::OutOfSample,
+        outcome(false),
+        outcome(false),
+    )
+    .unwrap();
+    assert_eq!(evidence.phase(), ValidationPhase::OutOfSample);
+    assert!(evidence.exact_match());
+
+    let report = summarize_replay(ValidationPhase::OutOfSample, &[evidence]).unwrap();
+    assert_eq!(report.total_cases, 1);
+    assert_eq!(report.exact_matches, 1);
+    assert_eq!(report.mismatches, 0);
 }
 
 #[test]
@@ -314,14 +338,26 @@ fn sections_10_56_95_108_109_122_replay_integrated_authorization_fail_closed_mat
     let mutations: [(&str, fn(&mut ProductionConditions)); 10] = [
         ("TIME", |value| value.time_valid = Condition::False),
         ("DATA", |value| value.data_valid = Condition::Unknown),
-        ("DIRECTION", |value| value.direction_valid = Condition::False),
+        ("DIRECTION", |value| {
+            value.direction_valid = Condition::False
+        }),
         ("NEWS", |value| value.news_blackout_clear = Condition::False),
-        ("PORTFOLIO", |value| value.portfolio_risk_valid = Condition::False),
-        ("CORRELATION", |value| value.correlation_risk_valid = Condition::Unknown),
-        ("DUPLICATE", |value| value.setup_not_duplicated = Condition::False),
-        ("CONFLICT", |value| value.no_conflicting_order = Condition::Unknown),
+        ("PORTFOLIO", |value| {
+            value.portfolio_risk_valid = Condition::False
+        }),
+        ("CORRELATION", |value| {
+            value.correlation_risk_valid = Condition::Unknown
+        }),
+        ("DUPLICATE", |value| {
+            value.setup_not_duplicated = Condition::False
+        }),
+        ("CONFLICT", |value| {
+            value.no_conflicting_order = Condition::Unknown
+        }),
         ("BROKER", |value| value.broker_safe = Condition::False),
-        ("ENGINE", |value| value.execution_engine_safe = Condition::False),
+        ("ENGINE", |value| {
+            value.execution_engine_safe = Condition::False
+        }),
     ];
     for (index, (name, mutate)) in mutations.into_iter().enumerate() {
         let mut conditions = all_true_conditions();
@@ -394,12 +430,7 @@ fn sections_63_76_94_replay_management_checks_never_widen_stops() {
         Condition::False
     );
     assert_eq!(
-        defensive_stop_candidate_allowed(
-            Direction::Long,
-            99.0,
-            99.25,
-            Condition::Unknown,
-        ),
+        defensive_stop_candidate_allowed(Direction::Long, 99.0, 99.25, Condition::Unknown,),
         Condition::Unknown
     );
 }
@@ -407,7 +438,10 @@ fn sections_63_76_94_replay_management_checks_never_widen_stops() {
 #[test]
 fn sections_98_101_replay_operational_safety_starts_unknown_and_agent_violation_isolated() {
     let mut safety = OperationalSafetyController::new();
-    assert_eq!(safety.agent_automation_allowed("AGENT-A"), Condition::Unknown);
+    assert_eq!(
+        safety.agent_automation_allowed("AGENT-A"),
+        Condition::Unknown
+    );
 
     safety.set_operational_risk_clear(Condition::True);
     safety.observe_emergency_drawdown(Condition::False);
