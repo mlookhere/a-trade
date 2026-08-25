@@ -123,7 +123,10 @@ async fn malformed_stored_tokens_are_rejected_before_use() {
     .await
     .unwrap();
 
-    assert!(matches!(load_tokens(&path).await, Err(AdapterError::TokenStore(_))));
+    assert!(matches!(
+        load_tokens(&path).await,
+        Err(AdapterError::TokenStore(_))
+    ));
     let _ = tokio::fs::remove_file(path).await;
 }
 
