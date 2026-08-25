@@ -333,10 +333,13 @@ impl SchwabStreamClient {
                     return parse_event(text);
                 }
                 Message::Ping(payload) => {
-                    timeout(self.operation_timeout, self.socket.send(Message::Pong(payload)))
-                        .await
-                        .map_err(|_| AdapterError::TransportTimeout)?
-                        .map_err(|error| AdapterError::Transport(error.to_string()))?;
+                    timeout(
+                        self.operation_timeout,
+                        self.socket.send(Message::Pong(payload)),
+                    )
+                    .await
+                    .map_err(|_| AdapterError::TransportTimeout)?
+                    .map_err(|error| AdapterError::Transport(error.to_string()))?;
                 }
                 Message::Pong(_) => {}
                 Message::Close(_) => return Ok(StreamEvent::Closed),
