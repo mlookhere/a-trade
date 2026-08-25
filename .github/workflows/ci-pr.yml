@@ -61,7 +61,7 @@ jobs:
         with:
           persist-credentials: false
       - run: ./scripts/bootstrap
-      - run: ./scripts/bootstrap-audit
+      - run: bash ./scripts/bootstrap-audit
       - run: ./ci/run audit
 
   pr-tests:
