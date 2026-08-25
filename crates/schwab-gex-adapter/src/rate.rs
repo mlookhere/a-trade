@@ -68,18 +68,24 @@ impl RestBudget {
 #[derive(Debug, Clone)]
 pub struct RestRateLimiter {
     started: Instant,
+    effective_limit: usize,
     budget: Arc<Mutex<RestBudget>>,
 }
 
 impl RestRateLimiter {
     pub fn new(provider_limit: u32, reserved_headroom: u32) -> Result<Self, BudgetError> {
+        let budget = RestBudget::new(provider_limit, reserved_headroom)?;
+        let effective_limit = budget.effective_limit();
         Ok(Self {
             started: Instant::now(),
-            budget: Arc::new(Mutex::new(RestBudget::new(
-                provider_limit,
-                reserved_headroom,
-            )?)),
+            effective_limit,
+            budget: Arc::new(Mutex::new(budget)),
         })
+    }
+
+    #[must_use]
+    pub const fn effective_limit(&self) -> usize {
+        self.effective_limit
     }
 
     pub async fn acquire(&self) -> Result<(), BudgetError> {
@@ -88,7 +94,9 @@ impl RestRateLimiter {
             let decision = self.budget.lock().await.reserve(now_ms)?;
             match decision {
                 BudgetDecision::Granted => return Ok(()),
-                BudgetDecision::RetryAfterMs(delay) => sleep(std::time::Duration::from_millis(delay)).await,
+                BudgetDecision::RetryAfterMs(delay) => {
+                    sleep(std::time::Duration::from_millis(delay)).await;
+                }
             }
         }
     }
