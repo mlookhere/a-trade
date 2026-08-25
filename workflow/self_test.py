@@ -13,7 +13,7 @@ USES_LINE = re.compile(r"^\s*uses:\s*([^\s]+)@([^\s#]+)")
 REQUIRED_STAGE_GROUPS = {
     "fast": ["workflow_self_test", "quality", "rust_format", "rust_lint"],
     "pr": ["rust_test", "rust_release_build"],
-    "audit": ["dependency_audit"],
+    "audit": ["dependency_audit_tests", "dependency_audit"],
     "release": [
         "workflow_self_test",
         "quality",
@@ -21,6 +21,7 @@ REQUIRED_STAGE_GROUPS = {
         "rust_lint",
         "rust_test",
         "rust_release_build",
+        "dependency_audit_tests",
         "dependency_audit",
     ],
     "nightly": [
@@ -30,6 +31,7 @@ REQUIRED_STAGE_GROUPS = {
         "rust_lint",
         "rust_test",
         "rust_release_build",
+        "dependency_audit_tests",
         "dependency_audit",
     ],
 }

@@ -22,6 +22,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - run: ./scripts/bootstrap
+      - run: bash ./scripts/bootstrap-audit
       - run: ./ci/run nightly
       - name: Upload nightly report
         if: always()

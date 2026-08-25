@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+VERSION="$(python3 - <<'PY'
+from pathlib import Path
+import tomllib
+policy = tomllib.loads(Path('ci/dependency-policy.toml').read_text(encoding='utf-8'))
+print(policy['audit']['cargo_audit_version'])
+PY
+)"
+EXPECTED="cargo-audit ${VERSION}"
+
+if command -v cargo-audit >/dev/null 2>&1 && [[ "$(cargo-audit --version)" == "$EXPECTED" ]]; then
+  echo "$EXPECTED already installed"
+  exit 0
+fi
+
+cargo install cargo-audit --version "$VERSION" --locked
+
+ACTUAL="$(cargo-audit --version)"
+if [[ "$ACTUAL" != "$EXPECTED" ]]; then
+  echo "cargo-audit version mismatch: expected '$EXPECTED', got '$ACTUAL'" >&2
+  exit 1
+fi
+
+echo "$ACTUAL"
