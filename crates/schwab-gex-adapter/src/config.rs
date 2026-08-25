@@ -54,6 +54,7 @@ pub enum ConfigError {
     MissingSecret,
     InvalidNumber(&'static str),
     InvalidCallbackUrl,
+    InvalidTokenPath,
     InvalidRestBudget,
     InvalidProfilesFile,
     EmptyProfiles,
@@ -85,6 +86,9 @@ impl SchwabProfileConfig {
             return Err(ConfigError::MissingProfileId);
         }
         validate_callback(&self.callback_url)?;
+        if self.token_path.as_os_str().is_empty() {
+            return Err(ConfigError::InvalidTokenPath);
+        }
         validate_budget(
             self.rest_requests_per_minute,
             self.rest_headroom_requests_per_minute,
@@ -205,7 +209,7 @@ fn validate_profile_set(profiles: &[SchwabProfileConfig]) -> Result<(), ConfigEr
 
 fn validate_callback(callback_url: &str) -> Result<(), ConfigError> {
     let parsed = url::Url::parse(callback_url).map_err(|_| ConfigError::InvalidCallbackUrl)?;
-    if !matches!(parsed.scheme(), "https" | "http") || parsed.host_str().is_none() {
+    if parsed.scheme() != "https" || parsed.host_str().is_none() {
         return Err(ConfigError::InvalidCallbackUrl);
     }
     Ok(())
