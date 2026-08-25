@@ -17,6 +17,7 @@ fn profile(id: &str, token_path: &str) -> SchwabProfileConfig {
         token_path: PathBuf::from(token_path),
         rest_requests_per_minute: 120,
         rest_headroom_requests_per_minute: 20,
+        transport_timeout_ms: 5_000,
     }
 }
 
@@ -74,7 +75,7 @@ fn profile_identity_and_token_files_must_not_collide() {
 }
 
 #[test]
-fn insecure_callback_or_empty_token_path_fails_closed() {
+fn insecure_callback_empty_token_path_or_unbounded_timeout_fails_closed() {
     let mut insecure = profile("a", "tokens/a.json");
     insecure.callback_url = "http://localhost/callback".to_owned();
     assert_eq!(
@@ -87,6 +88,13 @@ fn insecure_callback_or_empty_token_path_fails_closed() {
     assert_eq!(
         SchwabConfig::new(vec![missing_path], 5_000, 1_000, 60_000),
         Err(ConfigError::InvalidTokenPath)
+    );
+
+    let mut no_timeout = profile("a", "tokens/a.json");
+    no_timeout.transport_timeout_ms = 0;
+    assert_eq!(
+        SchwabConfig::new(vec![no_timeout], 5_000, 1_000, 60_000),
+        Err(ConfigError::InvalidTimeout)
     );
 }
 
