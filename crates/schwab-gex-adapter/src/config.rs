@@ -60,6 +60,7 @@ pub enum ConfigError {
     MissingProfileId,
     DuplicateProfileId,
     DuplicateTokenPath,
+    InvalidTimeout,
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,15 +109,32 @@ impl SchwabConfig {
             Ok(path) if !path.trim().is_empty() => load_profiles_file(PathBuf::from(path))?,
             _ => vec![single_profile_from_env()?],
         };
-        validate_profile_set(&profiles)?;
+        Self::new(
+            profiles,
+            parse_u64("SCHWAB_GEX_STALE_TIMEOUT_MS")?,
+            parse_u64("SCHWAB_MARKET_DATA_STALE_TIMEOUT_MS")?,
+            parse_u64("SCHWAB_OPTION_CHAIN_REFRESH_INTERVAL_MS")?,
+        )
+    }
 
+    pub fn new(
+        profiles: Vec<SchwabProfileConfig>,
+        gex_stale_timeout_ms: u64,
+        market_data_stale_timeout_ms: u64,
+        option_chain_refresh_interval_ms: u64,
+    ) -> Result<Self, ConfigError> {
+        validate_profile_set(&profiles)?;
+        if gex_stale_timeout_ms == 0
+            || market_data_stale_timeout_ms == 0
+            || option_chain_refresh_interval_ms == 0
+        {
+            return Err(ConfigError::InvalidTimeout);
+        }
         Ok(Self {
             profiles,
-            gex_stale_timeout_ms: parse_u64("SCHWAB_GEX_STALE_TIMEOUT_MS")?,
-            market_data_stale_timeout_ms: parse_u64("SCHWAB_MARKET_DATA_STALE_TIMEOUT_MS")?,
-            option_chain_refresh_interval_ms: parse_u64(
-                "SCHWAB_OPTION_CHAIN_REFRESH_INTERVAL_MS",
-            )?,
+            gex_stale_timeout_ms,
+            market_data_stale_timeout_ms,
+            option_chain_refresh_interval_ms,
         })
     }
 
@@ -170,6 +188,9 @@ fn single_profile_from_env() -> Result<SchwabProfileConfig, ConfigError> {
 fn validate_profile_set(profiles: &[SchwabProfileConfig]) -> Result<(), ConfigError> {
     if profiles.is_empty() {
         return Err(ConfigError::EmptyProfiles);
+    }
+    for profile in profiles {
+        profile.clone().validate()?;
     }
     for (index, profile) in profiles.iter().enumerate() {
         for other in &profiles[..index] {
