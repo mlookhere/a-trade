@@ -162,6 +162,13 @@ impl SchwabGexState {
     }
 
     #[must_use]
+    pub fn contract_symbols(&self) -> Vec<String> {
+        let mut symbols = self.contracts.keys().cloned().collect::<Vec<_>>();
+        symbols.sort();
+        symbols
+    }
+
+    #[must_use]
     pub const fn needs_rebootstrap(&self) -> bool {
         self.needs_rebootstrap
     }
@@ -170,10 +177,13 @@ impl SchwabGexState {
     /// re-bootstrap is driven only by explicit refresh scheduling or detected coverage drift.
     pub const fn on_stream_disconnect(&mut self) {}
 
-    pub fn apply_option_stream_content(&mut self, content: &Value) -> Result<StreamApply, AdapterError> {
-        let object = content
-            .as_object()
-            .ok_or_else(|| AdapterError::ProviderContract("option stream content is not an object".to_owned()))?;
+    pub fn apply_option_stream_content(
+        &mut self,
+        content: &Value,
+    ) -> Result<StreamApply, AdapterError> {
+        let object = content.as_object().ok_or_else(|| {
+            AdapterError::ProviderContract("option stream content is not an object".to_owned())
+        })?;
         let symbol = string_field(object, "key")?;
         let Some(current) = self.contracts.get(symbol).cloned() else {
             self.needs_rebootstrap = true;
@@ -345,7 +355,8 @@ impl SchwabGexState {
         current: &ContractState,
     ) -> Result<(), AdapterError> {
         let mismatch = f64_field_optional(object, "20")?.is_some_and(|value| value != current.strike)
-            || string_field_optional(object, "22")?.is_some_and(|value| value != current.underlying)
+            || string_field_optional(object, "22")?
+                .is_some_and(|value| value != current.underlying)
             || string_field_optional(object, "21")?
                 .and_then(parse_stream_side)
                 .is_some_and(|value| value != current.side)
@@ -455,38 +466,44 @@ struct ChainContract {
 }
 
 impl ChainContract {
-    fn into_state(self, underlying: &str, expected_side: OptionSide) -> Result<ContractState, AdapterError> {
+    fn into_state(
+        self,
+        underlying: &str,
+        expected_side: OptionSide,
+    ) -> Result<ContractState, AdapterError> {
         let observed_side = parse_chain_side(&self.put_call).ok_or_else(|| {
-            AdapterError::ProviderContract(format!("unknown putCall value {}", self.put_call))
+            AdapterError::ProviderContract(format!("invalid putCall value {}", self.put_call))
         })?;
         if observed_side != expected_side {
-            return Err(AdapterError::ProviderContract(format!(
-                "option side map mismatch for {}",
-                self.symbol
-            )));
-        }
-        if self.symbol.trim().is_empty() {
             return Err(AdapterError::ProviderContract(
-                "option contract omitted symbol".to_owned(),
+                "option side disagrees with chain map".to_owned(),
             ));
         }
         let strike = self.strike_price.ok_or_else(|| {
-            AdapterError::ProviderContract(format!("{} omitted strikePrice", self.symbol))
+            AdapterError::ProviderContract("option chain omitted strikePrice".to_owned())
         })?;
-        if !strike.is_finite() || strike <= 0.0 {
-            return Err(AdapterError::ProviderContract(format!(
-                "{} has invalid strikePrice",
-                self.symbol
-            )));
+        let expiration = self.expiration_date.ok_or_else(|| {
+            AdapterError::ProviderContract("option chain omitted expirationDate".to_owned())
+        })?;
+        if self.symbol.trim().is_empty()
+            || !strike.is_finite()
+            || strike <= 0.0
+            || expiration_parts(&expiration).is_none()
+        {
+            return Err(AdapterError::ProviderContract(
+                "option chain contains invalid contract identity".to_owned(),
+            ));
         }
-        let expiration = self
-            .expiration_date
-            .as_deref()
-            .and_then(normalize_expiration)
-            .ok_or_else(|| {
-                AdapterError::ProviderContract(format!("{} omitted valid expirationDate", self.symbol))
-            })?;
-
+        if self.gamma.is_some_and(|value| !value.is_finite() || value < 0.0)
+            || self
+                .multiplier
+                .is_some_and(|value| !value.is_finite() || value <= 0.0)
+            || self.quote_time_in_long.is_some_and(|value| value < 0)
+        {
+            return Err(AdapterError::ProviderContract(
+                "option chain contains invalid GEX input".to_owned(),
+            ));
+        }
         Ok(ContractState {
             symbol: self.symbol,
             underlying: underlying.to_owned(),
@@ -499,23 +516,6 @@ impl ChainContract {
             quote_time_millis: self.quote_time_in_long,
         })
     }
-}
-
-fn normalize_expiration(value: &str) -> Option<String> {
-    let date = value.get(..10)?;
-    expiration_parts(date)?;
-    Some(date.to_owned())
-}
-
-fn expiration_parts(value: &str) -> Option<(u16, u8, u8)> {
-    let mut parts = value.split('-');
-    let year = parts.next()?.parse().ok()?;
-    let month: u8 = parts.next()?.parse().ok()?;
-    let day: u8 = parts.next()?.parse().ok()?;
-    if parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
-        return None;
-    }
-    Some((year, month, day))
 }
 
 fn parse_chain_side(value: &str) -> Option<OptionSide> {
@@ -534,9 +534,21 @@ fn parse_stream_side(value: &str) -> Option<OptionSide> {
     }
 }
 
+fn expiration_parts(value: &str) -> Option<(u16, u8, u8)> {
+    let date = value.get(..10)?;
+    let mut parts = date.split('-');
+    let year = parts.next()?.parse().ok()?;
+    let month = parts.next()?.parse().ok()?;
+    let day = parts.next()?.parse().ok()?;
+    if parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+    Some((year, month, day))
+}
+
 fn string_field<'a>(object: &'a Map<String, Value>, key: &str) -> Result<&'a str, AdapterError> {
     string_field_optional(object, key)?.ok_or_else(|| {
-        AdapterError::ProviderContract(format!("stream field {key} is missing or not a string"))
+        AdapterError::ProviderContract(format!("stream field {key} is missing"))
     })
 }
 
@@ -544,42 +556,58 @@ fn string_field_optional<'a>(
     object: &'a Map<String, Value>,
     key: &str,
 ) -> Result<Option<&'a str>, AdapterError> {
-    match object.get(key) {
-        None => Ok(None),
-        Some(Value::String(value)) => Ok(Some(value)),
-        Some(_) => Err(AdapterError::ProviderContract(format!(
-            "stream field {key} is not a string"
-        ))),
-    }
+    object
+        .get(key)
+        .map(|value| {
+            value.as_str().ok_or_else(|| {
+                AdapterError::ProviderContract(format!("stream field {key} is not a string"))
+            })
+        })
+        .transpose()
 }
 
 fn bool_field_optional(object: &Map<String, Value>, key: &str) -> Option<bool> {
     object.get(key).and_then(Value::as_bool)
 }
 
-fn f64_field_optional(object: &Map<String, Value>, key: &str) -> Result<Option<f64>, AdapterError> {
-    match object.get(key) {
-        None => Ok(None),
-        Some(value) => value.as_f64().map(Some).ok_or_else(|| {
-            AdapterError::ProviderContract(format!("stream field {key} is not numeric"))
-        }),
-    }
+fn f64_field_optional(
+    object: &Map<String, Value>,
+    key: &str,
+) -> Result<Option<f64>, AdapterError> {
+    object
+        .get(key)
+        .map(|value| {
+            value.as_f64().ok_or_else(|| {
+                AdapterError::ProviderContract(format!("stream field {key} is not numeric"))
+            })
+        })
+        .transpose()
 }
 
-fn i64_field_optional(object: &Map<String, Value>, key: &str) -> Result<Option<i64>, AdapterError> {
-    match object.get(key) {
-        None => Ok(None),
-        Some(value) => value.as_i64().map(Some).ok_or_else(|| {
-            AdapterError::ProviderContract(format!("stream field {key} is not an integer"))
-        }),
-    }
+fn i64_field_optional(
+    object: &Map<String, Value>,
+    key: &str,
+) -> Result<Option<i64>, AdapterError> {
+    object
+        .get(key)
+        .map(|value| {
+            value.as_i64().ok_or_else(|| {
+                AdapterError::ProviderContract(format!("stream field {key} is not an integer"))
+            })
+        })
+        .transpose()
 }
 
-fn u64_field_optional(object: &Map<String, Value>, key: &str) -> Result<Option<u64>, AdapterError> {
-    match object.get(key) {
-        None => Ok(None),
-        Some(value) => value.as_u64().map(Some).ok_or_else(|| {
-            AdapterError::ProviderContract(format!("stream field {key} is not an unsigned integer"))
-        }),
-    }
+fn u64_field_optional(
+    object: &Map<String, Value>,
+    key: &str,
+) -> Result<Option<u64>, AdapterError> {
+    object
+        .get(key)
+        .map(|value| {
+            value.as_u64().ok_or_else(|| {
+                AdapterError::ProviderContract(format!("stream field {key} is not an unsigned integer"))
+            })
+        })
+        .transpose()
 }
