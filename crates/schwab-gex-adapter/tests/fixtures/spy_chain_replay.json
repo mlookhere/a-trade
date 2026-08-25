@@ -1,0 +1,44 @@
+{
+  "symbol": "SPY",
+  "status": "SUCCESS",
+  "isDelayed": false,
+  "numberOfContracts": 2,
+  "underlying": {
+    "symbol": "SPY",
+    "mark": 500.0,
+    "quoteTime": 1000000,
+    "delayed": false
+  },
+  "callExpDateMap": {
+    "2026-09-25:31": {
+      "500.0": [
+        {
+          "symbol": "SPY   260925C00500000",
+          "putCall": "CALL",
+          "strikePrice": 500.0,
+          "expirationDate": "2026-09-25T00:00:00.000+00:00",
+          "gamma": 0.02,
+          "openInterest": 1000,
+          "multiplier": 100.0,
+          "quoteTimeInLong": 1000000
+        }
+      ]
+    }
+  },
+  "putExpDateMap": {
+    "2026-09-25:31": {
+      "495.0": [
+        {
+          "symbol": "SPY   260925P00495000",
+          "putCall": "PUT",
+          "strikePrice": 495.0,
+          "expirationDate": "2026-09-25T00:00:00.000+00:00",
+          "gamma": 0.01,
+          "openInterest": 800,
+          "multiplier": 100.0,
+          "quoteTimeInLong": 1000000
+        }
+      ]
+    }
+  }
+}
