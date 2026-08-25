@@ -9,3 +9,7 @@ version = "0.1.0"
 [[package]]
 name = "gex-engine"
 version = "0.1.0"
+
+[[package]]
+name = "gex-strategy"
+version = "0.1.0"
