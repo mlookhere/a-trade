@@ -118,9 +118,10 @@ struct Coefficients {
 
 impl Coefficients {
     fn apply(&mut self, side: OptionSide, coefficient: f64, count_delta: isize) {
+        let coefficient_delta = coefficient * count_delta as f64;
         match side {
-            OptionSide::Call => self.call += coefficient,
-            OptionSide::Put => self.put += coefficient,
+            OptionSide::Call => self.call += coefficient_delta,
+            OptionSide::Put => self.put += coefficient_delta,
         }
         self.count = self.count.saturating_add_signed(count_delta);
     }
@@ -304,7 +305,10 @@ impl GexBook {
         self.totals
             .apply(contract.side, contract.coefficient, count_delta);
 
-        let expiration = self.expirations.entry(contract.expiration.clone()).or_default();
+        let expiration = self
+            .expirations
+            .entry(contract.expiration.clone())
+            .or_default();
         expiration.apply(contract.side, contract.coefficient, count_delta);
         if expiration.count == 0 {
             self.expirations.remove(&contract.expiration);
