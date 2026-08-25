@@ -1,0 +1,6 @@
+[audit]
+cargo_audit_version = "0.22.2"
+deny = ["warnings"]
+
+[sources]
+allowed = ["registry+https://github.com/rust-lang/crates.io-index"]
