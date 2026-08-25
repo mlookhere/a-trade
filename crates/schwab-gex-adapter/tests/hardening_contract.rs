@@ -14,6 +14,7 @@ fn profile(id: &str) -> SchwabProfileConfig {
         token_path: PathBuf::from(format!("tokens/{id}.json")),
         rest_requests_per_minute: 120,
         rest_headroom_requests_per_minute: 20,
+        transport_timeout_ms: 5_000,
     }
 }
 
