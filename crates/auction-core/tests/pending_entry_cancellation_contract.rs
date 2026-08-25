@@ -2,8 +2,8 @@ mod common;
 
 use auction_core::{
     BrokerAdapter, BrokerCapabilities, BrokerOrderCancellation, BrokerReconciliation,
-    BrokerSubmission, Condition, ExecutionCoordinator, ExecutionGateContext, ExecutionStatus,
-    OrderProposal, RejectionCode, SetupState, TerminalState,
+    BrokerSubmission, Condition, EtTime, ExecutionCoordinator, ExecutionGateContext,
+    ExecutionStatus, OrderProposal, RejectionCode, SetupState, TerminalState,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,10 +85,15 @@ impl BrokerOrderCancellation for MockBroker {
     }
 }
 
+fn in_window() -> EtTime {
+    EtTime::from_hms(10, 0, 0).unwrap()
+}
+
 fn context() -> ExecutionGateContext<'static> {
     ExecutionGateContext {
         submitting_agent_id: common::OWNER,
         llm_setup_pass: Condition::True,
+        current_time_et: in_window(),
     }
 }
 
@@ -107,7 +112,7 @@ fn pending_long(
     coordinator.register_setup(setup_id, common::OWNER).unwrap();
     let permit = coordinator.gate(&proposal, context()).unwrap();
     assert!(matches!(
-        coordinator.submit(permit).unwrap(),
+        coordinator.submit(permit, in_window()).unwrap(),
         ExecutionStatus::Pending { .. }
     ));
     (coordinator, proposal)
@@ -152,7 +157,7 @@ fn pending_short(
     coordinator.register_setup(setup_id, common::OWNER).unwrap();
     let permit = coordinator.gate(&proposal, context()).unwrap();
     assert!(matches!(
-        coordinator.submit(permit).unwrap(),
+        coordinator.submit(permit, in_window()).unwrap(),
         ExecutionStatus::Pending { .. }
     ));
     (coordinator, proposal)
