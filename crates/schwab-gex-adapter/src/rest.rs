@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -29,9 +31,13 @@ pub struct SchwabRestClient {
 }
 
 impl SchwabRestClient {
-    pub fn new(limiter: RestRateLimiter) -> Result<Self, AdapterError> {
+    pub fn new(limiter: RestRateLimiter, transport_timeout_ms: u64) -> Result<Self, AdapterError> {
+        if transport_timeout_ms == 0 {
+            return Err(AdapterError::InvalidInput("transport timeout"));
+        }
         let http = Client::builder()
             .user_agent("a-trade-schwab-gex/0.1")
+            .timeout(Duration::from_millis(transport_timeout_ms))
             .build()
             .map_err(|error| AdapterError::Transport(error.to_string()))?;
         Ok(Self { http, limiter })
@@ -61,13 +67,10 @@ impl SchwabRestClient {
             ])
             .send()
             .await
-            .map_err(|error| AdapterError::Transport(error.to_string()))?
+            .map_err(map_transport_error)?
             .error_for_status()
             .map_err(|error| AdapterError::Provider(error.to_string()))?;
-        let body = response
-            .text()
-            .await
-            .map_err(|error| AdapterError::Transport(error.to_string()))?;
+        let body = response.text().await.map_err(map_transport_error)?;
         SchwabGexState::from_option_chain_json(underlying, &body)
     }
 
@@ -82,18 +85,34 @@ impl SchwabRestClient {
             .bearer_auth(access_token)
             .send()
             .await
-            .map_err(|error| AdapterError::Transport(error.to_string()))?
+            .map_err(map_transport_error)?
             .error_for_status()
             .map_err(|error| AdapterError::Provider(error.to_string()))?;
         let payload: UserPreferenceResponse = response
             .json()
             .await
-            .map_err(|error| AdapterError::ProviderContract(error.to_string()))?;
+            .map_err(map_transport_or_contract_error)?;
         let info = payload.streamer_info.into_iter().next().ok_or_else(|| {
             AdapterError::ProviderContract("userPreference omitted streamerInfo".to_owned())
         })?;
         validate_streamer_info(&info)?;
         Ok(info)
+    }
+}
+
+fn map_transport_error(error: reqwest::Error) -> AdapterError {
+    if error.is_timeout() {
+        AdapterError::TransportTimeout
+    } else {
+        AdapterError::Transport(error.to_string())
+    }
+}
+
+fn map_transport_or_contract_error(error: reqwest::Error) -> AdapterError {
+    if error.is_timeout() {
+        AdapterError::TransportTimeout
+    } else {
+        AdapterError::ProviderContract(error.to_string())
     }
 }
 
