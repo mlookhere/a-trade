@@ -1,52 +1,11 @@
 use schwab_gex_adapter::{GammaQuality, SchwabGexState, StreamApply};
 
-fn chain_json() -> String {
-    serde_json::json!({
-        "symbol": "SPY",
-        "status": "SUCCESS",
-        "isDelayed": false,
-        "numberOfContracts": 2,
-        "underlying": {
-            "symbol": "SPY",
-            "mark": 500.0,
-            "quoteTime": 1_000_000,
-            "delayed": false
-        },
-        "callExpDateMap": {
-            "2026-09-25:31": {
-                "500.0": [{
-                    "symbol": "SPY   260925C00500000",
-                    "putCall": "CALL",
-                    "strikePrice": 500.0,
-                    "expirationDate": "2026-09-25T00:00:00.000+00:00",
-                    "gamma": 0.02,
-                    "openInterest": 1000,
-                    "multiplier": 100.0,
-                    "quoteTimeInLong": 1_000_000
-                }]
-            }
-        },
-        "putExpDateMap": {
-            "2026-09-25:31": {
-                "495.0": [{
-                    "symbol": "SPY   260925P00495000",
-                    "putCall": "PUT",
-                    "strikePrice": 495.0,
-                    "expirationDate": "2026-09-25T00:00:00.000+00:00",
-                    "gamma": 0.01,
-                    "openInterest": 800,
-                    "multiplier": 100.0,
-                    "quoteTimeInLong": 1_000_000
-                }]
-            }
-        }
-    })
-    .to_string()
-}
+const CHAIN_REPLAY: &str = include_str!("fixtures/spy_chain_replay.json");
+const PARTIAL_OPTION_REPLAY: &str = include_str!("fixtures/spy_option_partial_replay.json");
 
 #[test]
 fn bootstrap_exposes_complete_sorted_stream_subscription_symbols() {
-    let state = SchwabGexState::from_option_chain_json("SPY", &chain_json()).unwrap();
+    let state = SchwabGexState::from_option_chain_json("SPY", CHAIN_REPLAY).unwrap();
     assert_eq!(
         state.contract_symbols(),
         vec![
@@ -60,15 +19,10 @@ fn bootstrap_exposes_complete_sorted_stream_subscription_symbols() {
 
 #[test]
 fn partial_stream_update_preserves_absent_fields_instead_of_zeroing_them() {
-    let mut state = SchwabGexState::from_option_chain_json("SPY", &chain_json()).unwrap();
+    let mut state = SchwabGexState::from_option_chain_json("SPY", CHAIN_REPLAY).unwrap();
     let before = state.reliable_surface(1_000_100, 1_000, 1_000).unwrap();
+    let update: serde_json::Value = serde_json::from_str(PARTIAL_OPTION_REPLAY).unwrap();
 
-    let update = serde_json::json!({
-        "key": "SPY   260925C00500000",
-        "29": 0.03,
-        "38": 1_000_050,
-        "delayed": false
-    });
     assert_eq!(
         state.apply_option_stream_content(&update).unwrap(),
         StreamApply::Applied
@@ -83,7 +37,7 @@ fn partial_stream_update_preserves_absent_fields_instead_of_zeroing_them() {
 
 #[test]
 fn unknown_stream_contract_requires_rebootstrap_and_blocks_reliable_output() {
-    let mut state = SchwabGexState::from_option_chain_json("SPY", &chain_json()).unwrap();
+    let mut state = SchwabGexState::from_option_chain_json("SPY", CHAIN_REPLAY).unwrap();
     let update = serde_json::json!({
         "key": "SPY   260925C00505000",
         "29": 0.02,
@@ -103,7 +57,7 @@ fn unknown_stream_contract_requires_rebootstrap_and_blocks_reliable_output() {
 
 #[test]
 fn stale_option_and_underlying_updates_are_ignored() {
-    let mut state = SchwabGexState::from_option_chain_json("SPY", &chain_json()).unwrap();
+    let mut state = SchwabGexState::from_option_chain_json("SPY", CHAIN_REPLAY).unwrap();
 
     let option = serde_json::json!({
         "key": "SPY   260925C00500000",
