@@ -16,6 +16,7 @@ fn profile(id: &str) -> SchwabProfileConfig {
         token_path: PathBuf::from(format!("tokens/{id}.json")),
         rest_requests_per_minute: 120,
         rest_headroom_requests_per_minute: 20,
+        transport_timeout_ms: 5_000,
     }
 }
 
@@ -90,6 +91,7 @@ async fn duplicate_schwab_streamer_user_is_rejected_before_any_parallel_dial() {
             schwab_client_function_id: "function".to_owned(),
         },
         access_token: SecretString::new(format!("token-{profile_id}")).unwrap(),
+        transport_timeout_ms: 5_000,
     };
 
     assert!(matches!(
