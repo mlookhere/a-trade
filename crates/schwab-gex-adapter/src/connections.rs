@@ -1,6 +1,7 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
+use tokio::time::timeout;
 
 use crate::{
     AdapterError, SchwabStreamClient, SecretString, StreamEvent, StreamRequestFactory,
@@ -12,6 +13,7 @@ pub struct ProfileStreamConnect {
     pub profile_id: String,
     pub streamer_info: StreamerInfo,
     pub access_token: SecretString,
+    pub transport_timeout_ms: u64,
 }
 
 pub struct ProfileStreamSession {
@@ -25,9 +27,22 @@ impl ProfileStreamSession {
         if request.profile_id.trim().is_empty() {
             return Err(AdapterError::InvalidInput("profile id"));
         }
+        if request.transport_timeout_ms == 0 {
+            return Err(AdapterError::InvalidInput("transport timeout"));
+        }
+        let timeout_duration = Duration::from_millis(request.transport_timeout_ms);
 
-        let mut client =
-            SchwabStreamClient::connect(&request.streamer_info.streamer_socket_url).await?;
+        timeout(timeout_duration, Self::connect_and_login(request))
+            .await
+            .map_err(|_| AdapterError::TransportTimeout)?
+    }
+
+    async fn connect_and_login(request: ProfileStreamConnect) -> Result<Self, AdapterError> {
+        let mut client = SchwabStreamClient::connect(
+            &request.streamer_info.streamer_socket_url,
+            request.transport_timeout_ms,
+        )
+        .await?;
         let mut requests = StreamRequestFactory::new(&request.streamer_info)?;
         let (request_id, login) = requests.login(request.access_token.expose())?;
         client.send_json(login).await?;
