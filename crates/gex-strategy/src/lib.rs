@@ -278,8 +278,8 @@ impl MarketSnapshot {
             return Err(SnapshotError::InvalidSpot);
         }
 
-        let gex_levels =
-            normalize_gex_levels(input.spot_price, raw_gex_levels).map_err(|_| SnapshotError::InvalidGex)?;
+        let gex_levels = normalize_gex_levels(input.spot_price, raw_gex_levels)
+            .map_err(|_| SnapshotError::InvalidGex)?;
 
         Ok(Self {
             snapshot_id: input.snapshot_id,
