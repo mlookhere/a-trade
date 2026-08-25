@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - run: ./scripts/bootstrap
-      - run: ./scripts/bootstrap-audit
+      - run: bash ./scripts/bootstrap-audit
       - run: ./ci/run release
       - name: Upload release gate report
         if: always()
