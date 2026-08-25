@@ -95,10 +95,10 @@ fn unknown_stream_contract_requires_rebootstrap_and_blocks_reliable_output() {
         StreamApply::UnknownContract
     );
     assert!(state.needs_rebootstrap());
-    assert_eq!(
+    assert!(matches!(
         state.reliable_surface(1_000_100, 1_000, 1_000),
         Err(GammaQuality::RebootstrapRequired)
-    );
+    ));
 }
 
 #[test]
