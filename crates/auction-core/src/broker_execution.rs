@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use crate::{
-    Condition, Direction, InstrumentExecutionConfig, OperationalSafetyController, OrderProposal,
-    RejectionCode, SetupState, TerminalState, slippage_guard, trigger_expired,
+    Condition, Direction, EtTime, InstrumentExecutionConfig, OperationalSafetyController,
+    OrderProposal, RejectionCode, SessionPermissions, SetupState, TerminalState, slippage_guard,
+    trigger_expired,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,10 +39,8 @@ impl BrokerReconciliation {
     pub fn setup_clear(&self, setup_id: &str) -> Condition {
         if self.position_state_known != Condition::True
             || self.open_order_state_known != Condition::True
+            || setup_id.trim().is_empty()
         {
-            return Condition::Unknown;
-        }
-        if setup_id.trim().is_empty() {
             return Condition::Unknown;
         }
         Condition::from(
@@ -175,10 +174,10 @@ impl SetupRegistry {
         let Some(record) = self.setups.get_mut(setup_id) else {
             return Err(RejectionCode::ProcessError);
         };
-        if record.owner_agent_id != owner_agent_id {
-            return Err(RejectionCode::DuplicateSetup);
-        }
-        if record.consumed || record.order_active_or_reserved {
+        if record.owner_agent_id != owner_agent_id
+            || record.consumed
+            || record.order_active_or_reserved
+        {
             return Err(RejectionCode::DuplicateSetup);
         }
         if proposal.instrument().trim().is_empty() || proposal.setup_id() != setup_id {
@@ -187,10 +186,11 @@ impl SetupRegistry {
 
         match record.state {
             None => {
-                let next = SetupState::FinalReconfirmation
-                    .advance(SetupState::EntryAuthorized)
-                    .map_err(|_| RejectionCode::ProcessError)?;
-                record.state = Some(next);
+                record.state = Some(
+                    SetupState::FinalReconfirmation
+                        .advance(SetupState::EntryAuthorized)
+                        .map_err(|_| RejectionCode::ProcessError)?,
+                );
             }
             Some(SetupState::EntryAuthorized) => {}
             Some(_) => return Err(RejectionCode::DuplicateSetup),
@@ -235,11 +235,12 @@ impl SetupRegistry {
         {
             return Err(RejectionCode::ProcessError);
         }
-        let next = SetupState::EntryAuthorized
-            .advance(SetupState::OrderPending)
-            .map_err(|_| RejectionCode::ProcessError)?;
+        record.state = Some(
+            SetupState::EntryAuthorized
+                .advance(SetupState::OrderPending)
+                .map_err(|_| RejectionCode::ProcessError)?,
+        );
         record.broker_order_id = Some(broker_order_id.to_owned());
-        record.state = Some(next);
         Ok(())
     }
 
@@ -253,13 +254,14 @@ impl SetupRegistry {
         if !record.order_active_or_reserved || record.state != Some(SetupState::OrderPending) {
             return Err(RejectionCode::ProcessError);
         }
-        let next = SetupState::OrderPending
-            .advance(SetupState::Filled)
-            .map_err(|_| RejectionCode::ProcessError)?;
+        record.state = Some(
+            SetupState::OrderPending
+                .advance(SetupState::Filled)
+                .map_err(|_| RejectionCode::ProcessError)?,
+        );
         record.consumed = true;
         record.order_active_or_reserved = false;
         record.pending_entry_guard = None;
-        record.state = Some(next);
         Ok(())
     }
 
@@ -291,10 +293,11 @@ impl SetupRegistry {
         {
             return Err(RejectionCode::ProcessError);
         }
-        let next = SetupState::Filled
-            .advance(SetupState::PositionManagement)
-            .map_err(|_| RejectionCode::ProcessError)?;
-        record.state = Some(next);
+        record.state = Some(
+            SetupState::Filled
+                .advance(SetupState::PositionManagement)
+                .map_err(|_| RejectionCode::ProcessError)?,
+        );
         Ok(())
     }
 
@@ -303,12 +306,13 @@ impl SetupRegistry {
     }
 }
 
-/// Live §109 execution context. Strategy/Risk/Portfolio authority is carried inside the sealed
-/// proposal; the only advisory input accepted here is LLM_SETUP_PASS.
+/// Live §§3-4/109/122 execution context. Current ET time is mandatory and is recalculated at the
+/// live gate rather than trusting the timestamp embedded in an earlier strategy proof.
 #[derive(Debug, Clone, Copy)]
 pub struct ExecutionGateContext<'a> {
     pub submitting_agent_id: &'a str,
     pub llm_setup_pass: Condition,
+    pub current_time_et: EtTime,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -384,9 +388,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         self.registry.status(setup_id)
     }
 
-    /// Canonical §§6,56,64,102-103,109,122 live Execution Gate. Strategy/Risk/Portfolio pass
-    /// flags cannot be supplied here; they are sealed by deterministic upstream components.
-    /// The accepted sealed proposal binds the execution-tail state at ENTRY_AUTHORIZED.
+    /// Canonical §§3-4,6,56,64,102-103,109,117,122 live Execution Gate.
     pub fn gate(
         &mut self,
         proposal: &OrderProposal,
@@ -397,6 +399,9 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         }
         if context.submitting_agent_id.trim().is_empty() {
             return Err(RejectionCode::ProcessError);
+        }
+        if !SessionPermissions::at(context.current_time_et).allow_new_entries {
+            return Err(RejectionCode::TimeCutoff);
         }
         if context.llm_setup_pass != Condition::True {
             return Err(RejectionCode::ProcessError);
@@ -426,10 +431,10 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             return Err(RejectionCode::BrokerUnsafe);
         }
 
-        let reconciliation = match self.adapter.reconcile() {
-            Ok(value) => value,
-            Err(_) => return Err(RejectionCode::BrokerUnsafe),
-        };
+        let reconciliation = self
+            .adapter
+            .reconcile()
+            .map_err(|_| RejectionCode::BrokerUnsafe)?;
         if reconciliation.broker_safe() != Condition::True {
             return Err(RejectionCode::BrokerUnsafe);
         }
@@ -464,7 +469,14 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         })
     }
 
-    pub fn submit(&mut self, permit: ExecutionPermit) -> Result<ExecutionStatus, RejectionCode> {
+    /// Canonical §§3-4/109/117 second time-authority check at the broker transmission boundary.
+    /// A permit created before the cutoff cannot be transmitted after the cutoff. When time fails,
+    /// only the untransmitted reservation is cleared; ENTRY_AUTHORIZED is retained.
+    pub fn submit(
+        &mut self,
+        permit: ExecutionPermit,
+        current_time_et: EtTime,
+    ) -> Result<ExecutionStatus, RejectionCode> {
         if !self.engine_safe {
             return Err(RejectionCode::BrokerUnsafe);
         }
@@ -505,6 +517,12 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             return Err(RejectionCode::BrokerUnsafe);
         }
 
+        // Keep this check immediately adjacent to the only broker-transmission call in the core.
+        if !SessionPermissions::at(current_time_et).allow_new_entries {
+            self.registry.clear_reservation(&setup_id);
+            return Err(RejectionCode::TimeCutoff);
+        }
+
         let submission = match self.adapter.submit_protected(&permit.proposal) {
             Ok(value) => value,
             Err(_) => {
@@ -527,8 +545,6 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         self.verify_protection_after_fill(&setup_id, &submission.broker_order_id)
     }
 
-    /// Internal fill-only reconciliation used by the guarded pending-entry path below. Keeping it
-    /// private prevents callers from bypassing canonical §§60-61 cancellation checks indefinitely.
     fn reconcile_fill_only(&mut self, setup_id: &str) -> Result<ExecutionStatus, RejectionCode> {
         if !self.engine_safe {
             return Err(RejectionCode::BrokerUnsafe);
@@ -545,20 +561,14 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         let Some(broker_order_id) = record.broker_order_id.clone() else {
             return Err(RejectionCode::ProcessError);
         };
-        let filled = match self.adapter.entry_filled(setup_id) {
-            Ok(value) => value,
-            Err(_) => {
-                self.engine_safe = false;
-                return Err(RejectionCode::BrokerUnsafe);
-            }
-        };
-        match filled {
-            Condition::False => Ok(ExecutionStatus::Pending { broker_order_id }),
-            Condition::Unknown => {
+
+        match self.adapter.entry_filled(setup_id) {
+            Ok(Condition::False) => Ok(ExecutionStatus::Pending { broker_order_id }),
+            Ok(Condition::Unknown) | Err(_) => {
                 self.engine_safe = false;
                 Err(RejectionCode::BrokerUnsafe)
             }
-            Condition::True => {
+            Ok(Condition::True) => {
                 self.registry.mark_filled_consumed(setup_id)?;
                 self.verify_protection_after_fill(setup_id, &broker_order_id)
             }
@@ -566,8 +576,7 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
     }
 
     /// Canonical §§16,64,73,98,100,102,118 provider-neutral open-position safety cycle.
-    /// Callers invoke this while a position is believed open. Polling cadence and broker-specific
-    /// transport semantics remain outside the strategy core.
+    /// This remains available after 11:00 because §4 preserves existing-position management.
     pub fn verify_open_position_safety(&mut self, setup_id: &str) -> Result<(), RejectionCode> {
         if !self.engine_safe {
             return Err(RejectionCode::BrokerUnsafe);
@@ -594,17 +603,15 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
                 .ok_or(RejectionCode::ProcessError)?
         };
 
-        let reconciliation = match self.adapter.reconcile() {
-            Ok(value) => value,
-            Err(_) => return Err(RejectionCode::BrokerUnsafe),
-        };
-        if reconciliation.broker_safe() != Condition::True {
-            return Err(RejectionCode::BrokerUnsafe);
-        }
-        if !reconciliation
-            .position_setup_ids
-            .iter()
-            .any(|candidate| candidate == setup_id)
+        let reconciliation = self
+            .adapter
+            .reconcile()
+            .map_err(|_| RejectionCode::BrokerUnsafe)?;
+        if reconciliation.broker_safe() != Condition::True
+            || !reconciliation
+                .position_setup_ids
+                .iter()
+                .any(|candidate| candidate == setup_id)
         {
             return Err(RejectionCode::BrokerUnsafe);
         }
@@ -665,9 +672,9 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
 }
 
 impl<A: BrokerOrderCancellation> ExecutionCoordinator<A> {
-    /// Canonical §§60-61/102/117 pending-entry lifecycle. This is the public reconciliation path
-    /// for an accepted but unfilled entry; it cannot skip the configured slippage or stale-trigger
-    /// cancellation rules.
+    /// Canonical §§60-61/102/117 pending-entry lifecycle. Orders already accepted before 11:00
+    /// remain governed only by the existing slippage/expiry contracts; no new cutoff-cancel rule
+    /// is inferred here.
     pub fn reconcile_pending_entry(
         &mut self,
         setup_id: &str,

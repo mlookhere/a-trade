@@ -2,8 +2,8 @@ mod common;
 
 use auction_core::{
     BrokerAdapter, BrokerCapabilities, BrokerOrderCancellation, BrokerReconciliation,
-    BrokerSubmission, Condition, ExecutionCoordinator, ExecutionGateContext, ExecutionStatus,
-    OrderProposal, RejectionCode, SetupState,
+    BrokerSubmission, Condition, EtTime, ExecutionCoordinator, ExecutionGateContext,
+    ExecutionStatus, OrderProposal, RejectionCode, SetupState,
 };
 
 #[derive(Debug, Clone)]
@@ -83,10 +83,15 @@ fn clear_reconciliation() -> BrokerReconciliation {
     }
 }
 
+fn in_window() -> EtTime {
+    EtTime::from_hms(10, 0, 0).unwrap()
+}
+
 fn context() -> ExecutionGateContext<'static> {
     ExecutionGateContext {
         submitting_agent_id: common::OWNER,
         llm_setup_pass: Condition::True,
+        current_time_et: in_window(),
     }
 }
 
@@ -119,7 +124,7 @@ fn sections_102_103_gate_and_broker_acceptance_advance_exact_execution_tail() {
     assert!(!authorized.consumed);
 
     assert_eq!(
-        coordinator.submit(permit).unwrap(),
+        coordinator.submit(permit, in_window()).unwrap(),
         ExecutionStatus::Pending {
             broker_order_id: "BROKER-PENDING".to_owned()
         }
@@ -145,7 +150,7 @@ fn sections_64_102_117_confirmed_fill_and_stop_reach_position_management_without
     let permit = coordinator.gate(&proposal(setup_id), context()).unwrap();
 
     assert_eq!(
-        coordinator.submit(permit).unwrap(),
+        coordinator.submit(permit, in_window()).unwrap(),
         ExecutionStatus::FilledProtected {
             broker_order_id: "BROKER-FILLED".to_owned()
         }
@@ -164,7 +169,7 @@ fn sections_60_61_102_117_pending_fill_reconciliation_advances_to_position_manag
     let mut coordinator = ready_coordinator(setup_id, MockBroker::default());
     let permit = coordinator.gate(&raw, context()).unwrap();
     assert!(matches!(
-        coordinator.submit(permit).unwrap(),
+        coordinator.submit(permit, in_window()).unwrap(),
         ExecutionStatus::Pending { .. }
     ));
     assert_eq!(
@@ -198,7 +203,10 @@ fn sections_64_102_unprotected_fill_stays_filled_without_inventing_terminal_stat
     let mut coordinator = ready_coordinator(setup_id, broker);
     let permit = coordinator.gate(&proposal(setup_id), context()).unwrap();
 
-    assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
+    assert_eq!(
+        coordinator.submit(permit, in_window()),
+        Err(RejectionCode::BrokerUnsafe)
+    );
     let filled = coordinator.setup_status(setup_id).unwrap();
     assert_eq!(filled.state, Some(SetupState::Filled));
     assert!(filled.consumed);
@@ -218,7 +226,10 @@ fn section_102_pretransmission_fail_close_keeps_entry_authorized_without_regress
     let mut unavailable = clear_reconciliation();
     unavailable.broker_state_known = Condition::Unknown;
     coordinator.adapter_mut().reconciliation = Ok(unavailable);
-    assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
+    assert_eq!(
+        coordinator.submit(permit, in_window()),
+        Err(RejectionCode::BrokerUnsafe)
+    );
 
     let cleared = coordinator.setup_status(setup_id).unwrap();
     assert_eq!(cleared.state, Some(SetupState::EntryAuthorized));

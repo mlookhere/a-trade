@@ -1,7 +1,7 @@
 mod common;
 
 use auction_core::{
-    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition,
+    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition, EtTime,
     ExecutionCoordinator, ExecutionGateContext, ExecutionStatus, OrderProposal,
     ProcessViolationScope, RejectionCode,
 };
@@ -100,10 +100,15 @@ fn clear_reconciliation() -> BrokerReconciliation {
     }
 }
 
+fn in_window() -> EtTime {
+    EtTime::from_hms(10, 0, 0).unwrap()
+}
+
 fn context(owner: &str, llm_setup_pass: Condition) -> ExecutionGateContext<'_> {
     ExecutionGateContext {
         submitting_agent_id: owner,
         llm_setup_pass,
+        current_time_et: in_window(),
     }
 }
 
@@ -273,7 +278,7 @@ fn sections_8_64_pending_submission_is_exactly_once_and_not_consumed() {
         .gate(&raw, context(common::OWNER, Condition::True))
         .unwrap();
     assert_eq!(
-        coordinator.submit(permit).unwrap(),
+        coordinator.submit(permit, in_window()).unwrap(),
         ExecutionStatus::Pending {
             broker_order_id: "BROKER-1".to_owned()
         }
@@ -314,13 +319,16 @@ fn section_64_immediate_fill_requires_confirmed_stop_or_flattens_and_disables_en
 
         if stop_state == Condition::True {
             assert!(matches!(
-                coordinator.submit(permit).unwrap(),
+                coordinator.submit(permit, in_window()).unwrap(),
                 ExecutionStatus::FilledProtected { .. }
             ));
             assert_eq!(coordinator.adapter().flatten_calls, 0);
             assert_eq!(coordinator.execution_engine_safe(), Condition::True);
         } else {
-            assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
+            assert_eq!(
+                coordinator.submit(permit, in_window()),
+                Err(RejectionCode::BrokerUnsafe)
+            );
             assert_eq!(coordinator.adapter().flatten_calls, 1);
             assert_eq!(
                 coordinator.adapter().last_flatten_instrument.as_deref(),
@@ -354,7 +362,10 @@ fn section_64_stop_adapter_error_and_flatten_failure_remain_broker_unsafe() {
         let permit = coordinator
             .gate(&proposal(setup_id), context(common::OWNER, Condition::True))
             .unwrap();
-        assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
+        assert_eq!(
+            coordinator.submit(permit, in_window()),
+            Err(RejectionCode::BrokerUnsafe)
+        );
         assert_eq!(coordinator.adapter().flatten_calls, 1);
         assert_eq!(coordinator.execution_engine_safe(), Condition::False);
     }
@@ -372,7 +383,10 @@ fn submission_error_does_not_retry_and_disables_shared_execution_engine() {
     let permit = coordinator
         .gate(&proposal(setup_id), context(common::OWNER, Condition::True))
         .unwrap();
-    assert_eq!(coordinator.submit(permit), Err(RejectionCode::BrokerUnsafe));
+    assert_eq!(
+        coordinator.submit(permit, in_window()),
+        Err(RejectionCode::BrokerUnsafe)
+    );
     assert_eq!(coordinator.adapter().submit_calls, 1);
     assert_eq!(coordinator.execution_engine_safe(), Condition::False);
 }
@@ -401,7 +415,7 @@ fn pre_submit_reconciliation_rechecks_duplicate_and_conflict_without_transmittin
         } else {
             RejectionCode::DuplicateSetup
         };
-        assert_eq!(coordinator.submit(permit), Err(expected));
+        assert_eq!(coordinator.submit(permit, in_window()), Err(expected));
         assert_eq!(coordinator.adapter().submit_calls, 0);
         assert!(
             !coordinator
@@ -433,6 +447,9 @@ fn sections_98_100_operational_safety_and_post_gate_kill_switch_cannot_be_bypass
         .operational_safety_mut()
         .record_process_violation(ProcessViolationScope::SharedInfrastructure)
         .unwrap();
-    assert_eq!(coordinator.submit(permit), Err(RejectionCode::ProcessError));
+    assert_eq!(
+        coordinator.submit(permit, in_window()),
+        Err(RejectionCode::ProcessError)
+    );
     assert_eq!(coordinator.adapter().submit_calls, 0);
 }
