@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::net::TcpStream;
+use tokio::{net::TcpStream, time::timeout};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
 
 use crate::{AdapterError, StreamerInfo};
@@ -275,10 +277,14 @@ type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 pub struct SchwabStreamClient {
     socket: Socket,
+    operation_timeout: Duration,
 }
 
 impl SchwabStreamClient {
-    pub async fn connect(streamer_socket_url: &str) -> Result<Self, AdapterError> {
+    pub async fn connect(
+        streamer_socket_url: &str,
+        transport_timeout_ms: u64,
+    ) -> Result<Self, AdapterError> {
         let parsed = url::Url::parse(streamer_socket_url)
             .map_err(|error| AdapterError::ProviderContract(error.to_string()))?;
         if parsed.scheme() != "wss" {
@@ -286,22 +292,36 @@ impl SchwabStreamClient {
                 "streamer socket must use wss".to_owned(),
             ));
         }
-        let (socket, _) = connect_async(streamer_socket_url)
+        if transport_timeout_ms == 0 {
+            return Err(AdapterError::InvalidInput("transport timeout"));
+        }
+        let operation_timeout = Duration::from_millis(transport_timeout_ms);
+        let (socket, _) = timeout(operation_timeout, connect_async(streamer_socket_url))
             .await
+            .map_err(|_| AdapterError::TransportTimeout)?
             .map_err(|error| AdapterError::Transport(error.to_string()))?;
-        Ok(Self { socket })
+        Ok(Self {
+            socket,
+            operation_timeout,
+        })
     }
 
     pub async fn send_json(&mut self, json: String) -> Result<(), AdapterError> {
-        self.socket
-            .send(Message::Text(json.into()))
-            .await
-            .map_err(|error| AdapterError::Transport(error.to_string()))
+        timeout(
+            self.operation_timeout,
+            self.socket.send(Message::Text(json.into())),
+        )
+        .await
+        .map_err(|_| AdapterError::TransportTimeout)?
+        .map_err(|error| AdapterError::Transport(error.to_string()))
     }
 
     pub async fn next_event(&mut self) -> Result<StreamEvent, AdapterError> {
         loop {
-            let Some(message) = self.socket.next().await else {
+            let next = timeout(self.operation_timeout, self.socket.next())
+                .await
+                .map_err(|_| AdapterError::TransportTimeout)?;
+            let Some(message) = next else {
                 return Ok(StreamEvent::Closed);
             };
             let message = message.map_err(|error| AdapterError::Transport(error.to_string()))?;
@@ -313,9 +333,9 @@ impl SchwabStreamClient {
                     return parse_event(text);
                 }
                 Message::Ping(payload) => {
-                    self.socket
-                        .send(Message::Pong(payload))
+                    timeout(self.operation_timeout, self.socket.send(Message::Pong(payload)))
                         .await
+                        .map_err(|_| AdapterError::TransportTimeout)?
                         .map_err(|error| AdapterError::Transport(error.to_string()))?;
                 }
                 Message::Pong(_) => {}
@@ -351,9 +371,10 @@ fn parse_event(text: &str) -> Result<StreamEvent, AdapterError> {
             .map(StreamEvent::Data)
             .map_err(|error| AdapterError::ProviderContract(error.to_string()));
     }
-    Ok(StreamEvent::Notify(
-        notify.expect("exactly one event kind validated").clone(),
-    ))
+    notify
+        .cloned()
+        .map(StreamEvent::Notify)
+        .ok_or_else(|| AdapterError::ProviderContract("stream notify payload missing".to_owned()))
 }
 
 #[cfg(test)]
