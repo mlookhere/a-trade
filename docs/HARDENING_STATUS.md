@@ -96,8 +96,8 @@ Do not fill these gaps with convention or guesses:
 
 ## Ordered next steps
 
-1. Finish #56 hardening and merge only on a fully green final head.
-2. Rebase/finish #65 documentation and provenance alignment on the merged #56 state; verify the control Issue and README match repository reality.
+1. Merge the current context/documentation alignment only after its own PR is fully green; then keep it synchronized with later implementation merges.
+2. Finish #56 hardening and merge only on a fully green final head; refresh the control record after that merge rather than waiting to document known current state.
 3. Keep #66 separate and implement it only if single-underlying capacity requires cross-profile contract sharding and reliable cross-shard reconciliation can be proven.
 4. Resume AI-native §42 at the first incomplete deterministic layer: broad feature engine plus explicit hard-veto contracts, not specialist LLM proliferation.
 5. Add typed specialist output interfaces and parallel specialists only after snapshot/features are stable.
