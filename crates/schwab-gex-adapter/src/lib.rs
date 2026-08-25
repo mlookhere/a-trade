@@ -8,9 +8,7 @@ pub mod rest;
 pub mod state;
 pub mod stream;
 
-pub use config::{
-    ConfigError, SchwabConfig, SchwabProfileConfig, SecretString,
-};
+pub use config::{ConfigError, SchwabConfig, SchwabProfileConfig, SecretString};
 pub use fleet::{ProfileAssignment, ProfileClients, ProfilePool};
 pub use oauth::{OAuthClient, TokenSet, load_tokens, save_tokens};
 pub use rate::{BudgetDecision, BudgetError, RestBudget, RestRateLimiter};
@@ -20,8 +18,8 @@ pub use state::{
     StreamApply,
 };
 pub use stream::{
-    StreamCommand, StreamDataBatch, StreamEvent, StreamRequestFactory, StreamService,
-    SchwabStreamClient,
+    StreamCommand, StreamDataBatch, StreamEvent, StreamRequestFactory, StreamResponse,
+    StreamResponseContent, StreamService, SchwabStreamClient,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
