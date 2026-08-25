@@ -73,14 +73,21 @@ impl SchwabFleetRuntime {
         self.pool.profile_count()
     }
 
+    /// Atomically replace the authoritative option universe for one underlying.
+    ///
+    /// All option-ownership collisions and refresh metadata are validated before the previous
+    /// universe is mutated. A failed bootstrap therefore cannot leave a partially replaced book or
+    /// option-symbol index behind.
     pub fn install_bootstrap(
         &mut self,
         state: SchwabGexState,
         now_ms: u64,
     ) -> Result<ProfileAssignment, AdapterError> {
         let underlying = state.underlying().to_owned();
+        let previous_assignment = self.pool.assigned_profile(&underlying).map(str::to_owned);
         let assignment = self.pool.assign(&underlying)?;
-        self.remove_option_index(&underlying);
+        let profile_id = assignment.profile_id.clone();
+        let symbols = state.contract_symbols();
 
         let mut refresh =
             RebootstrapSchedule::new(self.refresh_interval_ms).map_err(map_refresh_error)?;
@@ -88,16 +95,27 @@ impl SchwabFleetRuntime {
             .record_bootstrap(now_ms)
             .map_err(map_refresh_error)?;
 
-        let profile_id = assignment.profile_id.clone();
-        for symbol in state.contract_symbols() {
+        for symbol in &symbols {
             let key = (profile_id.clone(), symbol.clone());
-            if self.option_owner.insert(key, underlying.clone()).is_some() {
+            if self
+                .option_owner
+                .get(&key)
+                .is_some_and(|owner| owner != &underlying)
+            {
+                if previous_assignment.is_none() {
+                    self.pool.release(&underlying);
+                }
                 return Err(AdapterError::ProviderContract(format!(
                     "duplicate option ownership for {symbol}"
                 )));
             }
         }
 
+        self.remove_option_index(&underlying);
+        for symbol in symbols {
+            self.option_owner
+                .insert((profile_id.clone(), symbol), underlying.clone());
+        }
         self.underlyings.insert(
             underlying.clone(),
             UnderlyingRuntime {
