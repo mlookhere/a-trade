@@ -135,6 +135,7 @@ fn fleet_dispatches_each_underlying_only_through_its_assigned_profile() {
         command: "SUBS".to_owned(),
         content: vec![serde_json::json!({
             "key": "SPY   260925C00500000",
+            "22": "SPY",
             "29": 0.03,
             "38": 1_000_100
         })],
@@ -148,6 +149,10 @@ fn fleet_dispatches_each_underlying_only_through_its_assigned_profile() {
     assert!(matches!(
         runtime.apply_data_batch("b", &batch),
         Err(AdapterError::ProviderContract(_))
+    ));
+    assert!(matches!(
+        runtime.reliable_surface("SPY", 1_000_100, 1_000, 1_000),
+        Err(RuntimeQuality::RebootstrapRequired)
     ));
 }
 
