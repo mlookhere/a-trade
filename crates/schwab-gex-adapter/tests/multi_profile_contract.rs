@@ -45,7 +45,10 @@ fn profile_identity_and_token_files_must_not_collide() {
     assert_eq!(duplicate_id, Err(ConfigError::DuplicateProfileId));
 
     let duplicate_token = SchwabConfig::new(
-        vec![profile("a", "tokens/shared.json"), profile("b", "tokens/shared.json")],
+        vec![
+            profile("a", "tokens/shared.json"),
+            profile("b", "tokens/shared.json"),
+        ],
         5_000,
         1_000,
         60_000,
@@ -90,7 +93,10 @@ fn assignments_are_sticky_balanced_and_explicitly_reassigned_after_profile_failu
 
     let reassigned = pool.assign("SPY").unwrap();
     assert_ne!(reassigned.profile_id, "a");
-    assert_eq!(pool.assigned_profile("SPY"), Some(reassigned.profile_id.as_str()));
+    assert_eq!(
+        pool.assigned_profile("SPY"),
+        Some(reassigned.profile_id.as_str())
+    );
 }
 
 #[test]
