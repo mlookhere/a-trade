@@ -38,6 +38,7 @@ pub struct SchwabProfileConfig {
     pub token_path: PathBuf,
     pub rest_requests_per_minute: u32,
     pub rest_headroom_requests_per_minute: u32,
+    pub transport_timeout_ms: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +79,7 @@ struct ProfileFileEntry {
     token_path: PathBuf,
     rest_requests_per_minute: u32,
     rest_headroom_requests_per_minute: u32,
+    transport_timeout_ms: u64,
 }
 
 impl SchwabProfileConfig {
@@ -93,6 +95,9 @@ impl SchwabProfileConfig {
             self.rest_requests_per_minute,
             self.rest_headroom_requests_per_minute,
         )?;
+        if self.transport_timeout_ms == 0 {
+            return Err(ConfigError::InvalidTimeout);
+        }
         Ok(self)
     }
 
@@ -168,6 +173,7 @@ fn load_profiles_file(path: PathBuf) -> Result<Vec<SchwabProfileConfig>, ConfigE
                 token_path: entry.token_path,
                 rest_requests_per_minute: entry.rest_requests_per_minute,
                 rest_headroom_requests_per_minute: entry.rest_headroom_requests_per_minute,
+                transport_timeout_ms: entry.transport_timeout_ms,
             }
             .validate()
         })
@@ -183,6 +189,7 @@ fn single_profile_from_env() -> Result<SchwabProfileConfig, ConfigError> {
         token_path: PathBuf::from(required("SCHWAB_TOKEN_PATH")?),
         rest_requests_per_minute: parse_u32("SCHWAB_REST_REQUESTS_PER_MINUTE")?,
         rest_headroom_requests_per_minute: parse_u32("SCHWAB_REST_HEADROOM_REQUESTS_PER_MINUTE")?,
+        transport_timeout_ms: parse_u64("SCHWAB_TRANSPORT_TIMEOUT_MS")?,
     }
     .validate()
 }
