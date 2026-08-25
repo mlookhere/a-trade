@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::{
     AdapterError, GammaQuality, ProfileAssignment, ProfilePool, RebootstrapSchedule, RefreshError,
@@ -87,13 +87,17 @@ impl SchwabFleetRuntime {
         let previous_assignment = self.pool.assigned_profile(&underlying).map(str::to_owned);
         let assignment = self.pool.assign(&underlying)?;
         let profile_id = assignment.profile_id.clone();
+        let assignment_changed = previous_assignment.as_deref() != Some(profile_id.as_str());
         let symbols = state.contract_symbols();
 
         let mut refresh =
             RebootstrapSchedule::new(self.refresh_interval_ms).map_err(map_refresh_error)?;
-        refresh
-            .record_bootstrap(now_ms)
-            .map_err(map_refresh_error)?;
+        if let Err(error) = refresh.record_bootstrap(now_ms).map_err(map_refresh_error) {
+            if assignment_changed {
+                self.pool.release(&underlying);
+            }
+            return Err(error);
+        }
 
         for symbol in &symbols {
             let key = (profile_id.clone(), symbol.clone());
@@ -102,7 +106,7 @@ impl SchwabFleetRuntime {
                 .get(&key)
                 .is_some_and(|owner| owner != &underlying)
             {
-                if previous_assignment.is_none() {
+                if assignment_changed {
                     self.pool.release(&underlying);
                 }
                 return Err(AdapterError::ProviderContract(format!(
@@ -185,14 +189,21 @@ impl SchwabFleetRuntime {
         if !self.connected_profiles.contains(profile_id) {
             return Err(AdapterError::StreamUnavailable);
         }
-        match batch.service.as_str() {
+        let result = match batch.service.as_str() {
             "LEVELONE_OPTIONS" => self.apply_options(profile_id, &batch.content),
             "LEVELONE_EQUITIES" => self.apply_underlyings(profile_id, &batch.content),
             _ => Err(AdapterError::ProviderContract(format!(
                 "unsupported market-data service {}",
                 batch.service
             ))),
+        };
+        if result.is_err() {
+            // Any malformed or conflicting provider message makes every state fed by this stream
+            // uncertain until explicitly reconciled. Keeping the prior surface apparently reliable
+            // after an integrity error would violate the fail-closed data contract (§16).
+            self.mark_profile_uncertain(profile_id);
         }
+        result
     }
 
     pub fn reliable_surface(
@@ -208,6 +219,9 @@ impl SchwabFleetRuntime {
             .ok_or(RuntimeQuality::UnknownUnderlying)?;
         if !self.pool.is_enabled(&runtime.profile_id) {
             return Err(RuntimeQuality::ProfileDisabled);
+        }
+        if self.pool.assigned_profile(underlying) != Some(runtime.profile_id.as_str()) {
+            return Err(RuntimeQuality::RebootstrapRequired);
         }
         if !self.connected_profiles.contains(&runtime.profile_id) {
             return Err(RuntimeQuality::StreamUnavailable);
@@ -230,7 +244,8 @@ impl SchwabFleetRuntime {
         let Some(runtime) = self.underlyings.get(underlying) else {
             return true;
         };
-        self.uncertain_underlyings.contains(underlying)
+        self.pool.assigned_profile(underlying) != Some(runtime.profile_id.as_str())
+            || self.uncertain_underlyings.contains(underlying)
             || runtime.refresh.should_rebootstrap(now_ms, &runtime.state)
     }
 
@@ -257,6 +272,7 @@ impl SchwabFleetRuntime {
             let object = content.as_object().ok_or_else(|| {
                 AdapterError::ProviderContract("option stream content is not an object".to_owned())
             })?;
+            validate_present_option_side(object)?;
             let symbol = object.get("key").and_then(Value::as_str).ok_or_else(|| {
                 AdapterError::ProviderContract("option stream key missing".to_owned())
             })?;
@@ -351,6 +367,21 @@ impl SchwabFleetRuntime {
         self.option_owner
             .retain(|_, owner_underlying| owner_underlying != underlying);
     }
+}
+
+fn validate_present_option_side(object: &Map<String, Value>) -> Result<(), AdapterError> {
+    let Some(value) = object.get("21") else {
+        return Ok(());
+    };
+    let side = value.as_str().ok_or_else(|| {
+        AdapterError::ProviderContract("stream field 21 is not a string".to_owned())
+    })?;
+    if !matches!(side, "C" | "CALL" | "P" | "PUT") {
+        return Err(AdapterError::ProviderContract(
+            "stream field 21 contains an unknown contract type".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn map_refresh_error(error: RefreshError) -> AdapterError {
