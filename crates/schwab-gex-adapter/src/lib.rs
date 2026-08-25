@@ -18,8 +18,8 @@ pub use state::{
     StreamApply,
 };
 pub use stream::{
-    StreamCommand, StreamDataBatch, StreamEvent, StreamRequestFactory, StreamResponse,
-    StreamResponseContent, StreamService, SchwabStreamClient,
+    SchwabStreamClient, StreamCommand, StreamDataBatch, StreamEvent, StreamRequestFactory,
+    StreamResponse, StreamResponseContent, StreamService,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

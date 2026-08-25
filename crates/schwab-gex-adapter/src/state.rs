@@ -354,7 +354,8 @@ impl SchwabGexState {
         object: &Map<String, Value>,
         current: &ContractState,
     ) -> Result<(), AdapterError> {
-        let mismatch = f64_field_optional(object, "20")?.is_some_and(|value| value != current.strike)
+        let mismatch = f64_field_optional(object, "20")?
+            .is_some_and(|value| value != current.strike)
             || string_field_optional(object, "22")?
                 .is_some_and(|value| value != current.underlying)
             || string_field_optional(object, "21")?
@@ -494,7 +495,9 @@ impl ChainContract {
                 "option chain contains invalid contract identity".to_owned(),
             ));
         }
-        if self.gamma.is_some_and(|value| !value.is_finite() || value < 0.0)
+        if self
+            .gamma
+            .is_some_and(|value| !value.is_finite() || value < 0.0)
             || self
                 .multiplier
                 .is_some_and(|value| !value.is_finite() || value <= 0.0)
@@ -547,9 +550,8 @@ fn expiration_parts(value: &str) -> Option<(u16, u8, u8)> {
 }
 
 fn string_field<'a>(object: &'a Map<String, Value>, key: &str) -> Result<&'a str, AdapterError> {
-    string_field_optional(object, key)?.ok_or_else(|| {
-        AdapterError::ProviderContract(format!("stream field {key} is missing"))
-    })
+    string_field_optional(object, key)?
+        .ok_or_else(|| AdapterError::ProviderContract(format!("stream field {key} is missing")))
 }
 
 fn string_field_optional<'a>(
@@ -570,10 +572,7 @@ fn bool_field_optional(object: &Map<String, Value>, key: &str) -> Option<bool> {
     object.get(key).and_then(Value::as_bool)
 }
 
-fn f64_field_optional(
-    object: &Map<String, Value>,
-    key: &str,
-) -> Result<Option<f64>, AdapterError> {
+fn f64_field_optional(object: &Map<String, Value>, key: &str) -> Result<Option<f64>, AdapterError> {
     object
         .get(key)
         .map(|value| {
@@ -584,10 +583,7 @@ fn f64_field_optional(
         .transpose()
 }
 
-fn i64_field_optional(
-    object: &Map<String, Value>,
-    key: &str,
-) -> Result<Option<i64>, AdapterError> {
+fn i64_field_optional(object: &Map<String, Value>, key: &str) -> Result<Option<i64>, AdapterError> {
     object
         .get(key)
         .map(|value| {
@@ -598,15 +594,14 @@ fn i64_field_optional(
         .transpose()
 }
 
-fn u64_field_optional(
-    object: &Map<String, Value>,
-    key: &str,
-) -> Result<Option<u64>, AdapterError> {
+fn u64_field_optional(object: &Map<String, Value>, key: &str) -> Result<Option<u64>, AdapterError> {
     object
         .get(key)
         .map(|value| {
             value.as_u64().ok_or_else(|| {
-                AdapterError::ProviderContract(format!("stream field {key} is not an unsigned integer"))
+                AdapterError::ProviderContract(format!(
+                    "stream field {key} is not an unsigned integer"
+                ))
             })
         })
         .transpose()

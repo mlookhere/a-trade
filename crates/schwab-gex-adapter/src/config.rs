@@ -178,9 +178,7 @@ fn single_profile_from_env() -> Result<SchwabProfileConfig, ConfigError> {
         callback_url: required("SCHWAB_CALLBACK_URL")?,
         token_path: PathBuf::from(required("SCHWAB_TOKEN_PATH")?),
         rest_requests_per_minute: parse_u32("SCHWAB_REST_REQUESTS_PER_MINUTE")?,
-        rest_headroom_requests_per_minute: parse_u32(
-            "SCHWAB_REST_HEADROOM_REQUESTS_PER_MINUTE",
-        )?,
+        rest_headroom_requests_per_minute: parse_u32("SCHWAB_REST_HEADROOM_REQUESTS_PER_MINUTE")?,
     }
     .validate()
 }

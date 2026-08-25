@@ -1,8 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{
-    AdapterError, OAuthClient, RestRateLimiter, SchwabProfileConfig, SchwabRestClient,
-};
+use crate::{AdapterError, OAuthClient, RestRateLimiter, SchwabProfileConfig, SchwabRestClient};
 
 #[derive(Clone)]
 pub struct ProfileClients {
@@ -127,7 +125,11 @@ impl ProfilePool {
     /// Returns the underlyings whose assignments were cleared so the supervisor can explicitly
     /// rebuild them on another profile. Cross-profile reassignment is never hidden from audit.
     pub fn disable_profile(&mut self, profile_id: &str) -> Result<Vec<String>, AdapterError> {
-        if !self.clients.iter().any(|client| client.profile_id == profile_id) {
+        if !self
+            .clients
+            .iter()
+            .any(|client| client.profile_id == profile_id)
+        {
             return Err(AdapterError::UnknownProfile);
         }
         self.disabled.insert(profile_id.to_owned());
@@ -146,7 +148,11 @@ impl ProfilePool {
     }
 
     pub fn enable_profile(&mut self, profile_id: &str) -> Result<(), AdapterError> {
-        if !self.clients.iter().any(|client| client.profile_id == profile_id) {
+        if !self
+            .clients
+            .iter()
+            .any(|client| client.profile_id == profile_id)
+        {
             return Err(AdapterError::UnknownProfile);
         }
         self.disabled.remove(profile_id);
@@ -164,6 +170,8 @@ impl ProfilePool {
     #[must_use]
     pub fn assigned_profile(&self, underlying: &str) -> Option<&str> {
         let index = *self.assignments.get(underlying.trim())?;
-        self.clients.get(index).map(|client| client.profile_id.as_str())
+        self.clients
+            .get(index)
+            .map(|client| client.profile_id.as_str())
     }
 }

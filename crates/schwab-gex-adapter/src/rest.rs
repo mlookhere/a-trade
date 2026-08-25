@@ -1,7 +1,7 @@
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::{rate::RestRateLimiter, state::SchwabGexState, AdapterError};
+use crate::{AdapterError, rate::RestRateLimiter, state::SchwabGexState};
 
 const OPTION_CHAIN_URL: &str = "https://api.schwabapi.com/marketdata/v1/chains";
 const USER_PREFERENCE_URL: &str = "https://api.schwabapi.com/trader/v1/userPreference";

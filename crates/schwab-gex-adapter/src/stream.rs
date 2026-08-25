@@ -2,10 +2,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::net::TcpStream;
-use tokio_tungstenite::{
-    MaybeTlsStream, WebSocketStream, connect_async,
-    tungstenite::Message,
-};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
 
 use crate::{AdapterError, StreamerInfo};
 
@@ -113,10 +110,16 @@ pub struct StreamRequestFactory {
 impl StreamRequestFactory {
     pub fn new(info: &StreamerInfo) -> Result<Self, AdapterError> {
         for (name, value) in [
-            ("stream customer id", info.schwab_client_customer_id.as_str()),
+            (
+                "stream customer id",
+                info.schwab_client_customer_id.as_str(),
+            ),
             ("stream correl id", info.schwab_client_correl_id.as_str()),
             ("stream channel", info.schwab_client_channel.as_str()),
-            ("stream function id", info.schwab_client_function_id.as_str()),
+            (
+                "stream function id",
+                info.schwab_client_function_id.as_str(),
+            ),
         ] {
             if value.trim().is_empty() {
                 return Err(AdapterError::InvalidInput(name));
@@ -141,7 +144,15 @@ impl StreamRequestFactory {
             "SchwabClientChannel": self.channel,
             "SchwabClientFunctionId": self.function_id,
         });
-        Ok((request_id.clone(), self.encode(&request_id, StreamService::Admin, StreamCommand::Login, parameters)?))
+        Ok((
+            request_id.clone(),
+            self.encode(
+                &request_id,
+                StreamService::Admin,
+                StreamCommand::Login,
+                parameters,
+            )?,
+        ))
     }
 
     pub fn subscribe_options(
@@ -152,7 +163,10 @@ impl StreamRequestFactory {
         if option_symbols.is_empty() {
             return Err(AdapterError::InvalidInput("option symbols"));
         }
-        if !matches!(command, StreamCommand::Subs | StreamCommand::Add | StreamCommand::Unsubs) {
+        if !matches!(
+            command,
+            StreamCommand::Subs | StreamCommand::Add | StreamCommand::Unsubs
+        ) {
             return Err(AdapterError::InvalidInput("option stream command"));
         }
         let keys = join_keys(option_symbols)?;
@@ -181,7 +195,10 @@ impl StreamRequestFactory {
         if underlyings.is_empty() {
             return Err(AdapterError::InvalidInput("underlyings"));
         }
-        if !matches!(command, StreamCommand::Subs | StreamCommand::Add | StreamCommand::Unsubs) {
+        if !matches!(
+            command,
+            StreamCommand::Subs | StreamCommand::Add | StreamCommand::Unsubs
+        ) {
             return Err(AdapterError::InvalidInput("underlying stream command"));
         }
         let keys = join_keys(underlyings)?;
@@ -243,7 +260,10 @@ impl StreamRequestFactory {
 }
 
 fn join_keys(keys: &[String]) -> Result<String, AdapterError> {
-    if keys.iter().any(|key| key.trim().is_empty() || key.contains(',')) {
+    if keys
+        .iter()
+        .any(|key| key.trim().is_empty() || key.contains(','))
+    {
         return Err(AdapterError::InvalidInput("stream key"));
     }
     Ok(keys.join(","))
