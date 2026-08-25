@@ -18,7 +18,7 @@ impl ProfileClients {
             config.rest_headroom_requests_per_minute,
         )?;
         let oauth = OAuthClient::new(config.clone(), limiter.clone())?;
-        let rest = SchwabRestClient::new(limiter.clone())?;
+        let rest = SchwabRestClient::new(limiter.clone(), config.transport_timeout_ms)?;
         Ok(Self {
             profile_id: config.profile_id.clone(),
             config,
