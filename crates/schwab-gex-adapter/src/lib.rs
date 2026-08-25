@@ -36,6 +36,7 @@ pub use stream::{
 pub enum AdapterError {
     InvalidInput(&'static str),
     Transport(String),
+    TransportTimeout,
     Provider(String),
     ProviderContract(String),
     TokenStore(String),
