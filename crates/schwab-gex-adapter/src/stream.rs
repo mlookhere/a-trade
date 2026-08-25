@@ -138,7 +138,7 @@ impl StreamRequestFactory {
         if access_token.trim().is_empty() {
             return Err(AdapterError::InvalidInput("access token"));
         }
-        let request_id = self.take_request_id();
+        let request_id = self.take_request_id()?;
         let parameters = serde_json::json!({
             "Authorization": access_token,
             "SchwabClientChannel": self.channel,
@@ -170,7 +170,7 @@ impl StreamRequestFactory {
             return Err(AdapterError::InvalidInput("option stream command"));
         }
         let keys = join_keys(option_symbols)?;
-        let request_id = self.take_request_id();
+        let request_id = self.take_request_id()?;
         let parameters = if command == StreamCommand::Unsubs {
             serde_json::json!({"keys": keys})
         } else {
@@ -202,7 +202,7 @@ impl StreamRequestFactory {
             return Err(AdapterError::InvalidInput("underlying stream command"));
         }
         let keys = join_keys(underlyings)?;
-        let request_id = self.take_request_id();
+        let request_id = self.take_request_id()?;
         let parameters = if command == StreamCommand::Unsubs {
             serde_json::json!({"keys": keys})
         } else {
@@ -220,7 +220,7 @@ impl StreamRequestFactory {
     }
 
     pub fn logout(&mut self) -> Result<(String, String), AdapterError> {
-        let request_id = self.take_request_id();
+        let request_id = self.take_request_id()?;
         Ok((
             request_id.clone(),
             self.encode(
@@ -232,10 +232,12 @@ impl StreamRequestFactory {
         ))
     }
 
-    fn take_request_id(&mut self) -> String {
-        let request_id = self.next_request_id.to_string();
-        self.next_request_id = self.next_request_id.saturating_add(1);
-        request_id
+    fn take_request_id(&mut self) -> Result<String, AdapterError> {
+        let request_id = self.next_request_id;
+        self.next_request_id = self.next_request_id.checked_add(1).ok_or_else(|| {
+            AdapterError::ProviderContract("stream request id exhausted".to_owned())
+        })?;
+        Ok(request_id.to_string())
     }
 
     fn encode(
@@ -327,20 +329,68 @@ impl SchwabStreamClient {
 fn parse_event(text: &str) -> Result<StreamEvent, AdapterError> {
     let value: Value = serde_json::from_str(text)
         .map_err(|error| AdapterError::ProviderContract(error.to_string()))?;
-    if let Some(responses) = value.get("response") {
+    let response = value.get("response");
+    let data = value.get("data");
+    let notify = value.get("notify");
+    let event_kinds = usize::from(response.is_some())
+        + usize::from(data.is_some())
+        + usize::from(notify.is_some());
+    if event_kinds != 1 {
+        return Err(AdapterError::ProviderContract(
+            "stream message must contain exactly one of response/data/notify".to_owned(),
+        ));
+    }
+
+    if let Some(responses) = response {
         return serde_json::from_value(responses.clone())
             .map(StreamEvent::Responses)
             .map_err(|error| AdapterError::ProviderContract(error.to_string()));
     }
-    if let Some(data) = value.get("data") {
+    if let Some(data) = data {
         return serde_json::from_value(data.clone())
             .map(StreamEvent::Data)
             .map_err(|error| AdapterError::ProviderContract(error.to_string()));
     }
-    if let Some(notify) = value.get("notify") {
-        return Ok(StreamEvent::Notify(notify.clone()));
-    }
-    Err(AdapterError::ProviderContract(
-        "stream message omitted response/data/notify".to_owned(),
+    Ok(StreamEvent::Notify(
+        notify.expect("exactly one event kind validated").clone(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn streamer_info() -> StreamerInfo {
+        StreamerInfo {
+            streamer_socket_url: "wss://stream.example.test/ws".to_owned(),
+            schwab_client_customer_id: "customer".to_owned(),
+            schwab_client_correl_id: "correl".to_owned(),
+            schwab_client_channel: "channel".to_owned(),
+            schwab_client_function_id: "function".to_owned(),
+        }
+    }
+
+    #[test]
+    fn request_id_exhaustion_fails_closed_instead_of_reusing_an_id() {
+        let mut factory = StreamRequestFactory::new(&streamer_info()).unwrap();
+        factory.next_request_id = u64::MAX;
+        assert!(matches!(
+            factory.logout(),
+            Err(AdapterError::ProviderContract(message)) if message == "stream request id exhausted"
+        ));
+    }
+
+    #[test]
+    fn ambiguous_stream_frame_is_rejected() {
+        let frame = serde_json::json!({
+            "data": [],
+            "notify": []
+        })
+        .to_string();
+        assert!(matches!(
+            parse_event(&frame),
+            Err(AdapterError::ProviderContract(message))
+                if message == "stream message must contain exactly one of response/data/notify"
+        ));
+    }
 }
