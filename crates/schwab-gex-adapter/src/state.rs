@@ -193,10 +193,10 @@ impl SchwabGexState {
             self.delayed = true;
         }
 
-        if let Some(quote_time) = i64_field_optional(object, "38")? {
-            if quote_time < current.quote_time_millis.unwrap_or(i64::MIN) {
-                return Ok(StreamApply::StaleIgnored);
-            }
+        if let Some(quote_time) = i64_field_optional(object, "38")?
+            && quote_time < current.quote_time_millis.unwrap_or(i64::MIN)
+        {
+            return Ok(StreamApply::StaleIgnored);
         }
 
         self.validate_static_option_fields(object, &current)?;
