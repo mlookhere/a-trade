@@ -17,6 +17,35 @@ env:
   CI_BASE_REF: origin/dev
 
 jobs:
+  materialize-schwab-generated:
+    if: github.event_name == 'pull_request' && github.head_ref == 'work/56-schwab-gex-adapter'
+    name: Materialize Schwab generated files
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          persist-credentials: true
+      - run: ./scripts/bootstrap
+      - name: Format and resolve lockfile
+        run: |
+          cargo fmt --all
+          cargo generate-lockfile
+      - name: Commit generated files when changed
+        run: |
+          git add Cargo.lock crates/schwab-gex-adapter
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Materialize Schwab adapter generated files"
+          git push origin HEAD:${{ github.head_ref }}
+
   metadata:
     name: PR metadata
     runs-on: ubuntu-latest
@@ -42,19 +71,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - run: ./scripts/bootstrap
-      - name: Prepare generated development artifacts
-        run: |
-          cargo fmt --all
-          cargo generate-lockfile
-      - name: Upload generated development artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: schwab-generated-${{ github.run_id }}
-          path: |
-            Cargo.lock
-            crates/schwab-gex-adapter/
-          if-no-files-found: error
-          retention-days: 1
       - run: ./ci/run fast
       - name: Upload deterministic gate report
         if: always()
