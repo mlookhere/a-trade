@@ -1,4 +1,4 @@
-use std::{fmt, path::Path};
+use std::{fmt, path::Path, time::Duration};
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -88,6 +88,7 @@ impl OAuthClient {
     ) -> Result<Self, AdapterError> {
         let http = Client::builder()
             .user_agent("a-trade-schwab-gex/0.1")
+            .timeout(Duration::from_millis(config.transport_timeout_ms))
             .build()
             .map_err(|error| AdapterError::Transport(error.to_string()))?;
         Ok(Self {
@@ -138,13 +139,13 @@ impl OAuthClient {
             ])
             .send()
             .await
-            .map_err(|error| AdapterError::Transport(error.to_string()))?
+            .map_err(map_transport_error)?
             .error_for_status()
             .map_err(|error| AdapterError::Provider(error.to_string()))?;
         let mut payload: TokenResponse = response
             .json()
             .await
-            .map_err(|error| AdapterError::ProviderContract(error.to_string()))?;
+            .map_err(map_transport_or_contract_error)?;
         let refresh_token = payload
             .refresh_token
             .take()
@@ -175,19 +176,35 @@ impl OAuthClient {
             ])
             .send()
             .await
-            .map_err(|error| AdapterError::Transport(error.to_string()))?
+            .map_err(map_transport_error)?
             .error_for_status()
             .map_err(|error| AdapterError::Provider(error.to_string()))?;
         let mut payload: TokenResponse = response
             .json()
             .await
-            .map_err(|error| AdapterError::ProviderContract(error.to_string()))?;
+            .map_err(map_transport_or_contract_error)?;
         let refresh_token = payload
             .refresh_token
             .take()
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| current.refresh_token.clone());
         build_token_set(payload, refresh_token, now_unix_ms)
+    }
+}
+
+fn map_transport_error(error: reqwest::Error) -> AdapterError {
+    if error.is_timeout() {
+        AdapterError::TransportTimeout
+    } else {
+        AdapterError::Transport(error.to_string())
+    }
+}
+
+fn map_transport_or_contract_error(error: reqwest::Error) -> AdapterError {
+    if error.is_timeout() {
+        AdapterError::TransportTimeout
+    } else {
+        AdapterError::ProviderContract(error.to_string())
     }
 }
 
