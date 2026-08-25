@@ -3,7 +3,7 @@ use std::path::Path;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::{config::SchwabConfig, rate::RestRateLimiter, AdapterError};
+use crate::{config::SchwabProfileConfig, rate::RestRateLimiter, AdapterError};
 
 const AUTHORIZE_URL: &str = "https://api.schwabapi.com/v1/oauth/authorize";
 const TOKEN_URL: &str = "https://api.schwabapi.com/v1/oauth/token";
@@ -50,12 +50,12 @@ struct TokenResponse {
 #[derive(Clone)]
 pub struct OAuthClient {
     http: Client,
-    config: SchwabConfig,
+    config: SchwabProfileConfig,
     limiter: RestRateLimiter,
 }
 
 impl OAuthClient {
-    pub fn new(config: SchwabConfig, limiter: RestRateLimiter) -> Result<Self, AdapterError> {
+    pub fn new(config: SchwabProfileConfig, limiter: RestRateLimiter) -> Result<Self, AdapterError> {
         let http = Client::builder()
             .user_agent("a-trade-schwab-gex/0.1")
             .build()
@@ -65,6 +65,11 @@ impl OAuthClient {
             config,
             limiter,
         })
+    }
+
+    #[must_use]
+    pub fn profile_id(&self) -> &str {
+        &self.config.profile_id
     }
 
     pub fn authorization_url(&self, state: &str) -> Result<String, AdapterError> {
