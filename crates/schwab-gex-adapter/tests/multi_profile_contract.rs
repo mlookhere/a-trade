@@ -1,8 +1,11 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use schwab_gex_adapter::{
     AdapterError, ConfigError, ProfilePool, SchwabConfig, SchwabProfileConfig, SecretString,
-    StreamCommand, StreamRequestFactory, StreamerInfo,
+    StreamCommand, StreamRequestFactory, StreamerInfo, TokenSet, load_tokens,
 };
 
 fn profile(id: &str, token_path: &str) -> SchwabProfileConfig {
@@ -32,6 +35,20 @@ fn arbitrary_profile_count_has_no_software_ceiling() {
 fn secrets_never_render_through_debug() {
     let secret = SecretString::new("do-not-log-me".to_owned()).unwrap();
     assert_eq!(format!("{secret:?}"), "***REDACTED***");
+
+    let tokens: TokenSet = serde_json::from_value(serde_json::json!({
+        "access_token": "access-do-not-log",
+        "refresh_token": "refresh-do-not-log",
+        "token_type": "Bearer",
+        "expires_in": 1800,
+        "scope": null,
+        "obtained_at_unix_ms": 1
+    }))
+    .unwrap();
+    let rendered = format!("{tokens:?}");
+    assert!(!rendered.contains("access-do-not-log"));
+    assert!(!rendered.contains("refresh-do-not-log"));
+    assert!(rendered.contains("***REDACTED***"));
 }
 
 #[test]
@@ -54,6 +71,52 @@ fn profile_identity_and_token_files_must_not_collide() {
         60_000,
     );
     assert_eq!(duplicate_token, Err(ConfigError::DuplicateTokenPath));
+}
+
+#[test]
+fn insecure_callback_or_empty_token_path_fails_closed() {
+    let mut insecure = profile("a", "tokens/a.json");
+    insecure.callback_url = "http://localhost/callback".to_owned();
+    assert_eq!(
+        SchwabConfig::new(vec![insecure], 5_000, 1_000, 60_000),
+        Err(ConfigError::InvalidCallbackUrl)
+    );
+
+    let mut missing_path = profile("a", "tokens/a.json");
+    missing_path.token_path = PathBuf::new();
+    assert_eq!(
+        SchwabConfig::new(vec![missing_path], 5_000, 1_000, 60_000),
+        Err(ConfigError::InvalidTokenPath)
+    );
+}
+
+#[tokio::test]
+async fn malformed_stored_tokens_are_rejected_before_use() {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!(
+        "a-trade-invalid-schwab-token-{}-{nonce}.json",
+        std::process::id()
+    ));
+    tokio::fs::write(
+        &path,
+        serde_json::json!({
+            "access_token": "",
+            "refresh_token": "",
+            "token_type": "Bearer",
+            "expires_in": 0,
+            "scope": null,
+            "obtained_at_unix_ms": 1
+        })
+        .to_string(),
+    )
+    .await
+    .unwrap();
+
+    assert!(matches!(load_tokens(&path).await, Err(AdapterError::TokenStore(_))));
+    let _ = tokio::fs::remove_file(path).await;
 }
 
 #[test]
