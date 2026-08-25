@@ -1,7 +1,6 @@
 // Governing canonical context: §§5-6,14-15,25,33,77,83,111,117.
 use gex_engine::{
-    ContractGexInput, ExposureModel, GammaFlipModel, GexBook, GexError, NetGammaRegime,
-    OptionSide,
+    ContractGexInput, ExposureModel, GammaFlipModel, GexBook, GexError, NetGammaRegime, OptionSide,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -196,15 +195,7 @@ fn invalid_and_stale_inputs_fail_closed() {
     book.set_spot(500.0, 10).unwrap();
     assert_eq!(book.set_spot(501.0, 9), Err(GexError::StaleSpotUpdate));
 
-    let mut bad = contract(
-        "C510",
-        510.0,
-        OptionSide::Call,
-        -0.01,
-        1_000,
-        100.0,
-        11,
-    );
+    let mut bad = contract("C510", 510.0, OptionSide::Call, -0.01, 1_000, 100.0, 11);
     assert_eq!(book.upsert(bad.clone()), Err(GexError::InvalidGamma));
     bad.gamma = 0.01;
     bad.multiplier = 0.0;
