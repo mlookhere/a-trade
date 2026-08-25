@@ -101,19 +101,27 @@ async fn duplicate_schwab_streamer_user_is_rejected_before_any_parallel_dial() {
 #[test]
 fn fleet_dispatches_each_underlying_only_through_its_assigned_profile() {
     let mut runtime = SchwabFleetRuntime::new(vec![profile("a"), profile("b")], 60_000).unwrap();
-    let spy = SchwabGexState::from_option_chain_json(
-        "SPY",
-        &chain_json("SPY", "SPY   260925C00500000"),
-    )
-    .unwrap();
-    let qqq = SchwabGexState::from_option_chain_json(
-        "QQQ",
-        &chain_json("QQQ", "QQQ   260925C00500000"),
-    )
-    .unwrap();
+    let spy =
+        SchwabGexState::from_option_chain_json("SPY", &chain_json("SPY", "SPY   260925C00500000"))
+            .unwrap();
+    let qqq =
+        SchwabGexState::from_option_chain_json("QQQ", &chain_json("QQQ", "QQQ   260925C00500000"))
+            .unwrap();
 
-    assert_eq!(runtime.install_bootstrap(spy, 1_000_000).unwrap().profile_id, "a");
-    assert_eq!(runtime.install_bootstrap(qqq, 1_000_000).unwrap().profile_id, "b");
+    assert_eq!(
+        runtime
+            .install_bootstrap(spy, 1_000_000)
+            .unwrap()
+            .profile_id,
+        "a"
+    );
+    assert_eq!(
+        runtime
+            .install_bootstrap(qqq, 1_000_000)
+            .unwrap()
+            .profile_id,
+        "b"
+    );
     runtime.mark_stream_connected("a").unwrap();
     runtime.mark_stream_connected("b").unwrap();
 
@@ -132,7 +140,11 @@ fn fleet_dispatches_each_underlying_only_through_its_assigned_profile() {
         })],
     };
     assert_eq!(runtime.apply_data_batch("a", &batch).unwrap().applied, 1);
-    assert!(runtime.reliable_surface("SPY", 1_000_100, 1_000, 1_000).is_ok());
+    assert!(
+        runtime
+            .reliable_surface("SPY", 1_000_100, 1_000, 1_000)
+            .is_ok()
+    );
     assert!(matches!(
         runtime.apply_data_batch("b", &batch),
         Err(AdapterError::ProviderContract(_))
@@ -142,14 +154,16 @@ fn fleet_dispatches_each_underlying_only_through_its_assigned_profile() {
 #[test]
 fn disconnect_blocks_live_reliable_output_without_forcing_rest_rebootstrap() {
     let mut runtime = SchwabFleetRuntime::new(vec![profile("a")], 60_000).unwrap();
-    let state = SchwabGexState::from_option_chain_json(
-        "SPY",
-        &chain_json("SPY", "SPY   260925C00500000"),
-    )
-    .unwrap();
+    let state =
+        SchwabGexState::from_option_chain_json("SPY", &chain_json("SPY", "SPY   260925C00500000"))
+            .unwrap();
     runtime.install_bootstrap(state, 1_000_000).unwrap();
     runtime.mark_stream_connected("a").unwrap();
-    assert!(runtime.reliable_surface("SPY", 1_000_100, 1_000, 1_000).is_ok());
+    assert!(
+        runtime
+            .reliable_surface("SPY", 1_000_100, 1_000, 1_000)
+            .is_ok()
+    );
 
     runtime.mark_stream_disconnected("a").unwrap();
     assert!(matches!(
@@ -162,11 +176,9 @@ fn disconnect_blocks_live_reliable_output_without_forcing_rest_rebootstrap() {
 #[test]
 fn unknown_option_without_identity_marks_profile_states_for_rebootstrap() {
     let mut runtime = SchwabFleetRuntime::new(vec![profile("a")], 60_000).unwrap();
-    let state = SchwabGexState::from_option_chain_json(
-        "SPY",
-        &chain_json("SPY", "SPY   260925C00500000"),
-    )
-    .unwrap();
+    let state =
+        SchwabGexState::from_option_chain_json("SPY", &chain_json("SPY", "SPY   260925C00500000"))
+            .unwrap();
     runtime.install_bootstrap(state, 1_000_000).unwrap();
     runtime.mark_stream_connected("a").unwrap();
 
@@ -181,7 +193,10 @@ fn unknown_option_without_identity_marks_profile_states_for_rebootstrap() {
         })],
     };
     assert_eq!(
-        runtime.apply_data_batch("a", &batch).unwrap().unknown_contracts,
+        runtime
+            .apply_data_batch("a", &batch)
+            .unwrap()
+            .unknown_contracts,
         1
     );
     assert!(runtime.should_rebootstrap("SPY", 1_000_100));

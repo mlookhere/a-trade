@@ -22,9 +22,7 @@ pub use protocol::{
 };
 pub use rate::{BudgetDecision, BudgetError, RestBudget, RestRateLimiter};
 pub use rest::{SchwabRestClient, StreamerInfo};
-pub use runtime::{
-    DispatchReport, ProfileSubscriptionPlan, RuntimeQuality, SchwabFleetRuntime,
-};
+pub use runtime::{DispatchReport, ProfileSubscriptionPlan, RuntimeQuality, SchwabFleetRuntime};
 pub use state::{
     GammaQuality, RebootstrapSchedule, RefreshError, ReliableGexSurface, SchwabGexState,
     StreamApply,

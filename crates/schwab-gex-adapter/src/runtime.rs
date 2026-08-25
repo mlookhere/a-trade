@@ -3,9 +3,8 @@ use std::collections::{HashMap, HashSet};
 use serde_json::Value;
 
 use crate::{
-    AdapterError, GammaQuality, ProfileAssignment, ProfilePool, RebootstrapSchedule,
-    RefreshError, ReliableGexSurface, SchwabGexState, SchwabProfileConfig, StreamApply,
-    StreamDataBatch,
+    AdapterError, GammaQuality, ProfileAssignment, ProfilePool, RebootstrapSchedule, RefreshError,
+    ReliableGexSurface, SchwabGexState, SchwabProfileConfig, StreamApply, StreamDataBatch,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,9 +82,11 @@ impl SchwabFleetRuntime {
         let assignment = self.pool.assign(&underlying)?;
         self.remove_option_index(&underlying);
 
-        let mut refresh = RebootstrapSchedule::new(self.refresh_interval_ms)
+        let mut refresh =
+            RebootstrapSchedule::new(self.refresh_interval_ms).map_err(map_refresh_error)?;
+        refresh
+            .record_bootstrap(now_ms)
             .map_err(map_refresh_error)?;
-        refresh.record_bootstrap(now_ms).map_err(map_refresh_error)?;
 
         let profile_id = assignment.profile_id.clone();
         for symbol in state.contract_symbols() {
@@ -238,23 +239,16 @@ impl SchwabFleetRuntime {
             let object = content.as_object().ok_or_else(|| {
                 AdapterError::ProviderContract("option stream content is not an object".to_owned())
             })?;
-            let symbol = object
-                .get("key")
-                .and_then(Value::as_str)
-                .ok_or_else(|| {
-                    AdapterError::ProviderContract("option stream key missing".to_owned())
-                })?;
+            let symbol = object.get("key").and_then(Value::as_str).ok_or_else(|| {
+                AdapterError::ProviderContract("option stream key missing".to_owned())
+            })?;
 
             let owner = self
                 .option_owner
                 .get(&(profile_id.to_owned(), symbol.to_owned()))
                 .cloned();
-            let underlying = owner.or_else(|| {
-                object
-                    .get("22")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned)
-            });
+            let underlying =
+                owner.or_else(|| object.get("22").and_then(Value::as_str).map(str::to_owned));
 
             let Some(underlying) = underlying else {
                 self.mark_profile_uncertain(profile_id);

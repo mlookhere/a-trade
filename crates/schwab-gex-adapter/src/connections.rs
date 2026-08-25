@@ -3,8 +3,8 @@ use std::collections::HashSet;
 use futures_util::{StreamExt, stream::FuturesUnordered};
 
 use crate::{
-    AdapterError, SecretString, StreamEvent, StreamRequestFactory, StreamerInfo,
-    SchwabStreamClient, require_response_success,
+    AdapterError, SchwabStreamClient, SecretString, StreamEvent, StreamRequestFactory,
+    StreamerInfo, require_response_success,
 };
 
 #[derive(Debug, Clone)]
@@ -26,7 +26,8 @@ impl ProfileStreamSession {
             return Err(AdapterError::InvalidInput("profile id"));
         }
 
-        let mut client = SchwabStreamClient::connect(&request.streamer_info.streamer_socket_url).await?;
+        let mut client =
+            SchwabStreamClient::connect(&request.streamer_info.streamer_socket_url).await?;
         let mut requests = StreamRequestFactory::new(&request.streamer_info)?;
         let (request_id, login) = requests.login(request.access_token.expose())?;
         client.send_json(login).await?;
