@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{fmt, path::Path};
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use crate::{AdapterError, config::SchwabProfileConfig, rate::RestRateLimiter};
 const AUTHORIZE_URL: &str = "https://api.schwabapi.com/v1/oauth/authorize";
 const TOKEN_URL: &str = "https://api.schwabapi.com/v1/oauth/token";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TokenSet {
     #[serde(skip_serializing_if = "String::is_empty")]
     access_token: String,
@@ -18,6 +18,20 @@ pub struct TokenSet {
     expires_in: u64,
     scope: Option<String>,
     obtained_at_unix_ms: u64,
+}
+
+impl fmt::Debug for TokenSet {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TokenSet")
+            .field("access_token", &"***REDACTED***")
+            .field("refresh_token", &"***REDACTED***")
+            .field("token_type", &self.token_type)
+            .field("expires_in", &self.expires_in)
+            .field("scope", &self.scope)
+            .field("obtained_at_unix_ms", &self.obtained_at_unix_ms)
+            .finish()
+    }
 }
 
 impl TokenSet {
@@ -35,6 +49,19 @@ impl TokenSet {
     pub fn access_expired_at(&self, now_unix_ms: u64) -> bool {
         let lifetime_ms = self.expires_in.saturating_mul(1_000);
         now_unix_ms >= self.obtained_at_unix_ms.saturating_add(lifetime_ms)
+    }
+
+    fn validate(&self) -> Result<(), AdapterError> {
+        if self.access_token.trim().is_empty()
+            || self.refresh_token.trim().is_empty()
+            || self.token_type.trim().is_empty()
+            || self.expires_in == 0
+        {
+            return Err(AdapterError::TokenStore(
+                "token set missing required fields".to_owned(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -133,11 +160,7 @@ impl OAuthClient {
         current: &TokenSet,
         now_unix_ms: u64,
     ) -> Result<TokenSet, AdapterError> {
-        if current.refresh_token.trim().is_empty() {
-            return Err(AdapterError::ProviderContract(
-                "refresh token unavailable".to_owned(),
-            ));
-        }
+        current.validate()?;
         self.limiter.acquire().await.map_err(AdapterError::from)?;
         let response = self
             .http
@@ -174,6 +197,7 @@ fn build_token_set(
     obtained_at_unix_ms: u64,
 ) -> Result<TokenSet, AdapterError> {
     if payload.access_token.trim().is_empty()
+        || refresh_token.trim().is_empty()
         || payload.token_type.trim().is_empty()
         || payload.expires_in == 0
     {
@@ -181,24 +205,32 @@ fn build_token_set(
             "token response missing required fields".to_owned(),
         ));
     }
-    Ok(TokenSet {
+    let tokens = TokenSet {
         access_token: payload.access_token,
         refresh_token,
         token_type: payload.token_type,
         expires_in: payload.expires_in,
         scope: payload.scope,
         obtained_at_unix_ms,
-    })
+    };
+    tokens.validate().map_err(|_| {
+        AdapterError::ProviderContract("token response missing required fields".to_owned())
+    })?;
+    Ok(tokens)
 }
 
 pub async fn load_tokens(path: &Path) -> Result<TokenSet, AdapterError> {
     let bytes = tokio::fs::read(path)
         .await
         .map_err(|error| AdapterError::TokenStore(error.to_string()))?;
-    serde_json::from_slice(&bytes).map_err(|error| AdapterError::TokenStore(error.to_string()))
+    let tokens: TokenSet = serde_json::from_slice(&bytes)
+        .map_err(|error| AdapterError::TokenStore(error.to_string()))?;
+    tokens.validate()?;
+    Ok(tokens)
 }
 
 pub async fn save_tokens(path: &Path, tokens: &TokenSet) -> Result<(), AdapterError> {
+    tokens.validate()?;
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
