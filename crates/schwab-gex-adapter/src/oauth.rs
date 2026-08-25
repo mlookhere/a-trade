@@ -3,7 +3,7 @@ use std::path::Path;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::{config::SchwabProfileConfig, rate::RestRateLimiter, AdapterError};
+use crate::{AdapterError, config::SchwabProfileConfig, rate::RestRateLimiter};
 
 const AUTHORIZE_URL: &str = "https://api.schwabapi.com/v1/oauth/authorize";
 const TOKEN_URL: &str = "https://api.schwabapi.com/v1/oauth/token";
@@ -55,7 +55,10 @@ pub struct OAuthClient {
 }
 
 impl OAuthClient {
-    pub fn new(config: SchwabProfileConfig, limiter: RestRateLimiter) -> Result<Self, AdapterError> {
+    pub fn new(
+        config: SchwabProfileConfig,
+        limiter: RestRateLimiter,
+    ) -> Result<Self, AdapterError> {
         let http = Client::builder()
             .user_agent("a-trade-schwab-gex/0.1")
             .build()
@@ -111,12 +114,13 @@ impl OAuthClient {
             .map_err(|error| AdapterError::Transport(error.to_string()))?
             .error_for_status()
             .map_err(|error| AdapterError::Provider(error.to_string()))?;
-        let payload: TokenResponse = response
+        let mut payload: TokenResponse = response
             .json()
             .await
             .map_err(|error| AdapterError::ProviderContract(error.to_string()))?;
         let refresh_token = payload
             .refresh_token
+            .take()
             .filter(|value| !value.trim().is_empty())
             .ok_or(AdapterError::ProviderContract(
                 "authorization response omitted refresh_token".to_owned(),
@@ -151,12 +155,13 @@ impl OAuthClient {
             .map_err(|error| AdapterError::Transport(error.to_string()))?
             .error_for_status()
             .map_err(|error| AdapterError::Provider(error.to_string()))?;
-        let payload: TokenResponse = response
+        let mut payload: TokenResponse = response
             .json()
             .await
             .map_err(|error| AdapterError::ProviderContract(error.to_string()))?;
         let refresh_token = payload
             .refresh_token
+            .take()
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| current.refresh_token.clone());
         build_token_set(payload, refresh_token, now_unix_ms)
@@ -199,8 +204,8 @@ pub async fn save_tokens(path: &Path, tokens: &TokenSet) -> Result<(), AdapterEr
             .await
             .map_err(|error| AdapterError::TokenStore(error.to_string()))?;
     }
-    let bytes = serde_json::to_vec(tokens)
-        .map_err(|error| AdapterError::TokenStore(error.to_string()))?;
+    let bytes =
+        serde_json::to_vec(tokens).map_err(|error| AdapterError::TokenStore(error.to_string()))?;
     let temporary = path.with_extension("tmp");
     tokio::fs::write(&temporary, bytes)
         .await
