@@ -160,4 +160,10 @@ impl ProfilePool {
             .any(|client| client.profile_id == profile_id)
             && !self.disabled.contains(profile_id)
     }
+
+    #[must_use]
+    pub fn assigned_profile(&self, underlying: &str) -> Option<&str> {
+        let index = *self.assignments.get(underlying.trim())?;
+        self.clients.get(index).map(|client| client.profile_id.as_str())
+    }
 }
