@@ -1,7 +1,7 @@
 mod common;
 
 use auction_core::{
-    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition,
+    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition, EtTime,
     ExecutionCoordinator, ExecutionGateContext, ExecutionStatus, OrderProposal, RejectionCode,
 };
 
@@ -84,10 +84,15 @@ fn clear_reconciliation() -> BrokerReconciliation {
     }
 }
 
+fn in_window() -> EtTime {
+    EtTime::from_hms(10, 0, 0).unwrap()
+}
+
 fn context() -> ExecutionGateContext<'static> {
     ExecutionGateContext {
         submitting_agent_id: common::OWNER,
         llm_setup_pass: Condition::True,
+        current_time_et: in_window(),
     }
 }
 
@@ -103,7 +108,7 @@ fn filled_position(setup_id: &str) -> ExecutionCoordinator<MockBroker> {
     let proposal = common::valid_long_proposal(setup_id, common::OWNER, common::INSTRUMENT);
     let permit = coordinator.gate(&proposal, context()).unwrap();
     assert!(matches!(
-        coordinator.submit(permit).unwrap(),
+        coordinator.submit(permit, in_window()).unwrap(),
         ExecutionStatus::FilledProtected { .. }
     ));
     let mut reconciliation = clear_reconciliation();
@@ -198,7 +203,7 @@ fn section_118_pending_or_unknown_setup_is_not_promoted_to_open_position() {
     let proposal = common::valid_long_proposal(setup_id, common::OWNER, common::INSTRUMENT);
     let permit = coordinator.gate(&proposal, context()).unwrap();
     assert!(matches!(
-        coordinator.submit(permit).unwrap(),
+        coordinator.submit(permit, in_window()).unwrap(),
         ExecutionStatus::Pending { .. }
     ));
     assert_eq!(
