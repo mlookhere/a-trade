@@ -169,6 +169,9 @@ async fn invalid_persisted_token_set_fails_closed_on_load() {
         .await
         .unwrap();
 
-    assert!(matches!(load_tokens(&path).await, Err(AdapterError::TokenStore(_))));
+    assert!(matches!(
+        load_tokens(&path).await,
+        Err(AdapterError::TokenStore(_))
+    ));
     let _ = tokio::fs::remove_file(path).await;
 }
