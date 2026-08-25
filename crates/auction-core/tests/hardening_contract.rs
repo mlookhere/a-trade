@@ -159,6 +159,7 @@ fn context(llm_setup_pass: Condition) -> ExecutionGateContext<'static> {
     ExecutionGateContext {
         submitting_agent_id: common::OWNER,
         llm_setup_pass,
+        current_time_et: EtTime::from_hms(10, 0, 0).unwrap(),
     }
 }
 
