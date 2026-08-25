@@ -16,7 +16,7 @@ pub enum BudgetError {
     TimeReversed,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestBudget {
     effective_limit: usize,
     calls: VecDeque<u64>,
