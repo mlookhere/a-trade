@@ -14,6 +14,7 @@ pub enum BudgetDecision {
 pub enum BudgetError {
     InvalidLimit,
     TimeReversed,
+    InconsistentState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,7 +59,11 @@ impl RestBudget {
             return Ok(BudgetDecision::Granted);
         }
 
-        let oldest = *self.calls.front().expect("non-empty when budget exhausted");
+        let oldest = self
+            .calls
+            .front()
+            .copied()
+            .ok_or(BudgetError::InconsistentState)?;
         Ok(BudgetDecision::RetryAfterMs(
             WINDOW_MS.saturating_sub(now_ms.saturating_sub(oldest)),
         ))
