@@ -14,12 +14,13 @@ SCHWAB_CALLBACK_URL=https://localhost/callback
 SCHWAB_TOKEN_PATH=/secure/runtime/schwab-default.json
 SCHWAB_REST_REQUESTS_PER_MINUTE=120
 SCHWAB_REST_HEADROOM_REQUESTS_PER_MINUTE=<explicit-runtime-value>
+SCHWAB_TRANSPORT_TIMEOUT_MS=<explicit-runtime-value>
 SCHWAB_GEX_STALE_TIMEOUT_MS=<explicit-runtime-value>
 SCHWAB_MARKET_DATA_STALE_TIMEOUT_MS=<explicit-runtime-value>
 SCHWAB_OPTION_CHAIN_REFRESH_INTERVAL_MS=<explicit-runtime-value>
 ```
 
-No freshness, headroom, or refresh values are defaulted by the adapter because they are deployment/provider parameters rather than canonical strategy thresholds.
+Freshness, headroom, transport timeout, and refresh values are not defaulted by the adapter because they are deployment/provider parameters rather than canonical strategy thresholds. Zero-valued timeouts fail closed.
 
 ## Multiple API profiles
 
@@ -35,7 +36,8 @@ Set `SCHWAB_PROFILES_FILE` to a runtime-only JSON file. The software does not im
       "callback_url": "https://localhost/schwab-a/callback",
       "token_path": "/secure/runtime/schwab-a.json",
       "rest_requests_per_minute": 120,
-      "rest_headroom_requests_per_minute": 20
+      "rest_headroom_requests_per_minute": 20,
+      "transport_timeout_ms": 5000
     },
     {
       "profile_id": "schwab-b",
@@ -44,13 +46,18 @@ Set `SCHWAB_PROFILES_FILE` to a runtime-only JSON file. The software does not im
       "callback_url": "https://localhost/schwab-b/callback",
       "token_path": "/secure/runtime/schwab-b.json",
       "rest_requests_per_minute": 120,
-      "rest_headroom_requests_per_minute": 20
+      "rest_headroom_requests_per_minute": 20,
+      "transport_timeout_ms": 5000
     }
   ]
 }
 ```
 
-The example values are configuration examples only and are not strategy rules. Real client IDs, secrets, authorization codes, access tokens, and refresh tokens must never be committed.
+The numeric values above are configuration examples only and are not strategy rules. Real client IDs, secrets, authorization codes, access tokens, and refresh tokens must never be committed.
+
+## Secret handling
+
+Normal `Debug` formatting redacts client secrets and OAuth access/refresh tokens. Token files are validated before use. Token writes use a temporary file and atomic rename; on Unix the temporary token file is restricted to owner read/write permissions before rename. Runtime logging must still avoid manually printing exposed secret values.
 
 ## Connection scaling boundary
 
@@ -58,7 +65,9 @@ The adapter supports arbitrarily many configured API profiles and creates indepe
 
 The current Schwab Streamer contract documents response code `12 CLOSE_CONNECTION` for reaching the connection maximum and states a limit of one Streamer connection at a time for a given user. For that reason, the adapter deduplicates simultaneous connection attempts by `schwabClientCustomerId` returned by User Preferences. Two API applications that resolve to the same Schwab streamer customer ID are not opened as parallel WebSockets.
 
-Distinct streamer customer IDs can be connected concurrently by the software, but Schwab remains the final authority on provider-side application, account, entitlement, symbol, and connection limits. Response code `19 REACHED_SYMBOL_LIMIT` is also handled as an explicit fail-closed provider limit rather than inventing a symbol-count threshold.
+Distinct streamer customer IDs can be connected concurrently by the software, but Schwab remains the final authority on provider-side application, account, entitlement, symbol, and connection limits. Response code `19 REACHED_SYMBOL_LIMIT` is handled as an explicit fail-closed provider limit rather than inventing a symbol-count threshold.
+
+Current Issue #56 assignment is one underlying to one active profile. That allows multiple profiles to scale different underlyings while preserving one authoritative GEX state per underlying. Contract-level sharding of one very large underlying across multiple genuinely independent streamer identities is separate Issue #66 because it requires explicit cross-shard ownership, freshness, and coverage reconciliation.
 
 ## Data ownership
 
@@ -66,9 +75,17 @@ Each tracked underlying has one authoritative central GEX state. Underlyings are
 
 A profile failure releases its assignments explicitly. The system does not silently duplicate one underlying across multiple GEX books or merge conflicting provider states.
 
+## Transport timeout behavior
+
+OAuth REST calls, market-data REST calls, WebSocket connection establishment, streamer login, WebSocket sends, and reads are bounded by the profile's explicit `transport_timeout_ms`. A timeout returns `TransportTimeout`; it never converts uncertain transport state into reliable GEX output.
+
+The timeout value is operational configuration. The strategy knowledge does not define a universal timeout and the adapter therefore supplies no hidden default.
+
 ## Reconnect behavior
 
-A WebSocket disconnect immediately makes the live streaming surface unavailable. It does **not** automatically launch an option-chain REST bootstrap. The existing option universe is resubscribed after a successful reconnect; REST rebootstrap occurs only when coverage becomes uncertain or the explicitly configured refresh schedule requires it. This prevents reconnect loops from becoming REST request storms.
+A WebSocket disconnect immediately makes the live streaming surface unavailable. It does **not** automatically launch an option-chain REST bootstrap. Coverage uncertainty or the explicit option-chain refresh schedule is what requests REST rebootstrap, preventing reconnect loops from becoming REST request storms.
+
+The current adapter provides bounded connect/login/session primitives and deterministic disconnected-state handling. An always-on streamer-session supervisor that reconnects and resubscribes after transport failure remains a required completion item for Issue #56; this document does not claim that loop is already active.
 
 ## Gamma authority
 
