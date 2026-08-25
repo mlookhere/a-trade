@@ -1,4 +1,6 @@
-use std::{env, fmt, path::PathBuf};
+use std::{env, fmt, fs, path::PathBuf};
+
+use serde::Deserialize;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct SecretString(String);
@@ -23,14 +25,24 @@ impl fmt::Debug for SecretString {
     }
 }
 
+/// One independent Schwab API application/token/streaming identity.
+///
+/// The adapter intentionally places no software maximum on the number of profiles. Provider-side
+/// connection/application/account limits remain external constraints and are never inferred here.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SchwabConfig {
+pub struct SchwabProfileConfig {
+    pub profile_id: String,
     pub client_id: SecretString,
     pub client_secret: SecretString,
     pub callback_url: String,
     pub token_path: PathBuf,
     pub rest_requests_per_minute: u32,
     pub rest_headroom_requests_per_minute: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchwabConfig {
+    pub profiles: Vec<SchwabProfileConfig>,
     pub gex_stale_timeout_ms: u64,
     pub market_data_stale_timeout_ms: u64,
     pub option_chain_refresh_interval_ms: u64,
@@ -43,40 +55,63 @@ pub enum ConfigError {
     InvalidNumber(&'static str),
     InvalidCallbackUrl,
     InvalidRestBudget,
+    InvalidProfilesFile,
+    EmptyProfiles,
+    MissingProfileId,
+    DuplicateProfileId,
+    DuplicateTokenPath,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProfilesFile {
+    profiles: Vec<ProfileFileEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProfileFileEntry {
+    profile_id: String,
+    client_id: String,
+    client_secret: String,
+    callback_url: String,
+    token_path: PathBuf,
+    rest_requests_per_minute: u32,
+    rest_headroom_requests_per_minute: u32,
+}
+
+impl SchwabProfileConfig {
+    fn validate(self) -> Result<Self, ConfigError> {
+        if self.profile_id.trim().is_empty() {
+            return Err(ConfigError::MissingProfileId);
+        }
+        validate_callback(&self.callback_url)?;
+        validate_budget(
+            self.rest_requests_per_minute,
+            self.rest_headroom_requests_per_minute,
+        )?;
+        Ok(self)
+    }
+
+    #[must_use]
+    pub const fn effective_rest_limit(&self) -> u32 {
+        self.rest_requests_per_minute - self.rest_headroom_requests_per_minute
+    }
 }
 
 impl SchwabConfig {
-    /// Provider/deployment configuration only. No strategy threshold is defined here.
+    /// Runtime/provider configuration only. No strategy threshold is defined here.
     ///
-    /// `SCHWAB_REST_HEADROOM_REQUESTS_PER_MINUTE` is deliberately required separately from the
-    /// provider cap so the adapter never invents a reserve percentage or silently consumes the
-    /// full application allowance.
+    /// Multi-profile mode is enabled by `SCHWAB_PROFILES_FILE`, a runtime JSON file containing an
+    /// arbitrary-length `profiles` array. Secrets remain outside the repository. If that variable
+    /// is absent, the legacy single-profile environment variables remain supported.
     pub fn from_env() -> Result<Self, ConfigError> {
-        let client_id = SecretString::new(required("SCHWAB_CLIENT_ID")?)?;
-        let client_secret = SecretString::new(required("SCHWAB_CLIENT_SECRET")?)?;
-        let callback_url = required("SCHWAB_CALLBACK_URL")?;
-        let parsed_callback = url::Url::parse(&callback_url).map_err(|_| ConfigError::InvalidCallbackUrl)?;
-        if !matches!(parsed_callback.scheme(), "https" | "http") || parsed_callback.host_str().is_none() {
-            return Err(ConfigError::InvalidCallbackUrl);
-        }
-
-        let token_path = PathBuf::from(required("SCHWAB_TOKEN_PATH")?);
-        let rest_requests_per_minute = parse_u32("SCHWAB_REST_REQUESTS_PER_MINUTE")?;
-        let rest_headroom_requests_per_minute =
-            parse_u32("SCHWAB_REST_HEADROOM_REQUESTS_PER_MINUTE")?;
-        if rest_requests_per_minute == 0
-            || rest_headroom_requests_per_minute >= rest_requests_per_minute
-        {
-            return Err(ConfigError::InvalidRestBudget);
-        }
+        let profiles = match env::var("SCHWAB_PROFILES_FILE") {
+            Ok(path) if !path.trim().is_empty() => load_profiles_file(PathBuf::from(path))?,
+            _ => vec![single_profile_from_env()?],
+        };
+        validate_profile_set(&profiles)?;
 
         Ok(Self {
-            client_id,
-            client_secret,
-            callback_url,
-            token_path,
-            rest_requests_per_minute,
-            rest_headroom_requests_per_minute,
+            profiles,
             gex_stale_timeout_ms: parse_u64("SCHWAB_GEX_STALE_TIMEOUT_MS")?,
             market_data_stale_timeout_ms: parse_u64("SCHWAB_MARKET_DATA_STALE_TIMEOUT_MS")?,
             option_chain_refresh_interval_ms: parse_u64(
@@ -86,9 +121,82 @@ impl SchwabConfig {
     }
 
     #[must_use]
-    pub const fn effective_rest_limit(&self) -> u32 {
-        self.rest_requests_per_minute - self.rest_headroom_requests_per_minute
+    pub fn profile(&self, profile_id: &str) -> Option<&SchwabProfileConfig> {
+        self.profiles
+            .iter()
+            .find(|profile| profile.profile_id == profile_id)
     }
+}
+
+fn load_profiles_file(path: PathBuf) -> Result<Vec<SchwabProfileConfig>, ConfigError> {
+    let bytes = fs::read(path).map_err(|_| ConfigError::InvalidProfilesFile)?;
+    let file: ProfilesFile =
+        serde_json::from_slice(&bytes).map_err(|_| ConfigError::InvalidProfilesFile)?;
+    if file.profiles.is_empty() {
+        return Err(ConfigError::EmptyProfiles);
+    }
+    file.profiles
+        .into_iter()
+        .map(|entry| {
+            SchwabProfileConfig {
+                profile_id: entry.profile_id,
+                client_id: SecretString::new(entry.client_id)?,
+                client_secret: SecretString::new(entry.client_secret)?,
+                callback_url: entry.callback_url,
+                token_path: entry.token_path,
+                rest_requests_per_minute: entry.rest_requests_per_minute,
+                rest_headroom_requests_per_minute: entry.rest_headroom_requests_per_minute,
+            }
+            .validate()
+        })
+        .collect()
+}
+
+fn single_profile_from_env() -> Result<SchwabProfileConfig, ConfigError> {
+    SchwabProfileConfig {
+        profile_id: env::var("SCHWAB_PROFILE_ID").unwrap_or_else(|_| "default".to_owned()),
+        client_id: SecretString::new(required("SCHWAB_CLIENT_ID")?)?,
+        client_secret: SecretString::new(required("SCHWAB_CLIENT_SECRET")?)?,
+        callback_url: required("SCHWAB_CALLBACK_URL")?,
+        token_path: PathBuf::from(required("SCHWAB_TOKEN_PATH")?),
+        rest_requests_per_minute: parse_u32("SCHWAB_REST_REQUESTS_PER_MINUTE")?,
+        rest_headroom_requests_per_minute: parse_u32(
+            "SCHWAB_REST_HEADROOM_REQUESTS_PER_MINUTE",
+        )?,
+    }
+    .validate()
+}
+
+fn validate_profile_set(profiles: &[SchwabProfileConfig]) -> Result<(), ConfigError> {
+    if profiles.is_empty() {
+        return Err(ConfigError::EmptyProfiles);
+    }
+    for (index, profile) in profiles.iter().enumerate() {
+        for other in &profiles[..index] {
+            if profile.profile_id == other.profile_id {
+                return Err(ConfigError::DuplicateProfileId);
+            }
+            if profile.token_path == other.token_path {
+                return Err(ConfigError::DuplicateTokenPath);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_callback(callback_url: &str) -> Result<(), ConfigError> {
+    let parsed = url::Url::parse(callback_url).map_err(|_| ConfigError::InvalidCallbackUrl)?;
+    if !matches!(parsed.scheme(), "https" | "http") || parsed.host_str().is_none() {
+        return Err(ConfigError::InvalidCallbackUrl);
+    }
+    Ok(())
+}
+
+fn validate_budget(provider_limit: u32, reserved_headroom: u32) -> Result<(), ConfigError> {
+    if provider_limit == 0 || reserved_headroom >= provider_limit {
+        return Err(ConfigError::InvalidRestBudget);
+    }
+    Ok(())
 }
 
 fn required(name: &'static str) -> Result<String, ConfigError> {
