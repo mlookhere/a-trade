@@ -10,11 +10,11 @@ pub mod rest;
 pub mod runtime;
 pub mod state;
 pub mod stream;
-pub mod supervisor;
 
 pub use config::{ConfigError, SchwabConfig, SchwabProfileConfig, SecretString};
 pub use connections::{
-    ProfileConnectOutcome, ProfileStreamConnect, ProfileStreamSession, connect_profiles,
+    ProfileConnectOutcome, ProfileStreamConnect, ProfileStreamSession, StreamSupervisorConfig,
+    StreamerIdentityRegistry, connect_profiles, run_profile_stream_supervisor,
 };
 pub use fleet::{ProfileAssignment, ProfileClients, ProfilePool};
 pub use oauth::{OAuthClient, TokenSet, load_tokens, save_tokens};
@@ -31,9 +31,6 @@ pub use state::{
 pub use stream::{
     SchwabStreamClient, StreamCommand, StreamDataBatch, StreamEvent, StreamRequestFactory,
     StreamResponse, StreamResponseContent, StreamService,
-};
-pub use supervisor::{
-    StreamSupervisorConfig, StreamerIdentityRegistry, run_profile_stream_supervisor,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
