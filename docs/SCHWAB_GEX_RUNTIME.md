@@ -15,12 +15,13 @@ SCHWAB_TOKEN_PATH=/secure/runtime/schwab-default.json
 SCHWAB_REST_REQUESTS_PER_MINUTE=120
 SCHWAB_REST_HEADROOM_REQUESTS_PER_MINUTE=<explicit-runtime-value>
 SCHWAB_TRANSPORT_TIMEOUT_MS=<explicit-runtime-value>
+SCHWAB_STREAM_RECONNECT_DELAY_MS=<explicit-runtime-value>
 SCHWAB_GEX_STALE_TIMEOUT_MS=<explicit-runtime-value>
 SCHWAB_MARKET_DATA_STALE_TIMEOUT_MS=<explicit-runtime-value>
 SCHWAB_OPTION_CHAIN_REFRESH_INTERVAL_MS=<explicit-runtime-value>
 ```
 
-Freshness, headroom, transport timeout, and refresh values are not defaulted by the adapter because they are deployment/provider parameters rather than canonical strategy thresholds. Zero-valued timeouts fail closed.
+Freshness, headroom, transport timeout, reconnect delay, and refresh values are not defaulted by the adapter because they are deployment/provider parameters rather than canonical strategy thresholds. Zero-valued timeouts and reconnect delays fail closed.
 
 ## Multiple API profiles
 
@@ -53,7 +54,7 @@ Set `SCHWAB_PROFILES_FILE` to a runtime-only JSON file. The software does not im
 }
 ```
 
-The numeric values above are configuration examples only and are not strategy rules. Real client IDs, secrets, authorization codes, access tokens, and refresh tokens must never be committed.
+The numeric values above are configuration examples only and are not strategy rules. Real client IDs, secrets, authorization codes, access tokens, and refresh tokens must never be committed. The reconnect delay remains global runtime configuration rather than a per-profile strategy value.
 
 ## Secret handling
 
@@ -83,9 +84,11 @@ The timeout value is operational configuration. The strategy knowledge does not 
 
 ## Reconnect behavior
 
-A WebSocket disconnect immediately makes the live streaming surface unavailable. It does **not** automatically launch an option-chain REST bootstrap. Coverage uncertainty or the explicit option-chain refresh schedule is what requests REST rebootstrap, preventing reconnect loops from becoming REST request storms.
+A WebSocket disconnect immediately makes the live streaming surface unavailable. The always-on profile supervisor waits the explicitly configured reconnect delay, obtains current streamer metadata, refreshes an expired or login-denied OAuth token when required, reconnects, and resubscribes the profile's existing underlying and option-symbol plan.
 
-The current adapter provides bounded connect/login/session primitives and deterministic disconnected-state handling. An always-on streamer-session supervisor that reconnects and resubscribes after transport failure remains a required completion item for Issue #56; this document does not claim that loop is already active.
+Reliable streaming status is restored only after every initial subscription acknowledgement succeeds. Change-only data received while acknowledgements are pending are buffered and replayed into the central state after activation. Provider connection/symbol-limit failures and provider-contract violations fail closed rather than entering an automatic retry loop.
+
+Reconnect does **not** automatically launch an option-chain REST bootstrap. Coverage uncertainty or the explicit option-chain refresh schedule remains the authority for REST rebootstrap, preventing reconnect loops from becoming REST request storms.
 
 ## Gamma authority
 
