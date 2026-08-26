@@ -3,8 +3,9 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value};
 
 use crate::{
-    AdapterError, GammaQuality, ProfileAssignment, ProfilePool, RebootstrapSchedule, RefreshError,
-    ReliableGexSurface, SchwabGexState, SchwabProfileConfig, StreamApply, StreamDataBatch,
+    AdapterError, GammaQuality, ProfileAssignment, ProfileClients, ProfilePool, RebootstrapSchedule,
+    RefreshError, ReliableGexSurface, SchwabGexState, SchwabProfileConfig, StreamApply,
+    StreamDataBatch,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +72,10 @@ impl SchwabFleetRuntime {
     #[must_use]
     pub fn profile_count(&self) -> usize {
         self.pool.profile_count()
+    }
+
+    pub fn profile_clients(&self, profile_id: &str) -> Result<ProfileClients, AdapterError> {
+        Ok(self.pool.client(profile_id)?.clone())
     }
 
     /// Atomically replace the authoritative option universe for one underlying.
