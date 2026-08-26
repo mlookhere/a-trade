@@ -178,8 +178,7 @@ impl StreamerIdentityRegistry {
         {
             return Err(AdapterError::DuplicateStreamerUser);
         }
-        self.0
-            .insert(customer_id.to_owned(), profile_id.to_owned());
+        self.0.insert(customer_id.to_owned(), profile_id.to_owned());
         Ok(())
     }
 
@@ -227,10 +226,7 @@ pub async fn run_profile_stream_supervisor(
         };
         force_refresh = false;
         let customer_id = request.streamer_info.schwab_client_customer_id.clone();
-        identities
-            .lock()
-            .await
-            .reserve(&profile_id, &customer_id)?;
+        identities.lock().await.reserve(&profile_id, &customer_id)?;
         let attempt = match ProfileStreamSession::connect(request).await {
             Ok(session) => run_connected(&profile_id, session, &runtime, &mut shutdown).await,
             Err(error) => Err(error),
