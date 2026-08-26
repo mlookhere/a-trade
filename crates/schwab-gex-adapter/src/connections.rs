@@ -12,10 +12,10 @@ use tokio::{
 };
 
 use crate::{
-    AdapterError, ConfigError, ProfileClients, SchwabFleetRuntime, SchwabStreamClient, SecretString,
-    StreamCommand, StreamDataBatch, StreamEvent, StreamRequestFactory, StreamResponse,
-    StreamResponseAction, StreamResponseCode, StreamerInfo, load_tokens, require_response_success,
-    response_action, save_tokens,
+    AdapterError, ConfigError, ProfileClients, SchwabFleetRuntime, SchwabStreamClient,
+    SecretString, StreamCommand, StreamDataBatch, StreamEvent, StreamRequestFactory,
+    StreamResponse, StreamResponseAction, StreamResponseCode, StreamerInfo, load_tokens,
+    require_response_success, response_action, save_tokens,
 };
 
 const RECONNECT_DELAY_ENV: &str = "SCHWAB_STREAM_RECONNECT_DELAY_MS";
@@ -62,7 +62,8 @@ impl ProfileStreamSession {
         loop {
             match client.next_event().await? {
                 StreamEvent::Responses(responses) => {
-                    let Some(response) = responses.iter().find(|r| r.requestid == request_id) else {
+                    let Some(response) = responses.iter().find(|r| r.requestid == request_id)
+                    else {
                         continue;
                     };
                     require_response_success(response, &request_id, "ADMIN", "LOGIN")?;
@@ -170,15 +171,24 @@ impl StreamerIdentityRegistry {
         if profile_id.trim().is_empty() || customer_id.trim().is_empty() {
             return Err(AdapterError::InvalidInput("streamer identity"));
         }
-        if self.0.get(customer_id).is_some_and(|owner| owner != profile_id) {
+        if self
+            .0
+            .get(customer_id)
+            .is_some_and(|owner| owner != profile_id)
+        {
             return Err(AdapterError::DuplicateStreamerUser);
         }
-        self.0.insert(customer_id.to_owned(), profile_id.to_owned());
+        self.0
+            .insert(customer_id.to_owned(), profile_id.to_owned());
         Ok(())
     }
 
     pub fn release(&mut self, profile_id: &str, customer_id: &str) {
-        if self.0.get(customer_id).is_some_and(|owner| owner == profile_id) {
+        if self
+            .0
+            .get(customer_id)
+            .is_some_and(|owner| owner == profile_id)
+        {
             self.0.remove(customer_id);
         }
     }
@@ -217,13 +227,19 @@ pub async fn run_profile_stream_supervisor(
         };
         force_refresh = false;
         let customer_id = request.streamer_info.schwab_client_customer_id.clone();
-        identities.lock().await.reserve(&profile_id, &customer_id)?;
+        identities
+            .lock()
+            .await
+            .reserve(&profile_id, &customer_id)?;
         let attempt = match ProfileStreamSession::connect(request).await {
             Ok(session) => run_connected(&profile_id, session, &runtime, &mut shutdown).await,
             Err(error) => Err(error),
         };
         identities.lock().await.release(&profile_id, &customer_id);
-        runtime.write().await.mark_stream_disconnected(&profile_id)?;
+        runtime
+            .write()
+            .await
+            .mark_stream_disconnected(&profile_id)?;
         match attempt {
             Ok(()) => return Ok(()),
             Err(error) if reconnectable(&error) => {
@@ -419,7 +435,10 @@ mod tests {
 
     #[test]
     fn reconnect_configuration_and_provider_limits_fail_closed() {
-        assert_eq!(StreamSupervisorConfig::new(0), Err(ConfigError::InvalidTimeout));
+        assert_eq!(
+            StreamSupervisorConfig::new(0),
+            Err(ConfigError::InvalidTimeout)
+        );
         assert!(!reconnectable(&AdapterError::StreamConnectionLimit));
         assert!(!reconnectable(&AdapterError::StreamSymbolLimit));
         assert!(reconnectable(&AdapterError::TransportTimeout));
