@@ -64,7 +64,7 @@ Normal `Debug` formatting redacts client secrets and OAuth access/refresh tokens
 
 The adapter supports arbitrarily many configured API profiles and creates independent OAuth, REST-budget, token-store, and streaming identities for them. It does **not** assume that adding client IDs increases Schwab's allowed connections or request quota.
 
-The current Schwab Streamer contract documents response code `12 CLOSE_CONNECTION` for reaching the connection maximum and states a limit of one Streamer connection at a time for a given user. For that reason, the adapter deduplicates simultaneous connection attempts by `schwabClientCustomerId` returned by User Preferences. Two API applications that resolve to the same Schwab streamer customer ID are not opened as parallel WebSockets.
+The current Schwab Streamer contract documents response code `12 CLOSE_CONNECTION` for reaching the connection maximum and states a limit of one Streamer connection at a time for a given user. For that reason, the adapter deduplicates simultaneous connection attempts by `schwabClientCustomerId` returned by User Preferences. Two API applications that resolve to the same Schwab streamer customer ID are not opened as parallel WebSockets when profiles are supervised through the shared runtime identity registry.
 
 Distinct streamer customer IDs can be connected concurrently by the software, but Schwab remains the final authority on provider-side application, account, entitlement, symbol, and connection limits. Response code `19 REACHED_SYMBOL_LIMIT` is handled as an explicit fail-closed provider limit rather than inventing a symbol-count threshold.
 
