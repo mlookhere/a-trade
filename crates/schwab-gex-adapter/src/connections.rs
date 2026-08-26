@@ -224,7 +224,6 @@ pub async fn run_profile_stream_supervisor(
             }
             Err(error) => return Err(error),
         };
-        force_refresh = false;
         let customer_id = request.streamer_info.schwab_client_customer_id.clone();
         identities.lock().await.reserve(&profile_id, &customer_id)?;
         let attempt = match ProfileStreamSession::connect(request).await {
@@ -312,7 +311,12 @@ async fn run_connected(
             StreamEvent::Closed => return Err(AdapterError::StreamUnavailable),
         }
     }
-    activate_after_subscriptions(&mut runtime.write().await, profile_id, &pending, &buffered)?;
+    activate_after_subscriptions(
+        &mut *runtime.write().await,
+        profile_id,
+        &pending,
+        &buffered,
+    )?;
     loop {
         let Some(event) = next_or_shutdown(&mut session, shutdown).await? else {
             return Ok(());
