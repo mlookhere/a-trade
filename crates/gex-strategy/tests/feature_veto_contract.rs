@@ -2,8 +2,8 @@ use gex_strategy::{
     AiNativeFeatureInput, AiNativeFeatureSet, CandleEventFeatures, DataQuality, DecisionVerdict,
     EmaStackError, EmaStackState, FeatureSetError, HardCondition, HardConditionKind, HardVetoError,
     HardVetoInput, HardVetoVerdict, LiquidityExecutionFeatures, MarketSnapshot,
-    MarketSnapshotInput, ParticipationFeatures, PortfolioBrokerFeatures, Session, StructureFeatures,
-    TrendFeatures, classify_ema_stack, evaluate_hard_vetoes,
+    MarketSnapshotInput, ParticipationFeatures, PortfolioBrokerFeatures, Session,
+    StructureFeatures, TrendFeatures, classify_ema_stack, evaluate_hard_vetoes,
 };
 
 fn snapshot(id: &str) -> MarketSnapshot {
@@ -173,9 +173,15 @@ fn ema_stack_keeps_source_baseline_as_metadata_not_a_veto() {
 fn every_mandatory_hard_condition_can_reject() {
     let snapshot = snapshot("snapshot-1");
     let cases: &[(HardConditionKind, fn(&mut HardVetoInput))] = &[
-        (HardConditionKind::DataValid, |input| input.data_valid = HardCondition::Fail),
-        (HardConditionKind::DataFresh, |input| input.data_fresh = HardCondition::Fail),
-        (HardConditionKind::GexScopeValid, |input| input.gex_scope_valid = HardCondition::Fail),
+        (HardConditionKind::DataValid, |input| {
+            input.data_valid = HardCondition::Fail
+        }),
+        (HardConditionKind::DataFresh, |input| {
+            input.data_fresh = HardCondition::Fail
+        }),
+        (HardConditionKind::GexScopeValid, |input| {
+            input.gex_scope_valid = HardCondition::Fail
+        }),
         (HardConditionKind::RequiredRegimeDataValid, |input| {
             input.required_regime_data_valid = HardCondition::Fail;
         }),
@@ -249,10 +255,7 @@ fn known_hard_failure_precedes_unknown() {
         result.failed_conditions(),
         &[HardConditionKind::MaxPortfolioRiskValid]
     );
-    assert_eq!(
-        result.unknown_conditions(),
-        &[HardConditionKind::DataFresh]
-    );
+    assert_eq!(result.unknown_conditions(), &[HardConditionKind::DataFresh]);
     assert_eq!(result.blocking_decision(), Some(DecisionVerdict::Reject));
 }
 
