@@ -6,6 +6,8 @@ use gex_strategy::{
     StructureFeatures, TrendFeatures, classify_ema_stack, evaluate_hard_vetoes,
 };
 
+type HardConditionCase = (HardConditionKind, fn(&mut HardVetoInput));
+
 fn snapshot(id: &str) -> MarketSnapshot {
     MarketSnapshot::build(
         MarketSnapshotInput {
@@ -172,7 +174,7 @@ fn ema_stack_keeps_source_baseline_as_metadata_not_a_veto() {
 #[test]
 fn every_mandatory_hard_condition_can_reject() {
     let snapshot = snapshot("snapshot-1");
-    let cases: &[(HardConditionKind, fn(&mut HardVetoInput))] = &[
+    let cases: &[HardConditionCase] = &[
         (HardConditionKind::DataValid, |input| {
             input.data_valid = HardCondition::Fail
         }),
