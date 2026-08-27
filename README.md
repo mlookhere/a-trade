@@ -18,7 +18,7 @@ Canonical setup progression remains:
 
 `environment -> location -> participation -> effort versus result -> absorption -> dominance shift -> second attempt -> second failure -> reconfirmation -> risk validation -> execution`
 
-`TRADE_ALLOWED` begins false. Missing, stale, conflicting, partial, invalid, duplicated, or `UNKNOWN` required state fails closed. New entries are limited to the canonical first-90-minute window; existing-position management remains separate.
+`TRADE_ALLOWED` begins false. Missing, stale, conflicting, partial, invalid, duplicated, or `UNKNOWN` required state fails closed. New entries are limited to 09:30:00 through 10:59:59 ET, and the live execution boundary rechecks time immediately before broker transmission. Existing-position management remains separate after the cutoff.
 
 ### 2. Provider and deterministic data infrastructure
 
@@ -26,7 +26,7 @@ Canonical setup progression remains:
 
 The GEX engine maintains provider-neutral per-contract, per-strike, per-expiration, and aggregate exposure analytics. Side-signed open-interest GEX is an analytical model, not a claim of actual dealer inventory. Gamma context never becomes a standalone canonical entry signal.
 
-Schwab market-data transport is under active development in Issue #56 / PR #64. It supports arbitrary-count runtime API profiles with independent credentials, token stores, REST budgets, and streamer identities while preserving one authoritative provider state per tracked underlying. Provider-side limits remain Schwab's authority. Contract-level sharding of one underlying across independent profiles is separate follow-up Issue #66.
+Issue #56 / PR #64 added the first Schwab stream-first GEX market-data adapter. It supports arbitrary-count runtime API profiles with independent credentials, token stores, REST budgets, bounded transport/reconnect behavior, and streamer identities while preserving one authoritative provider state per tracked underlying. Its always-on supervisor reconnects and resubscribes retryable stream failures without treating reconnect as a reason to start a REST bootstrap storm. Provider-side limits remain Schwab's authority. Contract-level sharding of one underlying across independent profiles remains separate follow-up Issue #66.
 
 ### 3. AI-native GEX vNext research — `gex-strategy`
 
@@ -90,8 +90,8 @@ Each independently deliverable change follows:
 
 Hosted gates route through `./ci/run <stage>` using `.claude-workflow.json`. PR/release/nightly policy includes formatting, linting, locked workspace tests/builds, dependency auditing, and workflow-policy validation.
 
-`main` is not currently a promoted live trading release. Current development remains pre-production: provider transport, replay/OOS evidence, paper/shadow evidence, production LLM orchestration, real broker routing, and final version promotion must each satisfy their own explicit contracts before live authorization exists.
+`main` is not currently a promoted live trading release. Current development remains pre-production: the canonical deterministic core and Schwab market-data transport exist, but production LLM orchestration, historical/OOS evidence, paper/shadow evidence, an exact real broker execution adapter, final release promotion, and live authorization remain incomplete.
 
 ## Current hardening focus
 
-Issue #65 is the current repository-wide hardening/context pass. It covers documentation drift, provider-secret handling, stale/conflicting state, ownership and reconnect semantics, timeout behavior, multi-profile scaling boundaries, and preservation of strategy/risk/execution authority. PR #64 must complete its hardening requirements and pass all CI gates before merge.
+Issue #65 / PR #67 is the repository-wide hardening/context pass. It reconciles documentation and canonical provenance with the merged Schwab transport, audits unresolved provider and strategy boundaries, preserves the three authority lanes, and keeps unsupported behavior fail closed. Issue #26 remains a release blocker because `dev` and `main` are currently unprotected. Issue #66 remains isolated capacity work rather than being folded into provider transport without evidence that it is required.
