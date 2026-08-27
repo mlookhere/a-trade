@@ -34,30 +34,42 @@ The AI-native research lane uses its own explicit WAIT/REJECT/ALLOW contract but
 | Canonical gamma context | Complete | Gamma contract proves no directional authority | Reliable provider gamma flip remains unavailable until separately defined/validated |
 | High-speed `gex-engine` | Complete analytics foundation | Signed exposure, multiplier, incremental replacement/removal, spot rescale, walls, stale/invalid input tests | Side-signed OI is an inference; wall derivation is analytics; gamma flip unresolved |
 | Rust dependency auditing | Complete | CI uses pinned fail-closed RustSec audit path | New dependencies must continue through this gate |
+| Schwab GEX market-data adapter | Complete first transport foundation | Final PR #64 head passed metadata, fast, workspace/release, RustSec/dependency, and security/workflow gates before merge | Single-underlying contract sharding remains #66; provider limits remain external; gamma flip unresolved |
 | AI-native GEX foundation | Complete only for the first foundation slice | Snapshot, normalization, scope-safe ranking, explicit modes/types and research regime tests | Full feature engine, hard vetoes, specialist ensemble, playbook eligibility/role logic, arbiter, calibrated EV and persistence are not implemented yet |
 
-## Active Schwab adapter hardening (#56 / PR #64)
+## Completed Schwab adapter foundation (#56 / PR #64)
 
-Implemented on the active branch:
+Merged into `dev` as `d547a03a2675c42ffbe9ff8a5016e5e716f5c366` after the exact final PR head passed every hosted gate.
 
-- arbitrary-length runtime API profiles with separate credentials/token stores/REST budgets/streamer identities;
-- explicit provider/deployment timeouts rather than unbounded HTTP/WSS operations;
+Implemented boundaries include:
+
+- arbitrary-length runtime API profiles with separate credentials, token stores, REST budgets, reconnect delay, transport timeout, and streamer identities;
 - OAuth authorization/refresh and validated/redacted token persistence;
+- atomic token writes with restricted Unix temporary-file permissions;
+- explicit HTTPS callback validation and explicit nonzero deployment/provider timeouts rather than hidden strategy defaults;
 - REST option-chain bootstrap and streamer discovery;
-- WSS ADMIN login, LEVELONE_OPTIONS and LEVELONE_EQUITIES requests;
+- WSS ADMIN login plus LEVELONE_OPTIONS and LEVELONE_EQUITIES subscriptions;
 - request-ID exhaustion fail close and ambiguous-frame rejection;
 - one authoritative GEX state per underlying;
-- partial stream-field merge without zero-filling missing fields;
-- coverage/timestamp/freshness/delayed-state validation;
-- sticky profile ownership, explicit failure release/reassignment, duplicate streamer-user prevention;
-- provider-integrity errors latch affected runtime state uncertain until rebootstrap;
-- recorded bootstrap/partial-update fixtures and multi-profile/rate/provider/runtime hardening contracts.
+- partial stream-field merge without zero-filling absent fields;
+- expected/hydrated coverage and option/underlying timestamp tracking;
+- wrong-profile, stale, delayed, future, partial, malformed, conflicting, and unknown-contract state prevented from becoming reliable Gamma output;
+- sticky profile ownership, explicit failure release/reassignment, and duplicate streamer-user prevention;
+- provider-integrity errors latch affected state uncertain until explicit reconciliation/rebootstrap;
+- an always-on supervisor for retryable disconnect/reconnect/resubscribe lifecycle;
+- current streamer metadata rediscovery and subscription restoration on reconnect;
+- reliable-live activation only after required subscription acknowledgements succeed, with intervening data buffered until activation;
+- disconnect removes reliable-live state immediately but does not itself trigger REST option-chain bootstrap, avoiding reconnect-driven REST storms;
+- provider connection-limit, symbol-limit, integrity, and other non-retryable provider failures remain fail closed rather than being looped indefinitely.
 
-Not yet considered complete:
+The transport remains evidence infrastructure only. It cannot choose direction, approve risk, authorize a setup, construct a canonical trade decision, or route a broker order. Canonical §§14-15 still make Gamma volatility context rather than a directional signal.
 
-- final always-on streamer supervision/reconnect/resubscribe lifecycle is not yet proven end-to-end; the PR must either implement it or explicitly narrow its completion claim;
-- the latest hardening head still must complete every hosted gate, including RustSec, after all changes;
-- one large underlying is not contract-sharded across profiles in #56; that separate capacity problem is Issue #66 and must preserve one authoritative aggregate state.
+Remaining provider boundaries are explicit:
+
+- Issue #66 owns any future contract-level sharding of one large underlying across genuinely independent streamer identities; it must preserve one authoritative aggregate state and prove cross-shard coverage/freshness/ownership before use;
+- provider-side application, account, entitlement, request, connection, and symbol limits remain external authority and are not guessed or bypassed;
+- public side-signed-OI GEX remains an analytical inference rather than actual market-maker inventory;
+- gamma flip remains unresolved until a separately specified, validated, and approved model exists.
 
 ## AI-native implementation directive status
 
@@ -96,15 +108,14 @@ Do not fill these gaps with convention or guesses:
 
 ## Ordered next steps
 
-1. Merge the current context/documentation alignment only after its own PR is fully green; then keep it synchronized with later implementation merges.
-2. Finish #56 hardening and merge only on a fully green final head; refresh the control record after that merge rather than waiting to document known current state.
-3. Keep #66 separate and implement it only if single-underlying capacity requires cross-profile contract sharding and reliable cross-shard reconciliation can be proven.
+1. Finalize Issue #65 / PR #67 documentation and canonical provenance, including the completed #52 live-cutoff slice, and merge only after the exact final head is fully green.
+2. Re-audit and enforce Issue #26 repository branch/ruleset protection before any release or promotion to `main`; current `dev` and `main` are not claimed protected.
+3. Keep #66 separate and implement it only if single-underlying capacity proves cross-profile contract sharding is needed and reliable cross-shard reconciliation can be demonstrated.
 4. Resume AI-native §42 at the first incomplete deterministic layer: broad feature engine plus explicit hard-veto contracts, not specialist LLM proliferation.
-5. Add typed specialist output interfaces and parallel specialists only after snapshot/features are stable.
+5. Add typed specialist interfaces and parallel specialists only after snapshot/features are stable.
 6. Then implement playbook eligibility/role/interaction logic, adversarial review, hierarchical arbiter, calibrated-EV interface, deterministic execution validation, and outcome persistence in that order.
-7. Build replay/historical datasets to compare `STRICT_SOURCE_BASELINE` against `AI_NATIVE`; strategy promotion still requires complete §116 evidence.
+7. Build replay/historical datasets to compare `STRICT_SOURCE_BASELINE` against `AI_NATIVE`; strategy promotion still requires the complete canonical §116 evidence sequence.
 8. Implement exact provider-specific broker execution/reconciliation contracts before any live order path or production release.
-9. Re-audit GitHub branch/ruleset protection before release; current `dev` and `main` are not claimed protected.
 
 ## Completion definition
 
