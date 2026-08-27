@@ -392,6 +392,20 @@
       "provenance": "FALSE/UNKNOWN/error cancellation confirmation never fabricates MISSED; the setup remains structurally pending, shared execution is latched unsafe, and provider-specific retry/recovery behavior is not inferred"
     }
   },
+  "implemented_in_issue_52": {
+    "live_entry_window_gate": {
+      "sections": [3, 4, 109, 117, 122],
+      "provenance": "current ET time is required at the live Execution Gate; SessionPermissions is recalculated and permit issuance fails with TIME_CUTOFF outside 09:30:00 through 10:59:59 ET"
+    },
+    "pretransmit_time_recheck": {
+      "sections": [3, 4, 100, 109, 117, 122],
+      "provenance": "current ET time is rechecked immediately before broker transmission; a permit created before 11:00 cannot transmit at or after the cutoff; only the untransmitted reservation is cleared and ENTRY_AUTHORIZED is retained"
+    },
+    "post_cutoff_position_management_boundary": {
+      "sections": [4, 118],
+      "provenance": "the new-entry cutoff does not disable existing-position management; no new entry or position add is authorized after 11:00 ET"
+    }
+  },
   "unresolved_strategy_algorithms": {
     "substantial_prior_value_area_overlap": {
       "section": 22,
