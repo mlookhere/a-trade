@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/auction-core", "crates/gex-engine", "crates/gex-strategy"]
+members = ["crates/auction-core", "crates/gex-engine", "crates/gex-strategy", "crates/schwab-gex-adapter"]
 resolver = "3"
 
 [workspace.package]
