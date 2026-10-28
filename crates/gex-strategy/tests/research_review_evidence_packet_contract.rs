@@ -2,13 +2,12 @@
 //! Canonical §§5–6,11,14–16,70,103,116: unknown source/broker/risk means NO_TRADE.
 
 use gex_strategy::{
-    AiNativeFeatureInput, AiNativeFeatureSet, DataQuality, EvidenceAudit,
-    ExplicitAgeLimits, GexLevelRole, GexScope, GexTimeObservation, MarketSnapshot,
-    MarketSnapshotInput, RawGexLevel, ResearchGexRoleComparison,
-    ResearchGexRoleComparisonError, ResearchGexRoleInput, ResearchGexRoleReport,
-    ResearchGexRoleSubmission, ResearchReviewEvidencePacket, ResearchReviewPacketError,
-    Session, SnapshotTimingAssessment, SnapshotTimingProvenanceError, SpecialistBatch,
-    TemporalStatus, assess_snapshot_timing, audit_specialist_evidence,
+    AiNativeFeatureInput, AiNativeFeatureSet, DataQuality, EvidenceAudit, ExplicitAgeLimits,
+    GexLevelRole, GexScope, GexTimeObservation, MarketSnapshot, MarketSnapshotInput, RawGexLevel,
+    ResearchGexRoleComparison, ResearchGexRoleComparisonError, ResearchGexRoleInput,
+    ResearchGexRoleReport, ResearchGexRoleSubmission, ResearchReviewEvidencePacket,
+    ResearchReviewPacketError, Session, SnapshotTimingAssessment, SnapshotTimingProvenanceError,
+    SpecialistBatch, TemporalStatus, assess_snapshot_timing, audit_specialist_evidence,
 };
 
 fn snapshot(id: &str, spot: f64) -> MarketSnapshot {
@@ -210,15 +209,9 @@ fn missing_independent_gex_stays_missing_in_a_consistent_packet() {
         packet.validate_inputs(&s, &a, &r, &t, 1_020, &limits()),
         Ok(())
     );
+    let present_gex = timing(&s, 1_020, true);
     assert_eq!(
-        packet.validate_inputs(
-            &s,
-            &a,
-            &r,
-            &timing(&s, 1_020, true),
-            1_020,
-            &limits(),
-        ),
+        packet.validate_inputs(&s, &a, &r, &present_gex, 1_020, &limits()),
         Err(ResearchReviewPacketError::TimingAssessmentChanged)
     );
 }
