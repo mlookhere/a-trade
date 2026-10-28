@@ -313,26 +313,41 @@ fn hard_veto_results_reject_same_id_revised_source_and_changed_condition_inputs(
         data_quality: DataQuality::Structured,
     };
     let revised_inputs = [
-        (MarketSnapshotInput {
-            source_timestamp_millis: 999,
-            ..base.clone()
-        }, false),
-        (MarketSnapshotInput {
-            received_timestamp_millis: 1_011,
-            ..base.clone()
-        }, false),
-        (MarketSnapshotInput {
-            spot_price: 601.0,
-            ..base.clone()
-        }, false),
-        (MarketSnapshotInput {
-            session: Session::Premarket,
-            ..base.clone()
-        }, false),
-        (MarketSnapshotInput {
-            data_quality: DataQuality::Unknown,
-            ..base.clone()
-        }, false),
+        (
+            MarketSnapshotInput {
+                source_timestamp_millis: 999,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                received_timestamp_millis: 1_011,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                spot_price: 601.0,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                session: Session::Premarket,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Unknown,
+                ..base.clone()
+            },
+            false,
+        ),
         (base, true),
     ];
     let levels = [RawGexLevel {
