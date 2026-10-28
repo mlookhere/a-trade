@@ -107,7 +107,10 @@ fn exact_age_and_clock_boundary_preserve_raw_evidence_and_provenance() {
     assert_eq!(raw.timeframe(), OhlcvTimeframe::Minute5);
     assert_eq!(raw.source_timestamp_millis(), 800);
     assert_eq!(raw.wick_asymmetry_ratio(), -0.25);
-    assert_eq!(raw.provenance(), RuleProvenance::ValidationRequiredAssumption);
+    assert_eq!(
+        raw.provenance(),
+        RuleProvenance::ValidationRequiredAssumption
+    );
 }
 
 #[test]
@@ -169,11 +172,23 @@ fn snapshot_symbol_source_and_quality_mismatch_fail_closed() {
     let src = valid_series(&snap);
     let age = coverage(&snap, Some(&src), 1_010, 210);
     assert_eq!(
-        checked(&snapshot("other", "SPY"), &src, &age, OhlcvTimeframe::Minute5, 1_010),
+        checked(
+            &snapshot("other", "SPY"),
+            &src,
+            &age,
+            OhlcvTimeframe::Minute5,
+            1_010
+        ),
         Err(ResearchWickAnatomyDecisionError::SnapshotMismatch)
     );
     assert_eq!(
-        checked(&snapshot("wick102", "QQQ"), &src, &age, OhlcvTimeframe::Minute5, 1_010),
+        checked(
+            &snapshot("wick102", "QQQ"),
+            &src,
+            &age,
+            OhlcvTimeframe::Minute5,
+            1_010
+        ),
         Err(ResearchWickAnatomyDecisionError::SymbolMismatch)
     );
 
@@ -237,8 +252,20 @@ fn exact_completed_candle_timestamp_must_match_scope_evidence() {
 fn invalid_raw_wick_arithmetic_cannot_be_promoted() {
     let snap = snapshot("wick102", "SPY");
     for (open, high, low, close, expected) in [
-        (100.0, 100.0, 100.0, 100.0, ResearchWickAnatomyError::ZeroRangeBar),
-        (0.0, f64::MAX, -f64::MAX, 0.0, ResearchWickAnatomyError::NonFiniteCalculation),
+        (
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            ResearchWickAnatomyError::ZeroRangeBar,
+        ),
+        (
+            0.0,
+            f64::MAX,
+            -f64::MAX,
+            0.0,
+            ResearchWickAnatomyError::NonFiniteCalculation,
+        ),
     ] {
         let src = series(
             &snap,
@@ -249,7 +276,9 @@ fn invalid_raw_wick_arithmetic_cannot_be_promoted() {
         let age = coverage(&snap, Some(&src), 1_010, 210);
         assert_eq!(
             checked(&snap, &src, &age, OhlcvTimeframe::Minute5, 1_010),
-            Err(ResearchWickAnatomyDecisionError::InvalidRawObservation(expected))
+            Err(ResearchWickAnatomyDecisionError::InvalidRawObservation(
+                expected
+            ))
         );
     }
 }
