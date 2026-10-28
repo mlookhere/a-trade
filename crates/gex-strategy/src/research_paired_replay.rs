@@ -79,7 +79,11 @@ impl ResearchPairedEvaluationManifest {
     pub fn phase_for(&self, session_id: &str) -> Option<ResearchEvaluationPhase> {
         if self.backtest_session_ids.iter().any(|id| id == session_id) {
             Some(ResearchEvaluationPhase::Backtest)
-        } else if self.out_of_sample_session_ids.iter().any(|id| id == session_id) {
+        } else if self
+            .out_of_sample_session_ids
+            .iter()
+            .any(|id| id == session_id)
+        {
             Some(ResearchEvaluationPhase::OutOfSample)
         } else {
             None
@@ -170,7 +174,11 @@ impl ResearchPairedReplayCase {
             return Err(ResearchPairedReplayError::SnapshotContentsMismatch);
         }
         ai_native
-            .validate_inputs(snapshot, ai_native.source_review(), ai_native.source_input())
+            .validate_inputs(
+                snapshot,
+                ai_native.source_review(),
+                ai_native.source_input(),
+            )
             .map_err(ResearchPairedReplayError::ProposalProvenance)?;
 
         Ok(Self {
