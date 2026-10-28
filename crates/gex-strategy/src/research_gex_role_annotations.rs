@@ -147,10 +147,7 @@ impl ResearchGexRoleReport {
 
     /// Re-check the complete snapshot witness, even if the label remains
     /// unchanged; this never verifies the *meaning* of the stated role.
-    pub fn validate_snapshot(
-        &self,
-        snapshot: &MarketSnapshot,
-    ) -> Result<(), ResearchGexRoleError> {
+    pub fn validate_snapshot(&self, snapshot: &MarketSnapshot) -> Result<(), ResearchGexRoleError> {
         if self.source_snapshot.snapshot_id() != snapshot.snapshot_id() {
             return Err(ResearchGexRoleError::SnapshotMismatch);
         }
