@@ -192,3 +192,81 @@ fn wrong_id_and_same_id_revised_snapshot_cannot_launder_agent_annotations() {
     );
     assert_eq!(result.validate_snapshot(&snap), Ok(()));
 }
+
+#[test]
+fn same_id_revised_quality_time_session_and_gex_are_never_interchangeable() {
+    let original = snapshot("revised", 600.0);
+    let submission = submit(&original, "gamma", &[(0, GexLevelRole::Support)]);
+    let report = ResearchGexRoleComparison::build(&original, vec![submission.clone()]).unwrap();
+
+    let base = MarketSnapshotInput {
+        snapshot_id: "revised".to_owned(),
+        symbol: "SPY".to_owned(),
+        source_timestamp_millis: 1_000,
+        received_timestamp_millis: 1_010,
+        spot_price: 600.0,
+        session: Session::Regular,
+        data_quality: DataQuality::Structured,
+    };
+    let revised_inputs = [
+        (
+            MarketSnapshotInput {
+                source_timestamp_millis: 999,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                received_timestamp_millis: 1_011,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Unknown,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                session: Session::Premarket,
+                ..base.clone()
+            },
+            false,
+        ),
+        (base, true),
+    ];
+    for (input, revised_gex) in revised_inputs {
+        let levels = [
+            RawGexLevel {
+                strike: 610.0,
+                gex_value: if revised_gex { 16.0 } else { 15.0 },
+                scope: GexScope::Aggregate,
+            },
+            RawGexLevel {
+                strike: 610.0,
+                gex_value: -100.0,
+                scope: GexScope::Expiry("2026-12-18".to_owned()),
+            },
+            RawGexLevel {
+                strike: 590.0,
+                gex_value: 1.0,
+                scope: GexScope::Aggregate,
+            },
+        ];
+        let revised = MarketSnapshot::build(input, &levels).unwrap();
+        assert_eq!(revised.snapshot_id(), original.snapshot_id());
+        assert_ne!(revised, original);
+        assert_eq!(
+            ResearchGexRoleComparison::build(&revised, vec![submission.clone()]),
+            Err(ResearchGexRoleComparisonError::SnapshotContentsMismatch)
+        );
+        assert_eq!(
+            report.validate_snapshot(&revised),
+            Err(ResearchGexRoleComparisonError::SnapshotContentsMismatch)
+        );
+    }
+}
