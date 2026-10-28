@@ -10,6 +10,8 @@ mod research_gex_role_comparison;
 pub use research_gex_role_comparison::*;
 mod research_review_evidence_packet;
 pub use research_review_evidence_packet::*;
+mod research_review_diagnostics;
+pub use research_review_diagnostics::*;
 mod evidence_resolution;
 pub use evidence_resolution::*;
 mod timing;
