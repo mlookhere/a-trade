@@ -455,6 +455,33 @@ fn proposal_never_reuses_changed_market_or_review_packet_contents() {
         Err(ResearchDecisionProposalError::SnapshotContentsMismatch)
     );
 
+    for modified in [
+        MarketSnapshotInput {
+            snapshot_id: "proposal-4".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 999,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Structured,
+        },
+        MarketSnapshotInput {
+            snapshot_id: "proposal-4".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Unknown,
+        },
+    ] {
+        let altered = MarketSnapshot::build(modified, &[]).unwrap();
+        assert_eq!(
+            proposal.validate_inputs(&altered, &review, &input),
+            Err(ResearchDecisionProposalError::SnapshotContentsMismatch)
+        );
+    }
+
     let foreign = snapshot("other", 600.0);
     assert_eq!(
         proposal.validate_inputs(&foreign, &review, &input),
