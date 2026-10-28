@@ -98,8 +98,12 @@ pub fn gex_level_reference(
 fn snapshot_field(snapshot: &MarketSnapshot, key: &str) -> Option<ObservedValue> {
     match key {
         "spot_price" => Some(ObservedValue::Price(snapshot.spot_price())),
-        "source_timestamp_millis" => Some(ObservedValue::TimestampMillis(snapshot.source_timestamp_millis())),
-        "received_timestamp_millis" => Some(ObservedValue::TimestampMillis(snapshot.received_timestamp_millis())),
+        "source_timestamp_millis" => Some(ObservedValue::TimestampMillis(
+            snapshot.source_timestamp_millis(),
+        )),
+        "received_timestamp_millis" => Some(ObservedValue::TimestampMillis(
+            snapshot.received_timestamp_millis(),
+        )),
         "data_age_millis" => Some(ObservedValue::AgeMillis(snapshot.data_age_millis())),
         _ => None,
     }
