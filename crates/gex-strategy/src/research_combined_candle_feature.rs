@@ -51,6 +51,7 @@ pub enum ResearchCombinedCandleFeatureError {
     SourceQualityMismatch,
     TimeframeMismatch,
     BarTimestampMismatch,
+    BarContentMismatch,
     SourceAgeMismatch,
     AssessmentClockMismatch,
     InvalidFeatureSet(FeatureSetError),
@@ -64,8 +65,9 @@ pub enum ResearchCombinedCandleFeatureError {
 /// inferred time, default age limit, direction or threshold is introduced.
 /// Both input formulas remain ValidationRequiredAssumption.
 ///
-/// These source identifiers do not independently attest identical OHLC
-/// *contents* or provider authenticity. Source data still needs validation.
+/// The retained raw completed-bar observations must also match exactly,
+/// including OHLC, volume, received time, source time and timeframe. This
+/// only checks consistency between provided observations, not provider truth.
 pub fn bind_research_combined_candle_feature(
     snapshot: &MarketSnapshot,
     close_location: &ResearchCloseLocationAtDecision,
@@ -96,6 +98,9 @@ pub fn bind_research_combined_candle_feature(
     }
     if close_location.measured_source_age_millis() != wick_anatomy.measured_source_age_millis() {
         return Err(ResearchCombinedCandleFeatureError::SourceAgeMismatch);
+    }
+    if close.completed_bar() != wick.completed_bar() {
+        return Err(ResearchCombinedCandleFeatureError::BarContentMismatch);
     }
     if decision_timestamp_millis != close_location.decision_timestamp_millis()
         || decision_timestamp_millis != wick_anatomy.decision_timestamp_millis()

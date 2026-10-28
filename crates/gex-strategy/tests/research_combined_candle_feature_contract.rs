@@ -35,6 +35,36 @@ fn checked_pair(
     ResearchCloseLocationAtDecision,
     ResearchWickAnatomyAtDecision,
 ) {
+    checked_pair_for_bar(
+        snap,
+        source_id,
+        quality,
+        OhlcvBarInput {
+            timeframe,
+            source_timestamp_millis: bar_time,
+            received_timestamp_millis: bar_time + 1,
+            open: 105.0,
+            high: 120.0,
+            low: 100.0,
+            close: 110.0,
+            volume: 25.0,
+            completed: true,
+        },
+        decision_time,
+    )
+}
+
+fn checked_pair_for_bar(
+    snap: &MarketSnapshot,
+    source_id: &str,
+    quality: DataQuality,
+    bar: OhlcvBarInput,
+    decision_time: i64,
+) -> (
+    ResearchCloseLocationAtDecision,
+    ResearchWickAnatomyAtDecision,
+) {
+    let timeframe = bar.timeframe;
     let bars = OhlcvObservationSeries::build(
         snap,
         OhlcvObservationInput {
@@ -42,17 +72,7 @@ fn checked_pair(
             symbol: snap.symbol().to_owned(),
             source_id: source_id.to_owned(),
             quality,
-            bars: vec![OhlcvBarInput {
-                timeframe,
-                source_timestamp_millis: bar_time,
-                received_timestamp_millis: bar_time + 1,
-                open: 105.0,
-                high: 120.0,
-                low: 100.0,
-                close: 110.0,
-                volume: 25.0,
-                completed: true,
-            }],
+            bars: vec![bar],
         },
     )
     .unwrap();
@@ -280,4 +300,84 @@ fn mismatched_assessment_age_and_caller_clock_fail_closed() {
         bind_research_combined_candle_feature(&snap, &close, &later_wick, 1_010),
         Err(ResearchCombinedCandleFeatureError::SourceAgeMismatch)
     );
+}
+
+#[test]
+fn same_timestamp_and_provider_cannot_hide_conflicting_completed_ohlcv() {
+    let snap = snapshot("s108", "SPY");
+    let initial = OhlcvBarInput {
+        timeframe: OhlcvTimeframe::Minute5,
+        source_timestamp_millis: 800,
+        received_timestamp_millis: 801,
+        open: 105.0,
+        high: 120.0,
+        low: 100.0,
+        close: 110.0,
+        volume: 25.0,
+        completed: true,
+    };
+    let (close, wick) = checked_pair_for_bar(
+        &snap,
+        "same-provider",
+        DataQuality::Structured,
+        initial.clone(),
+        1_010,
+    );
+    let observed_close = close.checked_age().observation();
+    let observed_wick = wick.observation();
+
+    assert_eq!(
+        observed_close.completed_bar(),
+        observed_wick.completed_bar()
+    );
+    assert_eq!(observed_close.completed_bar().volume(), 25.0);
+    assert_eq!(
+        observed_wick.completed_bar().received_timestamp_millis(),
+        801
+    );
+    assert!(bind_research_combined_candle_feature(&snap, &close, &wick, 1_010).is_ok());
+
+    // Revision 1 has IDENTICAL calculated feature ratios but different OHLC
+    // prices. Metadata-only and feature-ratio-only comparisons both miss it.
+    let changed_prices = OhlcvBarInput {
+        open: 115.0,
+        high: 130.0,
+        low: 110.0,
+        close: 120.0,
+        ..initial.clone()
+    };
+    let changed_volume = OhlcvBarInput {
+        volume: 26.0,
+        ..initial.clone()
+    };
+    let changed_received_time = OhlcvBarInput {
+        received_timestamp_millis: 802,
+        ..initial
+    };
+    for conflicting in [changed_prices, changed_volume, changed_received_time] {
+        let (_, revised_wick) = checked_pair_for_bar(
+            &snap,
+            "same-provider",
+            DataQuality::Structured,
+            conflicting,
+            1_010,
+        );
+        let revised = revised_wick.observation();
+        assert_eq!(revised.source_id(), observed_close.source_id());
+        assert_eq!(revised.timeframe(), observed_close.timeframe());
+        assert_eq!(
+            revised.source_timestamp_millis(),
+            observed_close.source_timestamp_millis()
+        );
+        assert_eq!(revised.snapshot_id(), observed_close.snapshot_id());
+        assert_eq!(revised.symbol(), observed_close.symbol());
+        assert_eq!(
+            revised.wick_asymmetry_ratio(),
+            observed_wick.wick_asymmetry_ratio()
+        );
+        assert_eq!(
+            bind_research_combined_candle_feature(&snap, &close, &revised_wick, 1_010),
+            Err(ResearchCombinedCandleFeatureError::BarContentMismatch)
+        );
+    }
 }

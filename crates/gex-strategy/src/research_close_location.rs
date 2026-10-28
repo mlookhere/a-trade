@@ -1,4 +1,7 @@
-use crate::{DataQuality, MarketSnapshot, OhlcvObservationSeries, OhlcvTimeframe, RuleProvenance};
+use crate::{
+    DataQuality, MarketSnapshot, ObservedOhlcvBar, OhlcvObservationSeries, OhlcvTimeframe,
+    RuleProvenance,
+};
 
 /// AI-native research §12 lists close location as a feature but supplies no
 /// required formula. The chosen high-low ratio is a validation-required
@@ -23,6 +26,7 @@ pub struct ResearchCloseLocationObservation {
     source_quality: DataQuality,
     timeframe: OhlcvTimeframe,
     source_timestamp_millis: i64,
+    completed_bar: ObservedOhlcvBar,
     close_location_ratio: f64,
     provenance: RuleProvenance,
 }
@@ -56,6 +60,13 @@ impl ResearchCloseLocationObservation {
     #[must_use]
     pub const fn source_timestamp_millis(&self) -> i64 {
         self.source_timestamp_millis
+    }
+
+    /// Exact immutable completed OHLCV observation used for this calculation.
+    /// Its equality is a research consistency invariant, not feed authenticity.
+    #[must_use]
+    pub fn completed_bar(&self) -> &ObservedOhlcvBar {
+        &self.completed_bar
     }
 
     #[must_use]
@@ -108,6 +119,7 @@ pub fn calculate_research_close_location(
         source_quality: series.quality(),
         timeframe,
         source_timestamp_millis: bar.source_timestamp_millis(),
+        completed_bar: bar.clone(),
         close_location_ratio: ratio,
         provenance: RuleProvenance::ValidationRequiredAssumption,
     })
