@@ -31,7 +31,7 @@
     "quality": ["python3 ci/quality.py"],
     "rust_format": ["cargo fmt --all -- --check"],
     "rust_lint": ["cargo clippy --workspace --all-targets --all-features -- -D warnings"],
-    "rust_test": ["cargo test --workspace --all-targets --locked"],
+    "rust_test": ["cargo test --workspace --all-targets --locked", "cargo test -p gex-strategy --doc --locked"],
     "rust_release_build": ["cargo build --workspace --release --locked"],
     "dependency_audit_tests": ["python3 ci/tests/dependency_audit_test.py"],
     "dependency_audit": ["python3 ci/dependency_audit.py"]
