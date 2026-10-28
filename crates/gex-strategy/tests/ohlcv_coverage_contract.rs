@@ -218,7 +218,10 @@ fn coverage_assessment_clock_is_immutable_historical_context() {
     assert_eq!(first, again);
     assert_eq!(first.decision_timestamp_millis(), 1_210);
     assert_eq!(later.decision_timestamp_millis(), 1_250);
-    assert_eq!(first.observations()[1].status, TemporalStatus::WithinConfiguredAge);
+    assert_eq!(
+        first.observations()[1].status,
+        TemporalStatus::WithinConfiguredAge
+    );
     assert_eq!(later.observations()[1].status, TemporalStatus::Stale);
     assert_eq!(first.observations()[1].measured_age_millis, Some(20));
     assert_eq!(later.observations()[1].measured_age_millis, Some(60));
