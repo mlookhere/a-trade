@@ -94,7 +94,7 @@ def audit_cache_policy_failures(workflows: dict[str, str]) -> list[str]:
             "          path: ~/.cargo/bin/cargo-audit",
             "          key: " + expected_key,
         ]
-        if steps[cache_idx].strip().splitlines() != [line.rstrip() for line in expected_cache]:
+        if steps[cache_idx].rstrip("\n").splitlines() != expected_cache:
             failures.append(f"{path}: cache pin/path/key must match the approved tool-only contract")
 
         expected_runs = [
