@@ -1,7 +1,7 @@
 use gex_strategy::{
     AdvisoryDirection, ClaimStatus, DataQuality, EvidenceClaimInput, EvidenceKind,
-    EvidenceReference, FeatureReference, FeatureSource, InternalConfidence, MarketSnapshot,
-    MarketSnapshotInput, Session, SpecialistBatch, SpecialistContractError, SpecialistOutput,
+    EvidenceReference, FeatureReference, FeatureSource, GexScope, InternalConfidence, MarketSnapshot,
+    MarketSnapshotInput, RawGexLevel, Session, SpecialistBatch, SpecialistContractError, SpecialistOutput,
     SpecialistOutputInput, SpecialistRole, SpecialistStatus,
 };
 
@@ -239,5 +239,103 @@ fn mixing_snapshots_or_reusing_agent_id_fails_closed() {
             .outputs()
             .len(),
         0
+    );
+}
+
+#[test]
+fn specialist_batches_reject_distinct_complete_snapshots_with_the_same_id() {
+    // Canonical §§11,16: missing/conflicting market evidence must never be inferred as valid.
+    // Research specialist observations are advisory, not trade authorizations.
+    let original = snapshot("s1");
+    let original_output =
+        SpecialistOutput::build(&original, input("original", "s1")).unwrap();
+    assert_eq!(original_output.source_snapshot(), &original);
+    assert!(SpecialistBatch::build(&original, vec![original_output.clone()]).is_ok());
+
+    let base = MarketSnapshotInput {
+        snapshot_id: "s1".to_owned(),
+        symbol: "SPY".to_owned(),
+        source_timestamp_millis: 1_000,
+        received_timestamp_millis: 1_010,
+        spot_price: 600.0,
+        session: Session::Regular,
+        data_quality: DataQuality::Structured,
+    };
+    let changes = [
+        (
+            MarketSnapshotInput {
+                source_timestamp_millis: 999,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                received_timestamp_millis: 1_011,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                spot_price: 601.0,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                session: Session::Premarket,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Parsed,
+                ..base.clone()
+            },
+            false,
+        ),
+        (base, true),
+    ];
+
+    for (changed, has_gex) in changes {
+        let levels = [RawGexLevel {
+            strike: 610.0,
+            gex_value: 100.0,
+            scope: GexScope::Aggregate,
+        }];
+        let gex: &[RawGexLevel] = if has_gex { &levels } else { &[] };
+        let revised = MarketSnapshot::build(changed, gex).unwrap();
+        assert_eq!(revised.snapshot_id(), original.snapshot_id());
+        assert_eq!(revised.symbol(), original.symbol());
+        assert_ne!(revised, original);
+
+        let revised_output = SpecialistOutput::build(&revised, input("revised", "s1")).unwrap();
+        assert_eq!(revised_output.source_snapshot(), &revised);
+
+        assert_eq!(
+            SpecialistBatch::build(&original, vec![original_output.clone(), revised_output]),
+            Err(SpecialistContractError::SnapshotContentsMismatch)
+        );
+        assert_eq!(
+            SpecialistBatch::build(&revised, vec![original_output.clone()]),
+            Err(SpecialistContractError::SnapshotContentsMismatch)
+        );
+    }
+
+    // Distinct IDs and duplicate-agent errors retain their existing precedence.
+    let foreign = snapshot("other-id");
+    assert_eq!(
+        SpecialistBatch::build(
+            &original,
+            vec![SpecialistOutput::build(&foreign, input("foreign", "other-id")).unwrap()]
+        ),
+        Err(SpecialistContractError::SnapshotMismatch)
+    );
+    assert_eq!(
+        SpecialistBatch::build(&original, vec![original_output.clone(), original_output]),
+        Err(SpecialistContractError::DuplicateAgentId)
     );
 }
