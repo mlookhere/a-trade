@@ -329,11 +329,8 @@ fn same_id_revised_snapshot_cannot_launder_research_feature_evidence() {
         source: FeatureSource::Trend,
         key: "portfolio_broker.daily_loss".to_owned(),
     };
-    let original_batch = SpecialistBatch::build(
-        &original,
-        vec![specialist(&original, reference.clone())],
-    )
-    .unwrap();
+    let original_batch =
+        SpecialistBatch::build(&original, vec![specialist(&original, reference.clone())]).unwrap();
     let original_empty = SpecialistBatch::build(&original, vec![]).unwrap();
 
     assert_eq!(original_features.source_snapshot(), &original);
@@ -353,12 +350,48 @@ fn same_id_revised_snapshot_cannot_launder_research_feature_evidence() {
         data_quality: DataQuality::Structured,
     };
     let revised_inputs = [
-        (MarketSnapshotInput { source_timestamp_millis: 999, ..base.clone() }, false),
-        (MarketSnapshotInput { received_timestamp_millis: 1_013, ..base.clone() }, false),
-        (MarketSnapshotInput { spot_price: 601.0, ..base.clone() }, false),
-        (MarketSnapshotInput { session: Session::Premarket, ..base.clone() }, false),
-        (MarketSnapshotInput { data_quality: DataQuality::Parsed, ..base.clone() }, false),
-        (MarketSnapshotInput { data_quality: DataQuality::Unknown, ..base.clone() }, false),
+        (
+            MarketSnapshotInput {
+                source_timestamp_millis: 999,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                received_timestamp_millis: 1_013,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                spot_price: 601.0,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                session: Session::Premarket,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Parsed,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Unknown,
+                ..base.clone()
+            },
+            false,
+        ),
         (base, true),
     ];
     let gex = [RawGexLevel {
