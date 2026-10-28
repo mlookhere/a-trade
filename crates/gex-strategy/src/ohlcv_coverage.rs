@@ -123,7 +123,18 @@ pub fn assess_required_ohlcv_coverage(
             (_, _) if invalid_decision_clock => (TemporalStatus::InvalidTimeline, None),
             (None, _) | (_, None) => (TemporalStatus::Missing, None),
             (Some(series), Some(bar)) => {
-                let limit = limits.limit_for(timeframe).expect("required scope");
+                // The fixed canonical set contains no Daily scope. If this
+                // contract changes, an unconfigured scope must not borrow a
+                // timeout from another timeframe or panic.
+                let Some(limit) = limits.limit_for(timeframe) else {
+                    observations.push(OhlcvScopeObservation {
+                        timeframe,
+                        status: TemporalStatus::Missing,
+                        source_timestamp_millis,
+                        measured_age_millis: None,
+                    });
+                    continue;
+                };
                 let status = classify_pair(
                     Some(bar.source_timestamp_millis()),
                     Some(bar.received_timestamp_millis()),
