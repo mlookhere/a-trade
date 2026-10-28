@@ -81,6 +81,8 @@ The codebase follows DRY, KISS, and YAGNI: precompute deterministic features onc
 
 ## Development workflow
 
+See [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md) for the development roadmap. The [current control issue](https://github.com/mlookhere/a-trade/issues/1), open PRs, and exact-head CI remain authoritative for live progress.
+
 Production branch: `main`  
 Integration branch: `dev`
 
