@@ -27,7 +27,7 @@
     }
   },
   "commands": {
-    "workflow_self_test": ["python3 workflow/self_test.py --ci"],
+    "workflow_self_test": ["python3 workflow/self_test.py --ci", "python3 ci/tests/audit_cache_workflow_test.py"],
     "quality": ["python3 ci/quality.py"],
     "rust_format": ["cargo fmt --all -- --check"],
     "rust_lint": ["cargo clippy --workspace --all-targets --all-features -- -D warnings"],
