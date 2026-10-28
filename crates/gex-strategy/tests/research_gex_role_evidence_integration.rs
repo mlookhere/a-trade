@@ -10,12 +10,7 @@ use gex_strategy::{
     gex_level_reference, resolve_reference,
 };
 
-fn snapshot(
-    id: &str,
-    spot: f64,
-    quality: DataQuality,
-    raw: &[RawGexLevel],
-) -> MarketSnapshot {
+fn snapshot(id: &str, spot: f64, quality: DataQuality, raw: &[RawGexLevel]) -> MarketSnapshot {
     MarketSnapshot::build(
         MarketSnapshotInput {
             snapshot_id: id.to_owned(),
@@ -136,11 +131,15 @@ fn observed_gex_numbers_from_distinct_scopes_do_not_certify_role_meaning() {
     let specific = gex_level_reference(&expiry, 610.0).unwrap();
     assert_ne!(aggregate.reference, specific.reference);
     assert_eq!(
-        resolve_reference(&s, &f, &aggregate).unwrap().observed_value(),
+        resolve_reference(&s, &f, &aggregate)
+            .unwrap()
+            .observed_value(),
         Some(&ObservedValue::Gex(12.0))
     );
     assert_eq!(
-        resolve_reference(&s, &f, &specific).unwrap().observed_value(),
+        resolve_reference(&s, &f, &specific)
+            .unwrap()
+            .observed_value(),
         Some(&ObservedValue::Gex(-80.0))
     );
     for index in 0..2 {
