@@ -46,6 +46,7 @@ pub enum ResearchWickAnatomyDecisionError {
     AssessmentClockMismatch,
     SnapshotMismatch,
     SymbolMismatch,
+    SnapshotContentsMismatch,
     UnsupportedTimeframe,
     SourceMismatch,
     MissingOrInvalidScopeAge,
@@ -82,6 +83,9 @@ pub fn calculate_research_wick_anatomy_at_decision(
     }
     if snapshot.symbol() != series.symbol() || snapshot.symbol() != coverage.symbol() {
         return Err(ResearchWickAnatomyDecisionError::SymbolMismatch);
+    }
+    if series.source_snapshot() != snapshot || coverage.source_snapshot() != snapshot {
+        return Err(ResearchWickAnatomyDecisionError::SnapshotContentsMismatch);
     }
     if matches!(timeframe, OhlcvTimeframe::Daily) {
         // RequiredOhlcvCoverage has no configured daily source-age scope.
