@@ -1,8 +1,9 @@
 use gex_strategy::{
     AdvisoryDirection, ClaimStatus, DataQuality, EvidenceClaimInput, EvidenceKind,
-    EvidenceReference, FeatureReference, FeatureSource, GexScope, InternalConfidence, MarketSnapshot,
-    MarketSnapshotInput, RawGexLevel, Session, SpecialistBatch, SpecialistContractError, SpecialistOutput,
-    SpecialistOutputInput, SpecialistRole, SpecialistStatus,
+    EvidenceReference, FeatureReference, FeatureSource, GexScope, InternalConfidence,
+    MarketSnapshot, MarketSnapshotInput, RawGexLevel, Session, SpecialistBatch,
+    SpecialistContractError, SpecialistOutput, SpecialistOutputInput, SpecialistRole,
+    SpecialistStatus,
 };
 
 fn snapshot(id: &str) -> MarketSnapshot {
@@ -247,8 +248,7 @@ fn specialist_batches_reject_distinct_complete_snapshots_with_the_same_id() {
     // Canonical §§11,16: missing/conflicting market evidence must never be inferred as valid.
     // Research specialist observations are advisory, not trade authorizations.
     let original = snapshot("s1");
-    let original_output =
-        SpecialistOutput::build(&original, input("original", "s1")).unwrap();
+    let original_output = SpecialistOutput::build(&original, input("original", "s1")).unwrap();
     assert_eq!(original_output.source_snapshot(), &original);
     assert!(SpecialistBatch::build(&original, vec![original_output.clone()]).is_ok());
 
