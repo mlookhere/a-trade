@@ -93,7 +93,10 @@ fn conflicting_agents_remain_explicitly_conflicting_even_when_one_is_unassigned(
 
     let report = ResearchGexRoleComparison::build(&snap, vec![a, b, c]).unwrap();
     let level = report.for_level(0).unwrap();
-    assert_eq!(level.status(), ResearchGexRoleObservationStatus::Conflicting);
+    assert_eq!(
+        level.status(),
+        ResearchGexRoleObservationStatus::Conflicting
+    );
     assert_eq!(level.claims().len(), 3);
     assert_eq!(level.claims()[1].role(), GexLevelRole::Resistance);
     assert_eq!(level.claims()[2].role(), GexLevelRole::Support);
