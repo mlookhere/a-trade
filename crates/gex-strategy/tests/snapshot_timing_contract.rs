@@ -103,7 +103,10 @@ fn conflicting_or_future_provider_timestamps_are_invalid() {
     let s = snapshot(1_000, 1_010, DataQuality::Structured);
     let future_decision = assess_snapshot_timing(&s, Some(gex(1_002, 1_011)), 1_009, &limits());
     assert_eq!(future_decision.market_data, TemporalStatus::InvalidTimeline);
-    assert_eq!(future_decision.decision_age, TemporalStatus::InvalidTimeline);
+    assert_eq!(
+        future_decision.decision_age,
+        TemporalStatus::InvalidTimeline
+    );
     assert_eq!(future_decision.gex_data, TemporalStatus::InvalidTimeline);
     let reversed = assess_snapshot_timing(&s, Some(gex(1_015, 1_014)), 1_020, &limits());
     assert_eq!(reversed.gex_data, TemporalStatus::InvalidTimeline);
