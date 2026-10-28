@@ -1,12 +1,12 @@
 use gex_strategy::{
     AdvisoryDirection, AiNativeFeatureInput, AiNativeFeatureSet, ClaimObservationStatus,
     DataQuality, EvidenceClaimInput, EvidenceKind, EvidenceReference, ExplicitAgeLimits,
-    HardCondition, HardVetoInput, MarketSnapshot, MarketSnapshotInput,
+    HardCondition, HardVetoInput, MarketSnapshot, MarketSnapshotInput, Playbook,
     ResearchAdversarialChallengeInput, ResearchAdversarialReview, ResearchAdversarialReviewError,
     ResearchChallengeClaimSide, ResearchDecisionProposal, ResearchDecisionProposalError,
-    ResearchDecisionProposalInput, Playbook, ResearchGexRoleComparison, ResearchReviewEvidencePacket, Session,
-    SpecialistBatch, SpecialistOutput, SpecialistOutputInput, SpecialistRole, SpecialistStatus,
-    assess_snapshot_timing, audit_specialist_evidence, evaluate_hard_vetoes,
+    ResearchDecisionProposalInput, ResearchGexRoleComparison, ResearchReviewEvidencePacket,
+    Session, SpecialistBatch, SpecialistOutput, SpecialistOutputInput, SpecialistRole,
+    SpecialistStatus, assess_snapshot_timing, audit_specialist_evidence, evaluate_hard_vetoes,
 };
 
 fn snapshot(id: &str, spot: f64) -> MarketSnapshot {
@@ -340,10 +340,20 @@ fn proposal_preserves_unknown_playbook_direction_and_all_original_review_witness
     assert_eq!(proposal.source_review(), &review);
     assert_eq!(proposal.source_input(), &input);
     assert_eq!(proposal.source_input().playbook, Playbook::None);
-    assert_eq!(proposal.source_input().direction, AdvisoryDirection::Unknown);
+    assert_eq!(
+        proposal.source_input().direction,
+        AdvisoryDirection::Unknown
+    );
     assert_eq!(proposal.source_review().challenges().len(), 1);
     assert_eq!(proposal.validate_inputs(&s, &review, &input), Ok(()));
-    assert_eq!(proposal.source_review().source_packet().timing().source_gex(), None);
+    assert_eq!(
+        proposal
+            .source_review()
+            .source_packet()
+            .timing()
+            .source_gex(),
+        None
+    );
 }
 
 #[test]
@@ -355,7 +365,10 @@ fn even_explicit_playbook_and_long_direction_are_only_hypotheses() {
     input.playbook = Playbook::PositiveGammaMagnet;
     input.direction = AdvisoryDirection::Long;
     let proposal = ResearchDecisionProposal::build(&s, &review, input.clone()).unwrap();
-    assert_eq!(proposal.source_input().playbook, Playbook::PositiveGammaMagnet);
+    assert_eq!(
+        proposal.source_input().playbook,
+        Playbook::PositiveGammaMagnet
+    );
     assert_eq!(proposal.source_input().direction, AdvisoryDirection::Long);
     assert!(proposal.source_review().challenges().is_empty());
     assert_eq!(proposal.validate_inputs(&s, &review, &input), Ok(()));
