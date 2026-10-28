@@ -1,9 +1,10 @@
 use gex_strategy::{
     AiNativeFeatureInput, AiNativeFeatureSet, CandleEventFeatures, DataQuality, DecisionVerdict,
-    EmaStackError, EmaStackState, FeatureSetError, HardCondition, HardConditionKind, HardVetoError,
-    HardVetoInput, HardVetoVerdict, LiquidityExecutionFeatures, MarketSnapshot,
-    MarketSnapshotInput, ParticipationFeatures, PortfolioBrokerFeatures, Session,
-    StructureFeatures, TrendFeatures, classify_ema_stack, evaluate_hard_vetoes,
+    EmaStackError, EmaStackState, FeatureSetError, GexScope, HardCondition, HardConditionKind,
+    HardVetoError, HardVetoInput, HardVetoProvenanceError, HardVetoVerdict,
+    LiquidityExecutionFeatures, MarketSnapshot, MarketSnapshotInput, ParticipationFeatures,
+    PortfolioBrokerFeatures, RawGexLevel, Session, StructureFeatures, TrendFeatures,
+    classify_ema_stack, evaluate_hard_vetoes,
 };
 
 type HardConditionCase = (HardConditionKind, fn(&mut HardVetoInput));
@@ -286,4 +287,121 @@ fn hard_veto_evaluation_fails_closed_on_snapshot_identity_errors() {
         evaluate_hard_vetoes(&snapshot, &all_pass("snapshot-2")),
         Err(HardVetoError::SnapshotMismatch)
     );
+}
+
+#[test]
+fn hard_veto_results_reject_same_id_revised_source_and_changed_condition_inputs() {
+    // Canonical §§5-6,11,16,116: consistent source references are not
+    // provider or risk attestations, and cannot grant execution permission.
+    let original = snapshot("s1");
+    let input = all_pass("s1");
+    let report = evaluate_hard_vetoes(&original, &input).unwrap();
+
+    assert_eq!(report.source_snapshot(), &original);
+    assert_eq!(report.source_input(), &input);
+    assert_eq!(report.validate_inputs(&original, &input), Ok(()));
+    assert_eq!(report.verdict(), HardVetoVerdict::Cleared);
+    assert_eq!(report.blocking_decision(), None);
+
+    let base = MarketSnapshotInput {
+        snapshot_id: "s1".to_owned(),
+        symbol: "SPY".to_owned(),
+        source_timestamp_millis: 1_000,
+        received_timestamp_millis: 1_010,
+        spot_price: 600.0,
+        session: Session::Regular,
+        data_quality: DataQuality::Structured,
+    };
+    let revised_inputs = [
+        (
+            MarketSnapshotInput {
+                source_timestamp_millis: 999,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                received_timestamp_millis: 1_011,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                spot_price: 601.0,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                session: Session::Premarket,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Unknown,
+                ..base.clone()
+            },
+            false,
+        ),
+        (base, true),
+    ];
+    let levels = [RawGexLevel {
+        strike: 610.0,
+        gex_value: 25.0,
+        scope: GexScope::Aggregate,
+    }];
+    for (revised, has_gex) in revised_inputs {
+        let gex: &[RawGexLevel] = if has_gex { &levels } else { &[] };
+        let changed = MarketSnapshot::build(revised, gex).unwrap();
+        assert_eq!(changed.snapshot_id(), original.snapshot_id());
+        assert_ne!(changed, original);
+        assert_eq!(
+            report.validate_inputs(&changed, &input),
+            Err(HardVetoProvenanceError::SnapshotContentsMismatch)
+        );
+    }
+
+    let foreign = snapshot("other");
+    assert_eq!(
+        report.validate_inputs(&foreign, &input),
+        Err(HardVetoProvenanceError::SnapshotMismatch)
+    );
+
+    let mut wrong_id = input.clone();
+    wrong_id.snapshot_id = "other".to_owned();
+    assert_eq!(
+        report.validate_inputs(&original, &wrong_id),
+        Err(HardVetoProvenanceError::InputSnapshotMismatch)
+    );
+
+    // A report produced with PASS must not be relabeled with FAIL or UNKNOWN.
+    for changed_state in [HardCondition::Fail, HardCondition::Unknown] {
+        let mut revised_input = input.clone();
+        revised_input.broker_connected = changed_state;
+        assert_eq!(
+            report.validate_inputs(&original, &revised_input),
+            Err(HardVetoProvenanceError::InputContentsMismatch)
+        );
+        let revised_report = evaluate_hard_vetoes(&original, &revised_input).unwrap();
+        assert_eq!(
+            revised_report.validate_inputs(&original, &input),
+            Err(HardVetoProvenanceError::InputContentsMismatch)
+        );
+        assert_ne!(revised_report.verdict(), HardVetoVerdict::Cleared);
+        assert_ne!(revised_report.blocking_decision(), None);
+    }
+
+    // FAIL retains precedence over UNKNOWN with no new classifications.
+    let mut mixed = input.clone();
+    mixed.data_fresh = HardCondition::Unknown;
+    mixed.broker_connected = HardCondition::Fail;
+    let rejected = evaluate_hard_vetoes(&original, &mixed).unwrap();
+    assert_eq!(rejected.verdict(), HardVetoVerdict::Reject);
+    assert_eq!(rejected.validate_inputs(&original, &mixed), Ok(()));
+    assert_eq!(rejected.blocking_decision(), Some(DecisionVerdict::Reject));
 }

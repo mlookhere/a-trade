@@ -357,9 +357,20 @@ pub enum HardVetoVerdict {
     Reject,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Provenance mismatch only; no new condition or trade authorization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HardVetoProvenanceError {
+    SnapshotMismatch,
+    SnapshotContentsMismatch,
+    InputSnapshotMismatch,
+    InputContentsMismatch,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct HardVetoResult {
     snapshot_id: String,
+    source_snapshot: MarketSnapshot,
+    source_input: HardVetoInput,
     verdict: HardVetoVerdict,
     failed_conditions: Vec<HardConditionKind>,
     unknown_conditions: Vec<HardConditionKind>,
@@ -369,6 +380,40 @@ impl HardVetoResult {
     #[must_use]
     pub fn snapshot_id(&self) -> &str {
         &self.snapshot_id
+    }
+
+    /// Immutable complete source snapshot used to create this advisory report.
+    #[must_use]
+    pub fn source_snapshot(&self) -> &MarketSnapshot {
+        &self.source_snapshot
+    }
+
+    /// Exact original caller-supplied set of 13 hard-veto conditions.
+    #[must_use]
+    pub fn source_input(&self) -> &HardVetoInput {
+        &self.source_input
+    }
+
+    /// Checks source identity only: a matching past report cannot attest to
+    /// currently valid data, provider authenticity, risk or broker safety.
+    pub fn validate_inputs(
+        &self,
+        snapshot: &MarketSnapshot,
+        input: &HardVetoInput,
+    ) -> Result<(), HardVetoProvenanceError> {
+        if self.snapshot_id != snapshot.snapshot_id() {
+            return Err(HardVetoProvenanceError::SnapshotMismatch);
+        }
+        if self.source_snapshot != *snapshot {
+            return Err(HardVetoProvenanceError::SnapshotContentsMismatch);
+        }
+        if self.snapshot_id != input.snapshot_id {
+            return Err(HardVetoProvenanceError::InputSnapshotMismatch);
+        }
+        if self.source_input != *input {
+            return Err(HardVetoProvenanceError::InputContentsMismatch);
+        }
+        Ok(())
     }
 
     #[must_use]
@@ -470,6 +515,8 @@ pub fn evaluate_hard_vetoes(
 
     Ok(HardVetoResult {
         snapshot_id: input.snapshot_id.clone(),
+        source_snapshot: snapshot.clone(),
+        source_input: input.clone(),
         verdict,
         failed_conditions,
         unknown_conditions,
