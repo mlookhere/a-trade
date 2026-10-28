@@ -1,6 +1,6 @@
 use crate::{
-    EmaStackState, MarketSnapshot, OhlcvObservationSeries, OhlcvTimeframe,
-    RequiredOhlcvCoverage, RuleProvenance, TemporalStatus, classify_ema_stack,
+    EmaStackState, MarketSnapshot, OhlcvObservationSeries, OhlcvTimeframe, RequiredOhlcvCoverage,
+    RuleProvenance, TemporalStatus, classify_ema_stack,
 };
 
 /// AI-native §34 requires explicit, version-controlled EMA windows. The source
