@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 
+mod features;
+pub use features::*;
+
 use std::collections::BTreeMap;
 
 /// AI-native GEX spec §§2, 35, 42.
