@@ -66,10 +66,9 @@ fn signed_wick_anatomy_is_deterministic_and_not_a_direction_gate() {
             &snap,
             &[(OhlcvTimeframe::Minute5, 750, open, 120.0, 100.0, close)],
         );
-        let observed = calculate_research_wick_anatomy(&snap, &data, OhlcvTimeframe::Minute5)
-            .unwrap();
-        let again = calculate_research_wick_anatomy(&snap, &data, OhlcvTimeframe::Minute5)
-            .unwrap();
+        let observed =
+            calculate_research_wick_anatomy(&snap, &data, OhlcvTimeframe::Minute5).unwrap();
+        let again = calculate_research_wick_anatomy(&snap, &data, OhlcvTimeframe::Minute5).unwrap();
         assert_eq!(observed, again);
         assert_eq!(observed.wick_asymmetry_ratio(), expected);
         assert_eq!(observed.snapshot_id(), "wick100");
@@ -121,14 +120,7 @@ fn zero_range_and_overflow_reject_instead_of_fabricating_wick_ratio() {
 
     let extreme = series(
         &snap,
-        &[(
-            OhlcvTimeframe::Minute5,
-            800,
-            0.0,
-            f64::MAX,
-            -f64::MAX,
-            0.0,
-        )],
+        &[(OhlcvTimeframe::Minute5, 800, 0.0, f64::MAX, -f64::MAX, 0.0)],
     );
     assert_eq!(
         calculate_research_wick_anatomy(&snap, &extreme, OhlcvTimeframe::Minute5),
@@ -148,11 +140,7 @@ fn absent_scope_or_mismatched_snapshot_and_symbol_fail_closed() {
         Err(ResearchWickAnatomyError::MissingCompletedBar)
     );
     assert_eq!(
-        calculate_research_wick_anatomy(
-            &snapshot("other", "SPY"),
-            &data,
-            OhlcvTimeframe::Minute5
-        ),
+        calculate_research_wick_anatomy(&snapshot("other", "SPY"), &data, OhlcvTimeframe::Minute5),
         Err(ResearchWickAnatomyError::SnapshotMismatch)
     );
     assert_eq!(
