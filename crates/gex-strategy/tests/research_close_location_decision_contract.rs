@@ -28,9 +28,7 @@ fn series(
     quality: DataQuality,
     timeframe: OhlcvTimeframe,
     timestamp: i64,
-    low: f64,
-    high: f64,
-    close: f64,
+    (low, high, close): (f64, f64, f64),
 ) -> OhlcvObservationSeries {
     OhlcvObservationSeries::build(
         snap,
@@ -62,9 +60,7 @@ fn valid_series(snap: &MarketSnapshot) -> OhlcvObservationSeries {
         DataQuality::Structured,
         OhlcvTimeframe::Minute5,
         800,
-        100.0,
-        120.0,
-        115.0,
+        (100.0, 120.0, 115.0),
     )
 }
 
@@ -257,9 +253,7 @@ fn mismatched_identity_and_provider_evidence_never_pass() {
         DataQuality::Structured,
         OhlcvTimeframe::Minute5,
         800,
-        100.0,
-        120.0,
-        115.0,
+        (100.0, 120.0, 115.0),
     );
     let other_coverage = coverage(&snap, Some(&other_source), 1_010, 210);
     assert_eq!(
@@ -281,9 +275,7 @@ fn mismatched_identity_and_provider_evidence_never_pass() {
         DataQuality::Structured,
         OhlcvTimeframe::Minute5,
         801,
-        100.0,
-        120.0,
-        115.0,
+        (100.0, 120.0, 115.0),
     );
     let other_time_coverage = coverage(&snap, Some(&other_timestamp), 1_010, 210);
     assert_eq!(
@@ -305,9 +297,7 @@ fn mismatched_identity_and_provider_evidence_never_pass() {
         DataQuality::Parsed,
         OhlcvTimeframe::Minute5,
         800,
-        100.0,
-        120.0,
-        115.0,
+        (100.0, 120.0, 115.0),
     );
     let other_quality_coverage = coverage(&snap, Some(&other_quality), 1_010, 210);
     assert_eq!(
@@ -333,9 +323,7 @@ fn undefined_candle_ratio_and_unconfigured_daily_scope_stay_rejected() {
         DataQuality::Structured,
         OhlcvTimeframe::Minute5,
         800,
-        100.0,
-        100.0,
-        100.0,
+        (100.0, 100.0, 100.0),
     );
     let age = coverage(&snap, Some(&flat), 1_010, 210);
     assert_eq!(
