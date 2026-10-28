@@ -81,6 +81,8 @@ The codebase follows DRY, KISS, and YAGNI: precompute deterministic features onc
 
 ## Development workflow
 
+See [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md) for the development roadmap. The [current control issue](https://github.com/mlookhere/a-trade/issues/1), open PRs, and exact-head CI remain authoritative for live progress.
+
 Production branch: `main`  
 Integration branch: `dev`
 
@@ -92,6 +94,8 @@ Hosted gates route through `./ci/run <stage>` using `.claude-workflow.json`. PR/
 
 `main` is not currently a promoted live trading release. Current development remains pre-production: the canonical deterministic core and Schwab market-data transport exist, but production LLM orchestration, historical/OOS evidence, paper/shadow evidence, an exact real broker execution adapter, final release promotion, and live authorization remain incomplete.
 
-## Current hardening focus
+## Current development status
 
-Issue #65 / PR #67 is the repository-wide hardening/context pass. It reconciles documentation and canonical provenance with the merged Schwab transport, audits unresolved provider and strategy boundaries, preserves the three authority lanes, and keeps unsupported behavior fail closed. Issue #26 remains a release blocker because `dev` and `main` are currently unprotected. Issue #66 remains isolated capacity work rather than being folded into provider transport without evidence that it is required.
+Read [the master plan](docs/MASTER_PLAN.md), [the control issue](https://github.com/mlookhere/a-trade/issues/1), and the current open pull requests for the latest verified checkpoint. Previously merged hardening work (including #65 / PR #67) is not an active development assignment. Research-only GEX/EMA and provider evidence contracts are under staged development; they confer no live trading authorization.
+
+[Issue #26](https://github.com/mlookhere/a-trade/issues/26) remains a release blocker until `dev` and `main` protection/rulesets are enforced and verified. [Issue #66](https://github.com/mlookhere/a-trade/issues/66) is conditional provider-capacity work, not a default requirement. Production promotion also requires the canonical strategy-validation and human-approval sequence.
