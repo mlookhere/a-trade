@@ -174,8 +174,17 @@ fn wick_extremes_symmetry_and_full_body_remain_signed_research_descriptions() {
     ] {
         let source = verified_source(&snap, open, close);
         let evidence = bind_research_wick_anatomy_feature(&snap, &source, 1_010).unwrap();
-        assert_eq!(evidence.features().candle_event().wick_asymmetry, Some(expected));
-        assert_eq!(evidence.source().observation().wick_asymmetry_ratio(), expected);
-        assert_eq!(evidence.features().candle_event().close_location_value, None);
+        assert_eq!(
+            evidence.features().candle_event().wick_asymmetry,
+            Some(expected)
+        );
+        assert_eq!(
+            evidence.source().observation().wick_asymmetry_ratio(),
+            expected
+        );
+        assert_eq!(
+            evidence.features().candle_event().close_location_value,
+            None
+        );
     }
 }
