@@ -158,9 +158,7 @@ impl ResearchGexRoleComparison {
         let levels = by_level
             .into_iter()
             .map(|(level_index, claims)| {
-                let conflicting = claims
-                    .iter()
-                    .any(|claim| claim.role != claims[0].role);
+                let conflicting = claims.iter().any(|claim| claim.role != claims[0].role);
                 ResearchGexRoleLevelObservation {
                     level_index,
                     status: if conflicting {
