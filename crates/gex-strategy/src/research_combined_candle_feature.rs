@@ -75,8 +75,7 @@ pub fn bind_research_combined_candle_feature(
     let close = close_location.checked_age().observation();
     let wick = wick_anatomy.observation();
 
-    if close.snapshot_id() != snapshot.snapshot_id()
-        || wick.snapshot_id() != snapshot.snapshot_id()
+    if close.snapshot_id() != snapshot.snapshot_id() || wick.snapshot_id() != snapshot.snapshot_id()
     {
         return Err(ResearchCombinedCandleFeatureError::SnapshotMismatch);
     }
