@@ -945,7 +945,10 @@ fn stored_paired_replay_revalidates_original_manifest_baseline_and_proposal() {
         Ok(())
     );
     assert_eq!(saved.baseline().direction, AdvisoryDirection::Unknown);
-    assert_eq!(saved.ai_native().source_input().direction, AdvisoryDirection::Unknown);
+    assert_eq!(
+        saved.ai_native().source_input().direction,
+        AdvisoryDirection::Unknown
+    );
 
     let mut new_version = manifest.clone();
     new_version.ai_native_version = "unapproved-version-change".to_owned();
@@ -954,7 +957,9 @@ fn stored_paired_replay_revalidates_original_manifest_baseline_and_proposal() {
         Err(ResearchPairedReplayError::ManifestChanged)
     );
     let mut changed_split = manifest.clone();
-    changed_split.out_of_sample_session_ids.push("2026-02-06".to_owned());
+    changed_split
+        .out_of_sample_session_ids
+        .push("2026-02-06".to_owned());
     assert_eq!(
         saved.validate_inputs(&changed_split, &s, &baseline, &proposal),
         Err(ResearchPairedReplayError::ManifestChanged)
