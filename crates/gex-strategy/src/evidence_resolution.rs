@@ -28,10 +28,27 @@ pub enum ObservedValue {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReferenceCheck {
-    pub reference: EvidenceReference,
-    pub status: ReferenceStatus,
+    reference: EvidenceReference,
+    status: ReferenceStatus,
     /// Present only when the corresponding numeric observation really exists.
-    pub observed_value: Option<ObservedValue>,
+    observed_value: Option<ObservedValue>,
+}
+
+impl ReferenceCheck {
+    #[must_use]
+    pub fn reference(&self) -> &EvidenceReference {
+        &self.reference
+    }
+
+    #[must_use]
+    pub const fn status(&self) -> ReferenceStatus {
+        self.status
+    }
+
+    #[must_use]
+    pub fn observed_value(&self) -> Option<&ObservedValue> {
+        self.observed_value.as_ref()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,23 +61,141 @@ pub enum ClaimObservationStatus {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClaimObservation {
-    pub claim: String,
-    pub status: ClaimObservationStatus,
-    pub references: Vec<ReferenceCheck>,
+    claim: String,
+    status: ClaimObservationStatus,
+    references: Vec<ReferenceCheck>,
+}
+
+impl ClaimObservation {
+    #[must_use]
+    pub fn claim(&self) -> &str {
+        &self.claim
+    }
+
+    #[must_use]
+    pub const fn status(&self) -> ClaimObservationStatus {
+        self.status
+    }
+
+    #[must_use]
+    pub fn references(&self) -> &[ReferenceCheck] {
+        &self.references
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpecialistObservation {
-    pub agent_id: String,
-    pub feature_references: Vec<ReferenceCheck>,
-    pub supporting: Vec<ClaimObservation>,
-    pub contradicting: Vec<ClaimObservation>,
+    agent_id: String,
+    feature_references: Vec<ReferenceCheck>,
+    supporting: Vec<ClaimObservation>,
+    contradicting: Vec<ClaimObservation>,
 }
 
+impl SpecialistObservation {
+    #[must_use]
+    pub fn agent_id(&self) -> &str {
+        &self.agent_id
+    }
+
+    #[must_use]
+    pub fn feature_references(&self) -> &[ReferenceCheck] {
+        &self.feature_references
+    }
+
+    #[must_use]
+    pub fn supporting(&self) -> &[ClaimObservation] {
+        &self.supporting
+    }
+
+    #[must_use]
+    pub fn contradicting(&self) -> &[ClaimObservation] {
+        &self.contradicting
+    }
+}
+
+/// Immutable research-only audit: observed references are not independently
+/// verified freshness, proof of claim meaning, or permission to trade.
+///
+/// ```compile_fail
+/// use gex_strategy::EvidenceAudit;
+/// fn forge(mut audit: EvidenceAudit) {
+///     audit.snapshot_id = "replacement".to_owned();
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct EvidenceAudit {
-    pub snapshot_id: String,
-    pub specialists: Vec<SpecialistObservation>,
+    snapshot_id: String,
+    source_snapshot: MarketSnapshot,
+    source_features: AiNativeFeatureSet,
+    source_batch: SpecialistBatch,
+    specialists: Vec<SpecialistObservation>,
+}
+
+/// Audit result provenance mismatch; never a strategy or broker decision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EvidenceAuditProvenanceError {
+    SnapshotMismatch,
+    SnapshotContentsMismatch,
+    FeatureSnapshotMismatch,
+    FeatureContentsMismatch,
+    BatchSnapshotMismatch,
+    BatchContentsMismatch,
+}
+
+impl EvidenceAudit {
+    #[must_use]
+    pub fn snapshot_id(&self) -> &str {
+        &self.snapshot_id
+    }
+
+    #[must_use]
+    pub fn source_snapshot(&self) -> &MarketSnapshot {
+        &self.source_snapshot
+    }
+
+    #[must_use]
+    pub fn source_features(&self) -> &AiNativeFeatureSet {
+        &self.source_features
+    }
+
+    #[must_use]
+    pub fn source_batch(&self) -> &SpecialistBatch {
+        &self.source_batch
+    }
+
+    #[must_use]
+    pub fn specialists(&self) -> &[SpecialistObservation] {
+        &self.specialists
+    }
+
+    /// Exact original source-data check only; does not certify freshness
+    /// at any later clock or substantiate a specialist's natural-language claim.
+    pub fn validate_inputs(
+        &self,
+        snapshot: &MarketSnapshot,
+        features: &AiNativeFeatureSet,
+        batch: &SpecialistBatch,
+    ) -> Result<(), EvidenceAuditProvenanceError> {
+        if snapshot.snapshot_id() != self.snapshot_id {
+            return Err(EvidenceAuditProvenanceError::SnapshotMismatch);
+        }
+        if snapshot != &self.source_snapshot {
+            return Err(EvidenceAuditProvenanceError::SnapshotContentsMismatch);
+        }
+        if features.snapshot_id() != self.snapshot_id {
+            return Err(EvidenceAuditProvenanceError::FeatureSnapshotMismatch);
+        }
+        if features != &self.source_features {
+            return Err(EvidenceAuditProvenanceError::FeatureContentsMismatch);
+        }
+        if batch.snapshot_id() != self.snapshot_id {
+            return Err(EvidenceAuditProvenanceError::BatchSnapshotMismatch);
+        }
+        if batch != &self.source_batch {
+            return Err(EvidenceAuditProvenanceError::BatchContentsMismatch);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -395,6 +530,9 @@ pub fn audit_specialist_evidence(
     }
     Ok(EvidenceAudit {
         snapshot_id: snapshot.snapshot_id().to_owned(),
+        source_snapshot: snapshot.clone(),
+        source_features: features.clone(),
+        source_batch: batch.clone(),
         specialists,
     })
 }

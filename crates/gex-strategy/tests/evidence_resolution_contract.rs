@@ -1,10 +1,10 @@
 use gex_strategy::{
     AdvisoryDirection, AiNativeFeatureInput, AiNativeFeatureSet, ClaimObservationStatus,
-    DataQuality, EvidenceAuditError, EvidenceClaimInput, EvidenceKind, EvidenceReference,
-    FeatureReference, FeatureSource, GexScope, MarketSnapshot, MarketSnapshotInput, ObservedValue,
-    RawGexLevel, ReferenceStatus, Session, SpecialistBatch, SpecialistOutput,
-    SpecialistOutputInput, SpecialistRole, SpecialistStatus, audit_specialist_evidence,
-    gex_level_reference, resolve_feature_reference, resolve_reference,
+    DataQuality, EvidenceAuditError, EvidenceAuditProvenanceError, EvidenceClaimInput,
+    EvidenceKind, EvidenceReference, FeatureReference, FeatureSource, GexScope, MarketSnapshot,
+    MarketSnapshotInput, ObservedValue, RawGexLevel, ReferenceStatus, Session, SpecialistBatch,
+    SpecialistOutput, SpecialistOutputInput, SpecialistRole, SpecialistStatus,
+    audit_specialist_evidence, gex_level_reference, resolve_feature_reference, resolve_reference,
 };
 
 fn snapshot(id: &str, quality: DataQuality, levels: &[RawGexLevel]) -> MarketSnapshot {
@@ -93,8 +93,8 @@ fn observed_snapshot_and_feature_values_are_real() {
     ] {
         let actual =
             resolve_reference(&snap, &vals, &reference(EvidenceKind::SnapshotField, key)).unwrap();
-        assert_eq!(actual.status, ReferenceStatus::Observed);
-        assert_eq!(actual.observed_value, Some(expected));
+        assert_eq!(actual.status(), ReferenceStatus::Observed);
+        assert_eq!(actual.observed_value().cloned(), Some(expected));
     }
     let observed = resolve_reference(
         &snap,
@@ -102,15 +102,18 @@ fn observed_snapshot_and_feature_values_are_real() {
         &reference(EvidenceKind::DeterministicFeature, "trend.trend_strength"),
     )
     .unwrap();
-    assert_eq!(observed.observed_value, Some(ObservedValue::Feature(3.5)));
+    assert_eq!(
+        observed.observed_value().cloned(),
+        Some(ObservedValue::Feature(3.5))
+    );
     let missing = resolve_reference(
         &snap,
         &vals,
         &reference(EvidenceKind::DeterministicFeature, "trend.ema_slope"),
     )
     .unwrap();
-    assert_eq!(missing.status, ReferenceStatus::Missing);
-    assert_eq!(missing.observed_value, None);
+    assert_eq!(missing.status(), ReferenceStatus::Missing);
+    assert_eq!(missing.observed_value().cloned(), None);
 }
 
 #[test]
@@ -123,14 +126,14 @@ fn unsupported_fields_and_wrong_feature_groups_cannot_be_laundered() {
         &reference(EvidenceKind::SnapshotField, "future_price"),
     )
     .unwrap();
-    assert_eq!(unknown.status, ReferenceStatus::Unsupported);
+    assert_eq!(unknown.status(), ReferenceStatus::Unsupported);
     let unsupported = resolve_reference(
         &snap,
         &vals,
         &reference(EvidenceKind::Catalyst, "breaking-news"),
     )
     .unwrap();
-    assert_eq!(unsupported.status, ReferenceStatus::Unsupported);
+    assert_eq!(unsupported.status(), ReferenceStatus::Unsupported);
     let wrong = resolve_feature_reference(
         &snap,
         &vals,
@@ -140,7 +143,7 @@ fn unsupported_fields_and_wrong_feature_groups_cannot_be_laundered() {
         },
     )
     .unwrap();
-    assert_eq!(wrong.status, ReferenceStatus::Unsupported);
+    assert_eq!(wrong.status(), ReferenceStatus::Unsupported);
     let correct = resolve_feature_reference(
         &snap,
         &vals,
@@ -150,7 +153,10 @@ fn unsupported_fields_and_wrong_feature_groups_cannot_be_laundered() {
         },
     )
     .unwrap();
-    assert_eq!(correct.observed_value, Some(ObservedValue::Feature(3.5)));
+    assert_eq!(
+        correct.observed_value().cloned(),
+        Some(ObservedValue::Feature(3.5))
+    );
     let wrong_group = resolve_feature_reference(
         &snap,
         &vals,
@@ -160,7 +166,7 @@ fn unsupported_fields_and_wrong_feature_groups_cannot_be_laundered() {
         },
     )
     .unwrap();
-    assert_eq!(wrong_group.status, ReferenceStatus::Unsupported);
+    assert_eq!(wrong_group.status(), ReferenceStatus::Unsupported);
 }
 
 #[test]
@@ -185,13 +191,15 @@ fn gex_reference_requires_exact_scope_and_existing_level() {
     assert_eq!(
         resolve_reference(&snap, &vals, &aggregate)
             .unwrap()
-            .observed_value,
+            .observed_value()
+            .cloned(),
         Some(ObservedValue::Gex(-25.0))
     );
     assert_eq!(
         resolve_reference(&snap, &vals, &expiry)
             .unwrap()
-            .observed_value,
+            .observed_value()
+            .cloned(),
         Some(ObservedValue::Gex(6.0))
     );
     assert_eq!(
@@ -201,7 +209,7 @@ fn gex_reference_requires_exact_scope_and_existing_level() {
             &reference(EvidenceKind::GexLevel, "aggregate:610"),
         )
         .unwrap()
-        .status,
+        .status(),
         ReferenceStatus::Missing
     );
     assert_eq!(
@@ -211,7 +219,7 @@ fn gex_reference_requires_exact_scope_and_existing_level() {
             &gex_level_reference(&GexScope::Expiry("2026-10-31".to_owned()), 610.0).unwrap(),
         )
         .unwrap()
-        .status,
+        .status(),
         ReferenceStatus::Missing
     );
     assert_eq!(
@@ -238,8 +246,8 @@ fn ambiguous_duplicate_level_is_never_claimed_as_observed() {
     let vals = features(&snap);
     let r = gex_level_reference(&GexScope::Aggregate, 610.0).unwrap();
     let result = resolve_reference(&snap, &vals, &r).unwrap();
-    assert_eq!(result.status, ReferenceStatus::Ambiguous);
-    assert_eq!(result.observed_value, None);
+    assert_eq!(result.status(), ReferenceStatus::Ambiguous);
+    assert_eq!(result.observed_value().cloned(), None);
 }
 
 #[test]
@@ -248,8 +256,8 @@ fn unknown_data_quality_prevents_certifying_any_reference() {
     let vals = features(&snap);
     let r = reference(EvidenceKind::SnapshotField, "spot_price");
     let result = resolve_reference(&snap, &vals, &r).unwrap();
-    assert_eq!(result.status, ReferenceStatus::DataQualityUnknown);
-    assert_eq!(result.observed_value, None);
+    assert_eq!(result.status(), ReferenceStatus::DataQualityUnknown);
+    assert_eq!(result.observed_value().cloned(), None);
 }
 
 #[test]
@@ -278,23 +286,25 @@ fn batch_audits_claims_without_promoting_text_or_unverified_freshness() {
     let output = specialist(&snap, r);
     let batch = SpecialistBatch::build(&snap, vec![output]).unwrap();
     let report = audit_specialist_evidence(&snap, &vals, &batch).unwrap();
-    assert_eq!(report.snapshot_id, "s1");
-    assert_eq!(report.specialists.len(), 1);
-    let item = &report.specialists[0];
+    assert_eq!(report.snapshot_id(), "s1");
+    assert_eq!(report.specialists().len(), 1);
+    let item = &report.specialists()[0];
     assert_eq!(
-        item.feature_references[0].observed_value,
+        item.feature_references()[0].observed_value().cloned(),
         Some(ObservedValue::Feature(3.5))
     );
     assert_eq!(
-        item.supporting[0].status,
+        item.supporting()[0].status(),
         ClaimObservationStatus::ObservedReferencesOnly
     );
     assert_eq!(
-        item.contradicting[0].status,
+        item.contradicting()[0].status(),
         ClaimObservationStatus::Unknown
     );
     assert_eq!(
-        item.supporting[0].references[0].observed_value,
+        item.supporting()[0].references()[0]
+            .observed_value()
+            .cloned(),
         Some(ObservedValue::Gex(40.0))
     );
     // No ALLOW, broker execution, calibrated probability or claim-semantic proof exists.
@@ -441,5 +451,151 @@ fn same_id_revised_snapshot_cannot_launder_research_feature_evidence() {
     assert_eq!(
         audit_specialist_evidence(&original, &original_features, &foreign_batch),
         Err(EvidenceAuditError::SnapshotMismatch)
+    );
+}
+
+#[test]
+fn immutable_evidence_report_rejects_reused_source_and_rewritten_feature_inputs() {
+    // Canonical §§5–6,11,14,16,116: a historical audit is not current trade ALLOW.
+    let original = snapshot("s1", DataQuality::Structured, &[]);
+    let values = features(&original);
+    let spot_reference = reference(EvidenceKind::SnapshotField, "spot_price");
+    let batch = SpecialistBatch::build(
+        &original,
+        vec![specialist(&original, spot_reference.clone())],
+    )
+    .unwrap();
+    let audit = audit_specialist_evidence(&original, &values, &batch).unwrap();
+    assert_eq!(audit.snapshot_id(), original.snapshot_id());
+    assert_eq!(audit.source_snapshot(), &original);
+    assert_eq!(audit.source_features(), &values);
+    assert_eq!(audit.source_batch(), &batch);
+    assert_eq!(audit.validate_inputs(&original, &values, &batch), Ok(()));
+    assert_eq!(audit.specialists().len(), 1);
+
+    let base = MarketSnapshotInput {
+        snapshot_id: "s1".to_owned(),
+        symbol: "SPY".to_owned(),
+        source_timestamp_millis: 1_000,
+        received_timestamp_millis: 1_012,
+        spot_price: 600.0,
+        session: Session::Regular,
+        data_quality: DataQuality::Structured,
+    };
+    let revised_inputs = [
+        (
+            MarketSnapshotInput {
+                spot_price: 601.0,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                source_timestamp_millis: 999,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                received_timestamp_millis: 1_013,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                session: Session::Premarket,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Unknown,
+                ..base.clone()
+            },
+            false,
+        ),
+        (base, true),
+    ];
+    let gex_levels = [RawGexLevel {
+        strike: 610.0,
+        gex_value: 12.0,
+        scope: GexScope::Aggregate,
+    }];
+    for (revised, with_gex) in revised_inputs {
+        let levels: &[RawGexLevel] = if with_gex { &gex_levels } else { &[] };
+        let altered = MarketSnapshot::build(revised, levels).unwrap();
+        assert_eq!(altered.snapshot_id(), original.snapshot_id());
+        assert_ne!(altered, original);
+        assert_eq!(
+            audit.validate_inputs(&altered, &values, &batch),
+            Err(EvidenceAuditProvenanceError::SnapshotContentsMismatch)
+        );
+    }
+
+    let foreign = snapshot("different", DataQuality::Structured, &[]);
+    assert_eq!(
+        audit.validate_inputs(&foreign, &values, &batch),
+        Err(EvidenceAuditProvenanceError::SnapshotMismatch)
+    );
+    assert_eq!(
+        audit.validate_inputs(&original, &features(&foreign), &batch),
+        Err(EvidenceAuditProvenanceError::FeatureSnapshotMismatch)
+    );
+    let foreign_batch = SpecialistBatch::build(&foreign, vec![]).unwrap();
+    assert_eq!(
+        audit.validate_inputs(&original, &values, &foreign_batch),
+        Err(EvidenceAuditProvenanceError::BatchSnapshotMismatch)
+    );
+
+    let mut revised_feature_input = AiNativeFeatureInput {
+        snapshot_id: "s1".to_owned(),
+        ..Default::default()
+    };
+    revised_feature_input.trend.trend_strength = Some(4.0);
+    let revised_features = AiNativeFeatureSet::build(&original, revised_feature_input).unwrap();
+    assert_eq!(
+        audit.validate_inputs(&original, &revised_features, &batch),
+        Err(EvidenceAuditProvenanceError::FeatureContentsMismatch)
+    );
+
+    let revised_batch = SpecialistBatch::build(
+        &original,
+        vec![specialist(
+            &original,
+            reference(EvidenceKind::SnapshotField, "received_timestamp_millis"),
+        )],
+    )
+    .unwrap();
+    assert_eq!(
+        audit.validate_inputs(&original, &values, &revised_batch),
+        Err(EvidenceAuditProvenanceError::BatchContentsMismatch)
+    );
+    assert_eq!(audit.validate_inputs(&original, &values, &batch), Ok(()));
+}
+
+#[test]
+fn empty_research_audit_retains_exact_source_inputs_without_positive_claims() {
+    let snap = snapshot("s1", DataQuality::Structured, &[]);
+    let vals = features(&snap);
+    let empty = SpecialistBatch::build(&snap, vec![]).unwrap();
+    let report = audit_specialist_evidence(&snap, &vals, &empty).unwrap();
+    assert!(report.specialists().is_empty());
+    assert_eq!(report.validate_inputs(&snap, &vals, &empty), Ok(()));
+
+    let changed_batch = SpecialistBatch::build(
+        &snap,
+        vec![specialist(
+            &snap,
+            reference(EvidenceKind::SnapshotField, "spot_price"),
+        )],
+    )
+    .unwrap();
+    assert_eq!(
+        report.validate_inputs(&snap, &vals, &changed_batch),
+        Err(EvidenceAuditProvenanceError::BatchContentsMismatch)
     );
 }
