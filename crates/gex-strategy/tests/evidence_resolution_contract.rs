@@ -1,10 +1,10 @@
 use gex_strategy::{
     AdvisoryDirection, AiNativeFeatureInput, AiNativeFeatureSet, ClaimObservationStatus,
     DataQuality, EvidenceAuditError, EvidenceClaimInput, EvidenceKind, EvidenceReference,
-    FeatureReference, FeatureSource, GexScope, MarketSnapshot, MarketSnapshotInput, ObservedValue, RawGexLevel,
-    ReferenceStatus, Session, SpecialistBatch, SpecialistOutput, SpecialistOutputInput,
-    SpecialistRole, SpecialistStatus, audit_specialist_evidence, gex_level_reference,
-    resolve_feature_reference, resolve_reference,
+    FeatureReference, FeatureSource, GexScope, MarketSnapshot, MarketSnapshotInput, ObservedValue,
+    RawGexLevel, ReferenceStatus, Session, SpecialistBatch, SpecialistOutput,
+    SpecialistOutputInput, SpecialistRole, SpecialistStatus, audit_specialist_evidence,
+    gex_level_reference, resolve_feature_reference, resolve_reference,
 };
 
 fn snapshot(id: &str, quality: DataQuality, levels: &[RawGexLevel]) -> MarketSnapshot {
@@ -81,8 +81,14 @@ fn observed_snapshot_and_feature_values_are_real() {
     let vals = features(&snap);
     for (key, expected) in [
         ("spot_price", ObservedValue::Price(600.0)),
-        ("source_timestamp_millis", ObservedValue::TimestampMillis(1_000)),
-        ("received_timestamp_millis", ObservedValue::TimestampMillis(1_012)),
+        (
+            "source_timestamp_millis",
+            ObservedValue::TimestampMillis(1_000),
+        ),
+        (
+            "received_timestamp_millis",
+            ObservedValue::TimestampMillis(1_012),
+        ),
         ("data_age_millis", ObservedValue::AgeMillis(12)),
     ] {
         let actual =
@@ -275,7 +281,10 @@ fn batch_audits_claims_without_promoting_text_or_unverified_freshness() {
     assert_eq!(report.snapshot_id, "s1");
     assert_eq!(report.specialists.len(), 1);
     let item = &report.specialists[0];
-    assert_eq!(item.feature_references[0].observed_value, Some(ObservedValue::Feature(3.5)));
+    assert_eq!(
+        item.feature_references[0].observed_value,
+        Some(ObservedValue::Feature(3.5))
+    );
     assert_eq!(
         item.supporting[0].status,
         ClaimObservationStatus::ObservedReferencesOnly
@@ -284,7 +293,10 @@ fn batch_audits_claims_without_promoting_text_or_unverified_freshness() {
         item.contradicting[0].status,
         ClaimObservationStatus::Unknown
     );
-    assert_eq!(item.supporting[0].references[0].observed_value, Some(ObservedValue::Gex(40.0)));
+    assert_eq!(
+        item.supporting[0].references[0].observed_value,
+        Some(ObservedValue::Gex(40.0))
+    );
     // No ALLOW, broker execution, calibrated probability or claim-semantic proof exists.
 }
 
