@@ -81,7 +81,10 @@ fn exact_snapshot_and_decision_clock_preserve_calculator_source_and_sign() {
 
         assert_eq!(result, again);
         assert_eq!(result.features().snapshot_id(), "s104");
-        assert_eq!(result.features().candle_event().wick_asymmetry, Some(expected));
+        assert_eq!(
+            result.features().candle_event().wick_asymmetry,
+            Some(expected)
+        );
         assert_eq!(result.decision_timestamp_millis(), 1_010);
         assert_eq!(result.source().decision_timestamp_millis(), 1_010);
         assert_eq!(result.source().measured_source_age_millis(), 210);
