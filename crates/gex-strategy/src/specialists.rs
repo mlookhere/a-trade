@@ -115,6 +115,7 @@ pub enum SpecialistContractError {
     MissingAgentId,
     MissingSnapshotId,
     SnapshotMismatch,
+    SnapshotContentsMismatch,
     BlankObservation,
     BlankFeatureReference,
     BlankEvidenceReference,
@@ -199,6 +200,7 @@ pub struct SpecialistOutput {
     agent_id: String,
     role: SpecialistRole,
     snapshot_id: String,
+    source_snapshot: MarketSnapshot,
     status: SpecialistStatus,
     direction: AdvisoryDirection,
     confidence: Option<InternalConfidence>,
@@ -261,6 +263,7 @@ impl SpecialistOutput {
             agent_id: input.agent_id,
             role: input.role,
             snapshot_id: input.snapshot_id,
+            source_snapshot: snapshot.clone(),
             status: input.status,
             direction: input.direction,
             confidence,
@@ -287,6 +290,11 @@ impl SpecialistOutput {
     #[must_use]
     pub fn snapshot_id(&self) -> &str {
         &self.snapshot_id
+    }
+    /// The complete immutable snapshot used to construct this advisory observation.
+    #[must_use]
+    pub fn source_snapshot(&self) -> &MarketSnapshot {
+        &self.source_snapshot
     }
     #[must_use]
     pub const fn status(&self) -> SpecialistStatus {
@@ -365,6 +373,9 @@ impl SpecialistBatch {
         for output in &outputs {
             if output.snapshot_id() != snapshot.snapshot_id() {
                 return Err(SpecialistContractError::SnapshotMismatch);
+            }
+            if output.source_snapshot() != snapshot {
+                return Err(SpecialistContractError::SnapshotContentsMismatch);
             }
             if !ids.insert(output.agent_id().to_owned()) {
                 return Err(SpecialistContractError::DuplicateAgentId);
