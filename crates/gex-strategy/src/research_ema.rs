@@ -15,11 +15,11 @@ pub enum ResearchEmaSeed {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResearchEmaConfig {
-    pub timeframe: OhlcvTimeframe,
-    pub fast_window: usize,
-    pub middle_window: usize,
-    pub slow_window: usize,
-    pub seed: ResearchEmaSeed,
+    timeframe: OhlcvTimeframe,
+    fast_window: usize,
+    middle_window: usize,
+    slow_window: usize,
+    seed: ResearchEmaSeed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,21 +35,97 @@ pub enum ResearchEmaError {
     NonFiniteCalculation,
 }
 
+/// Calculator-owned, read-only evidence. Callers cannot forge its identity,
+/// values, or provenance by constructing/mutating public fields.
+///
+/// ```compile_fail
+/// use gex_strategy::ResearchEmaObservation;
+/// fn forge(observation: &mut ResearchEmaObservation) {
+///     observation.provenance = gex_strategy::RuleProvenance::SourceDerived;
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResearchEmaObservation {
-    pub snapshot_id: String,
-    pub symbol: String,
-    pub source_id: String,
+    snapshot_id: String,
+    symbol: String,
+    source_id: String,
     pub timeframe: OhlcvTimeframe,
     pub fast_window: usize,
     pub middle_window: usize,
     pub slow_window: usize,
     pub seed: ResearchEmaSeed,
-    pub fast_value: f64,
-    pub middle_value: f64,
-    pub slow_value: f64,
-    pub baseline_stack: EmaStackState,
-    pub provenance: RuleProvenance,
+    fast_value: f64,
+    middle_value: f64,
+    slow_value: f64,
+    baseline_stack: EmaStackState,
+    provenance: RuleProvenance,
+}
+
+impl ResearchEmaObservation {
+    #[must_use]
+    pub fn snapshot_id(&self) -> &str {
+        &self.snapshot_id
+    }
+
+    #[must_use]
+    pub fn symbol(&self) -> &str {
+        &self.symbol
+    }
+
+    #[must_use]
+    pub fn source_id(&self) -> &str {
+        &self.source_id
+    }
+
+    #[must_use]
+    pub const fn timeframe(&self) -> OhlcvTimeframe {
+        self.timeframe
+    }
+
+    #[must_use]
+    pub const fn fast_window(&self) -> usize {
+        self.fast_window
+    }
+
+    #[must_use]
+    pub const fn middle_window(&self) -> usize {
+        self.middle_window
+    }
+
+    #[must_use]
+    pub const fn slow_window(&self) -> usize {
+        self.slow_window
+    }
+
+    #[must_use]
+    pub const fn seed(&self) -> ResearchEmaSeed {
+        self.seed
+    }
+
+    #[must_use]
+    pub const fn fast_value(&self) -> f64 {
+        self.fast_value
+    }
+
+    #[must_use]
+    pub const fn middle_value(&self) -> f64 {
+        self.middle_value
+    }
+
+    #[must_use]
+    pub const fn slow_value(&self) -> f64 {
+        self.slow_value
+    }
+
+    #[must_use]
+    pub const fn baseline_stack(&self) -> EmaStackState {
+        self.baseline_stack
+    }
+
+    #[must_use]
+    pub const fn provenance(&self) -> RuleProvenance {
+        self.provenance
+    }
 }
 
 /// Explicit seed choice + fixed recurrence:
