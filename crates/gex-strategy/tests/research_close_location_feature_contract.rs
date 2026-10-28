@@ -1,9 +1,9 @@
 use gex_strategy::{
-    AiNativeFeatureInput, CandleEventFeatures, DataQuality, MarketSnapshot, MarketSnapshotInput,
-    OhlcvBarInput, OhlcvObservationInput, OhlcvObservationSeries, OhlcvTimeframe,
+    AiNativeFeatureInput, CandleEventFeatures, DataQuality, LiquidityExecutionFeatures,
+    MarketSnapshot, MarketSnapshotInput, OhlcvBarInput, OhlcvObservationInput,
+    OhlcvObservationSeries, OhlcvTimeframe, ParticipationFeatures, PortfolioBrokerFeatures,
     RequiredOhlcvAgeLimits, ResearchCloseLocationFeatureError, RuleProvenance, Session,
-    TrendFeatures, StructureFeatures, ParticipationFeatures, LiquidityExecutionFeatures,
-    PortfolioBrokerFeatures, assess_required_ohlcv_coverage,
+    StructureFeatures, TrendFeatures, assess_required_ohlcv_coverage,
     bind_research_close_location_feature, calculate_research_close_location_at_decision,
 };
 
@@ -59,7 +59,8 @@ fn verified_source(
         hour1_ms: 210,
         hour4_ms: 210,
     };
-    let coverage = assess_required_ohlcv_coverage(snap, Some(&bars), decision_time, &limits).unwrap();
+    let coverage =
+        assess_required_ohlcv_coverage(snap, Some(&bars), decision_time, &limits).unwrap();
     calculate_research_close_location_at_decision(
         snap,
         &bars,
@@ -80,7 +81,10 @@ fn exact_snapshot_and_decision_clock_produce_source_bound_feature() {
     assert_eq!(result, again);
     assert_eq!(result.decision_timestamp_millis(), 1_010);
     assert_eq!(result.features().snapshot_id(), "s98");
-    assert_eq!(result.features().candle_event().close_location_value, Some(0.75));
+    assert_eq!(
+        result.features().candle_event().close_location_value,
+        Some(0.75)
+    );
     assert_eq!(result.source().decision_timestamp_millis(), 1_010);
     assert_eq!(result.source().measured_source_age_millis(), 210);
 
@@ -112,9 +116,20 @@ fn all_other_feature_fields_remain_unknown_without_zero_fill() {
     assert_eq!(features.trend(), &TrendFeatures::default());
     assert_eq!(features.structure(), &StructureFeatures::default());
     assert_eq!(features.participation(), &ParticipationFeatures::default());
-    assert_eq!(features.liquidity_execution(), &LiquidityExecutionFeatures::default());
-    assert_eq!(features.portfolio_broker(), &PortfolioBrokerFeatures::default());
-    assert_eq!(AiNativeFeatureInput::default().candle_event.close_location_value, None);
+    assert_eq!(
+        features.liquidity_execution(),
+        &LiquidityExecutionFeatures::default()
+    );
+    assert_eq!(
+        features.portfolio_broker(),
+        &PortfolioBrokerFeatures::default()
+    );
+    assert_eq!(
+        AiNativeFeatureInput::default()
+            .candle_event
+            .close_location_value,
+        None
+    );
 }
 
 #[test]
