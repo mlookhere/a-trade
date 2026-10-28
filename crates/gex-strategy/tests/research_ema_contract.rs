@@ -1,8 +1,8 @@
 use gex_strategy::{
     DataQuality, EmaStackState, MarketSnapshot, MarketSnapshotInput, OhlcvBarInput,
     OhlcvObservationInput, OhlcvObservationSeries, OhlcvTimeframe, RequiredOhlcvAgeLimits,
-    RequiredOhlcvCoverage, ResearchEmaConfig, ResearchEmaError, ResearchEmaSeed,
-    RuleProvenance, Session, assess_required_ohlcv_coverage, calculate_research_ema_stack,
+    RequiredOhlcvCoverage, ResearchEmaConfig, ResearchEmaError, ResearchEmaSeed, RuleProvenance,
+    Session, assess_required_ohlcv_coverage, calculate_research_ema_stack,
 };
 
 fn snapshot(id: &str, symbol: &str) -> MarketSnapshot {
@@ -102,7 +102,10 @@ fn research_ema_preserves_explicit_windows_and_bullish_baseline() {
     assert_eq!(result.fast_window, 9);
     assert_eq!(result.middle_window, 21);
     assert_eq!(result.slow_window, 50);
-    assert_eq!(result.provenance, RuleProvenance::ValidationRequiredAssumption);
+    assert_eq!(
+        result.provenance,
+        RuleProvenance::ValidationRequiredAssumption
+    );
 }
 
 #[test]
@@ -120,7 +123,13 @@ fn research_ema_recognizes_bearish_and_equal_stacks_without_a_veto() {
     .unwrap();
     assert_eq!(result.baseline_stack, EmaStackState::Bearish);
 
-    let flat = series(&snap, "source", &vec![200.0; 60], OhlcvTimeframe::Minute5, 1);
+    let flat = series(
+        &snap,
+        "source",
+        &vec![200.0; 60],
+        OhlcvTimeframe::Minute5,
+        1,
+    );
     let flat_time = coverage(&snap, &flat, 2_000);
     let same = calculate_research_ema_stack(
         &snap,
@@ -161,7 +170,13 @@ fn different_explicit_seed_formalizations_are_not_hidden() {
 #[test]
 fn invalid_windows_and_unsupported_daily_scope_reject() {
     let snap = snapshot("s82", "SPY");
-    let data = series(&snap, "source", &vec![200.0; 60], OhlcvTimeframe::Minute5, 1);
+    let data = series(
+        &snap,
+        "source",
+        &vec![200.0; 60],
+        OhlcvTimeframe::Minute5,
+        1,
+    );
     let time = coverage(&snap, &data, 2_000);
     for (fast, mid, slow) in [(0, 21, 50), (9, 9, 50), (21, 9, 50), (9, 50, 50)] {
         let mut cfg = config(ResearchEmaSeed::InitialSimpleAverage);
@@ -184,7 +199,13 @@ fn invalid_windows_and_unsupported_daily_scope_reject() {
 #[test]
 fn unknown_or_stale_source_coverage_never_creates_an_ema() {
     let snap = snapshot("s82", "SPY");
-    let data = series(&snap, "source", &vec![200.0; 60], OhlcvTimeframe::Minute5, 1);
+    let data = series(
+        &snap,
+        "source",
+        &vec![200.0; 60],
+        OhlcvTimeframe::Minute5,
+        1,
+    );
     let stale = coverage(&snap, &data, 1);
     assert_eq!(
         calculate_research_ema_stack(
@@ -195,7 +216,13 @@ fn unknown_or_stale_source_coverage_never_creates_an_ema() {
         ),
         Err(ResearchEmaError::MissingOrStaleCoverage)
     );
-    let missing = series(&snap, "source", &vec![200.0; 60], OhlcvTimeframe::Minute15, 1);
+    let missing = series(
+        &snap,
+        "source",
+        &vec![200.0; 60],
+        OhlcvTimeframe::Minute15,
+        1,
+    );
     let missing_age = coverage(&snap, &missing, 2_000);
     assert_eq!(
         calculate_research_ema_stack(
@@ -211,9 +238,18 @@ fn unknown_or_stale_source_coverage_never_creates_an_ema() {
 #[test]
 fn insufficient_history_never_zero_fills_missing_ema_warmup() {
     let snap = snapshot("s82", "SPY");
-    let data = series(&snap, "source", &vec![200.0; 49], OhlcvTimeframe::Minute5, 1);
+    let data = series(
+        &snap,
+        "source",
+        &vec![200.0; 49],
+        OhlcvTimeframe::Minute5,
+        1,
+    );
     let time = coverage(&snap, &data, 2_000);
-    for seed in [ResearchEmaSeed::FirstCompletedClose, ResearchEmaSeed::InitialSimpleAverage] {
+    for seed in [
+        ResearchEmaSeed::FirstCompletedClose,
+        ResearchEmaSeed::InitialSimpleAverage,
+    ] {
         assert_eq!(
             calculate_research_ema_stack(&snap, &data, &time, &config(seed)),
             Err(ResearchEmaError::InsufficientCompletedHistory)
