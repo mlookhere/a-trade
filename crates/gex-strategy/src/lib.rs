@@ -4,6 +4,8 @@ mod features;
 pub use features::*;
 mod specialists;
 pub use specialists::*;
+mod evidence_resolution;
+pub use evidence_resolution::*;
 
 use std::collections::BTreeMap;
 
