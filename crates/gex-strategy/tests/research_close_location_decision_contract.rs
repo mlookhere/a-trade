@@ -1,8 +1,8 @@
 use gex_strategy::{
     DataQuality, MarketSnapshot, MarketSnapshotInput, OhlcvBarInput, OhlcvObservationInput,
     OhlcvObservationSeries, OhlcvTimeframe, RequiredOhlcvAgeLimits, RequiredOhlcvCoverage,
-    ResearchCloseLocationAgeError, ResearchCloseLocationDecisionError,
-    ResearchCloseLocationError, RuleProvenance, Session, assess_required_ohlcv_coverage,
+    ResearchCloseLocationAgeError, ResearchCloseLocationDecisionError, ResearchCloseLocationError,
+    RuleProvenance, Session, assess_required_ohlcv_coverage,
     calculate_research_close_location_at_decision,
 };
 
@@ -245,7 +245,9 @@ fn mismatched_identity_and_provider_evidence_never_pass() {
                 OhlcvTimeframe::Minute5,
                 1_010
             ),
-            Err(ResearchCloseLocationDecisionError::InvalidScopeAgeEvidence(reason))
+            Err(ResearchCloseLocationDecisionError::InvalidScopeAgeEvidence(
+                reason
+            ))
         );
     }
 
