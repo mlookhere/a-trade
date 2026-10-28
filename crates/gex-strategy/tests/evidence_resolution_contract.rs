@@ -473,25 +473,68 @@ fn immutable_evidence_report_rejects_reused_source_and_rewritten_feature_inputs(
     assert_eq!(audit.validate_inputs(&original, &values, &batch), Ok(()));
     assert_eq!(audit.specialists().len(), 1);
 
-    let altered = MarketSnapshot::build(
-        MarketSnapshotInput {
-            snapshot_id: "s1".to_owned(),
-            symbol: "SPY".to_owned(),
-            source_timestamp_millis: 1_000,
-            received_timestamp_millis: 1_012,
-            spot_price: 601.0,
-            session: Session::Regular,
-            data_quality: DataQuality::Structured,
-        },
-        &[],
-    )
-    .unwrap();
-    assert_eq!(altered.snapshot_id(), original.snapshot_id());
-    assert_ne!(altered, original);
-    assert_eq!(
-        audit.validate_inputs(&altered, &values, &batch),
-        Err(EvidenceAuditProvenanceError::SnapshotContentsMismatch)
-    );
+    let base = MarketSnapshotInput {
+        snapshot_id: "s1".to_owned(),
+        symbol: "SPY".to_owned(),
+        source_timestamp_millis: 1_000,
+        received_timestamp_millis: 1_012,
+        spot_price: 600.0,
+        session: Session::Regular,
+        data_quality: DataQuality::Structured,
+    };
+    let revised_inputs = [
+        (
+            MarketSnapshotInput {
+                spot_price: 601.0,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                source_timestamp_millis: 999,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                received_timestamp_millis: 1_013,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                session: Session::Premarket,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Unknown,
+                ..base.clone()
+            },
+            false,
+        ),
+        (base, true),
+    ];
+    let gex_levels = [RawGexLevel {
+        strike: 610.0,
+        gex_value: 12.0,
+        scope: GexScope::Aggregate,
+    }];
+    for (revised, with_gex) in revised_inputs {
+        let levels: &[RawGexLevel] = if with_gex { &gex_levels } else { &[] };
+        let altered = MarketSnapshot::build(revised, levels).unwrap();
+        assert_eq!(altered.snapshot_id(), original.snapshot_id());
+        assert_ne!(altered, original);
+        assert_eq!(
+            audit.validate_inputs(&altered, &values, &batch),
+            Err(EvidenceAuditProvenanceError::SnapshotContentsMismatch)
+        );
+    }
 
     let foreign = snapshot("different", DataQuality::Structured, &[]);
     assert_eq!(
