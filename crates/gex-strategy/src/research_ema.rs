@@ -28,6 +28,7 @@ pub enum ResearchEmaError {
     UnsupportedTimeframe,
     SnapshotMismatch,
     SymbolMismatch,
+    SnapshotContentsMismatch,
     SourceMismatch,
     MissingOrStaleCoverage,
     CoverageBarMismatch,
@@ -194,6 +195,9 @@ pub fn calculate_research_ema_stack(
     }
     if series.symbol() != snapshot.symbol() || coverage.symbol() != snapshot.symbol() {
         return Err(ResearchEmaError::SymbolMismatch);
+    }
+    if series.source_snapshot() != snapshot {
+        return Err(ResearchEmaError::SnapshotContentsMismatch);
     }
     if coverage.source_id() != Some(series.source_id())
         || coverage.source_quality() != Some(series.quality())
