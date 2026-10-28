@@ -29,6 +29,7 @@ impl ResearchCloseLocationWithAge {
 pub enum ResearchCloseLocationAgeError {
     SnapshotMismatch,
     SymbolMismatch,
+    SnapshotContentsMismatch,
     SourceMismatch,
     UnsupportedTimeframe,
     MissingOrInvalidScopeAge,
@@ -53,6 +54,9 @@ pub fn calculate_research_close_location_with_age(
     }
     if snapshot.symbol() != series.symbol() || snapshot.symbol() != coverage.symbol() {
         return Err(ResearchCloseLocationAgeError::SymbolMismatch);
+    }
+    if series.source_snapshot() != snapshot || coverage.source_snapshot() != snapshot {
+        return Err(ResearchCloseLocationAgeError::SnapshotContentsMismatch);
     }
     if matches!(timeframe, OhlcvTimeframe::Daily) {
         // RequiredOhlcvCoverage has no configured Daily source-age field.
