@@ -326,9 +326,15 @@ fn same_timestamp_and_provider_cannot_hide_conflicting_completed_ohlcv() {
     let observed_close = close.checked_age().observation();
     let observed_wick = wick.observation();
 
-    assert_eq!(observed_close.completed_bar(), observed_wick.completed_bar());
+    assert_eq!(
+        observed_close.completed_bar(),
+        observed_wick.completed_bar()
+    );
     assert_eq!(observed_close.completed_bar().volume(), 25.0);
-    assert_eq!(observed_wick.completed_bar().received_timestamp_millis(), 801);
+    assert_eq!(
+        observed_wick.completed_bar().received_timestamp_millis(),
+        801
+    );
     assert!(bind_research_combined_candle_feature(&snap, &close, &wick, 1_010).is_ok());
 
     // Revision 1 has IDENTICAL calculated feature ratios but different OHLC
