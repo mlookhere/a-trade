@@ -138,7 +138,8 @@ impl OhlcvObservationSeries {
         if input.symbol != snapshot.symbol() {
             return Err(OhlcvError::SymbolMismatch);
         }
-        if input.quality == DataQuality::Unknown || snapshot.data_quality() == DataQuality::Unknown {
+        if input.quality == DataQuality::Unknown || snapshot.data_quality() == DataQuality::Unknown
+        {
             return Err(OhlcvError::UnknownDataQuality);
         }
 
@@ -174,9 +175,10 @@ impl OhlcvObservationSeries {
             }
 
             let entries = bars_by_timeframe.entry(bar.timeframe).or_default();
-            if entries.last().is_some_and(|prior| {
-                bar.source_timestamp_millis <= prior.source_timestamp_millis
-            }) {
+            if entries
+                .last()
+                .is_some_and(|prior| bar.source_timestamp_millis <= prior.source_timestamp_millis)
+            {
                 return Err(OhlcvError::DuplicateOrOutOfOrderBar);
             }
             entries.push(ObservedOhlcvBar {
