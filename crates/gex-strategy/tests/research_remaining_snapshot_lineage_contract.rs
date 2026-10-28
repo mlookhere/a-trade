@@ -7,8 +7,7 @@ use gex_strategy::{
 };
 
 fn snapshot(
-    id: &str,
-    symbol: &str,
+    identity: (&str, &str),
     source_time: i64,
     received_time: i64,
     spot: f64,
@@ -27,8 +26,8 @@ fn snapshot(
     };
     MarketSnapshot::build(
         MarketSnapshotInput {
-            snapshot_id: id.to_owned(),
-            symbol: symbol.to_owned(),
+            snapshot_id: identity.0.to_owned(),
+            symbol: identity.1.to_owned(),
             source_timestamp_millis: source_time,
             received_timestamp_millis: received_time,
             spot_price: spot,
@@ -42,8 +41,7 @@ fn snapshot(
 
 fn base() -> MarketSnapshot {
     snapshot(
-        "same-ID",
-        "SPY",
+        ("same-ID", "SPY"),
         950,
         1_000,
         600.0,
@@ -137,8 +135,7 @@ fn identical_id_and_symbol_with_revised_snapshot_contents_fail_closed() {
         assess_required_ohlcv_coverage(&original, Some(&src), 1_010, &age_limits(210)).unwrap();
     for changed in [
         snapshot(
-            "same-ID",
-            "SPY",
+            ("same-ID", "SPY"),
             951,
             1_000,
             600.0,
@@ -147,8 +144,7 @@ fn identical_id_and_symbol_with_revised_snapshot_contents_fail_closed() {
             false,
         ),
         snapshot(
-            "same-ID",
-            "SPY",
+            ("same-ID", "SPY"),
             950,
             1_001,
             600.0,
@@ -157,8 +153,7 @@ fn identical_id_and_symbol_with_revised_snapshot_contents_fail_closed() {
             false,
         ),
         snapshot(
-            "same-ID",
-            "SPY",
+            ("same-ID", "SPY"),
             950,
             1_000,
             601.0,
@@ -167,8 +162,7 @@ fn identical_id_and_symbol_with_revised_snapshot_contents_fail_closed() {
             false,
         ),
         snapshot(
-            "same-ID",
-            "SPY",
+            ("same-ID", "SPY"),
             950,
             1_000,
             600.0,
@@ -177,8 +171,7 @@ fn identical_id_and_symbol_with_revised_snapshot_contents_fail_closed() {
             false,
         ),
         snapshot(
-            "same-ID",
-            "SPY",
+            ("same-ID", "SPY"),
             950,
             1_000,
             600.0,
@@ -187,8 +180,7 @@ fn identical_id_and_symbol_with_revised_snapshot_contents_fail_closed() {
             false,
         ),
         snapshot(
-            "same-ID",
-            "SPY",
+            ("same-ID", "SPY"),
             950,
             1_000,
             600.0,
@@ -218,8 +210,7 @@ fn different_id_and_symbol_keep_preexisting_rejection_codes() {
     let coverage =
         assess_required_ohlcv_coverage(&snap, Some(&src), 1_010, &age_limits(210)).unwrap();
     let wrong_id = snapshot(
-        "different",
-        "SPY",
+        ("different", "SPY"),
         950,
         1_000,
         600.0,
@@ -228,8 +219,7 @@ fn different_id_and_symbol_keep_preexisting_rejection_codes() {
         false,
     );
     let wrong_symbol = snapshot(
-        "same-ID",
-        "QQQ",
+        ("same-ID", "QQQ"),
         950,
         1_000,
         600.0,
