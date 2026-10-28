@@ -180,8 +180,13 @@ fn no_blank_structural_text_is_accepted() {
     input_risk.risks.push(" ".to_owned());
     cases.push((input_risk, SpecialistContractError::BlankRisk));
     let mut input_invalidation = input("d", "s1");
-    input_invalidation.proposed_invalidation.push(" ".to_owned());
-    cases.push((input_invalidation, SpecialistContractError::BlankInvalidation));
+    input_invalidation
+        .proposed_invalidation
+        .push(" ".to_owned());
+    cases.push((
+        input_invalidation,
+        SpecialistContractError::BlankInvalidation,
+    ));
     let mut input_reason = input("e", "s1");
     input_reason.reason_codes.push(" ".to_owned());
     cases.push((input_reason, SpecialistContractError::BlankReasonCode));
@@ -228,5 +233,11 @@ fn mixing_snapshots_or_reusing_agent_id_fails_closed() {
         SpecialistBatch::build(&market, vec![first, mismatched]),
         Err(SpecialistContractError::SnapshotMismatch)
     );
-    assert_eq!(SpecialistBatch::build(&market, vec![]).unwrap().outputs().len(), 0);
+    assert_eq!(
+        SpecialistBatch::build(&market, vec![])
+            .unwrap()
+            .outputs()
+            .len(),
+        0
+    );
 }
