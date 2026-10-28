@@ -368,3 +368,195 @@ fn hard_veto_report_is_required_and_cannot_be_relabelled_after_review() {
         Err(ResearchReviewPacketError::SnapshotMismatch)
     );
 }
+
+use gex_strategy::{
+    AdvisoryDirection, EvidenceClaimInput, EvidenceKind, EvidenceReference, SpecialistOutput,
+    SpecialistOutputInput, SpecialistRole, SpecialistStatus,
+};
+
+fn audit_with_references(s: &MarketSnapshot, references: Vec<EvidenceReference>) -> EvidenceAudit {
+    let specialist = SpecialistOutput::build(
+        s,
+        SpecialistOutputInput {
+            agent_id: "research-reviewer".to_owned(),
+            role: SpecialistRole::GexDealerPositioning,
+            snapshot_id: s.snapshot_id().to_owned(),
+            status: SpecialistStatus::Ok,
+            direction: AdvisoryDirection::Neutral,
+            confidence: None,
+            observations: vec![],
+            features: vec![],
+            supporting_evidence: vec![EvidenceClaimInput {
+                claim: "Presence of references, not semantic proof".to_owned(),
+                evidence: references,
+                confidence: None,
+            }],
+            contradicting_evidence: vec![],
+            unknowns: vec![],
+            risks: vec![],
+            proposed_invalidation: vec![],
+            hard_veto: false,
+            reason_codes: vec![],
+        },
+    )
+    .unwrap();
+    let batch = SpecialistBatch::build(s, vec![specialist]).unwrap();
+    audit_specialist_evidence(s, &features(s, None), &batch).unwrap()
+}
+
+#[test]
+fn diagnostics_do_not_upgrade_cleared_veto_or_missing_independent_gex() {
+    let s = snapshot("diagnostic-clear", 600.0);
+    let a = audit(&s, None);
+    let r = roles(&s, Some(GexLevelRole::Support));
+    let t = timing(&s, 1_020, false);
+    let v = veto(&s, HardCondition::Pass);
+    let packet = ResearchReviewEvidencePacket::build(&s, a, r, t, v).unwrap();
+    let summary = packet.diagnostic_summary();
+
+    assert_eq!(summary.reference_counts().observed(), 0);
+    assert_eq!(summary.reference_counts().missing(), 0);
+    assert_eq!(summary.reference_counts().ambiguous(), 0);
+    assert_eq!(summary.reference_counts().unsupported(), 0);
+    assert_eq!(summary.reference_counts().data_quality_unknown(), 0);
+    assert_eq!(summary.unknown_claims(), 0);
+    assert_eq!(summary.unverified_role_levels(), 1);
+    assert_eq!(summary.conflicting_role_levels(), 0);
+    assert_eq!(summary.independent_gex_timing(), TemporalStatus::Missing);
+    assert_eq!(summary.hard_veto_verdict(), HardVetoVerdict::Cleared);
+    assert_eq!(summary.failed_hard_conditions(), 0);
+    assert_eq!(summary.unknown_hard_conditions(), 0);
+    assert_eq!(packet.hard_veto().blocking_decision(), None);
+    assert_ne!(packet.hard_veto().blocking_decision(), Some(DecisionVerdict::Allow));
+}
+
+#[test]
+fn diagnostics_preserve_distinct_observed_missing_ambiguous_and_unsupported_evidence() {
+    let s = MarketSnapshot::build(
+        MarketSnapshotInput {
+            snapshot_id: "ambiguous-diagnostics".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Structured,
+        },
+        &[
+            RawGexLevel {
+                strike: 610.0,
+                gex_value: 5.0,
+                scope: GexScope::Aggregate,
+            },
+            RawGexLevel {
+                strike: 610.0,
+                gex_value: 8.0,
+                scope: GexScope::Aggregate,
+            },
+        ],
+    )
+    .unwrap();
+    let a = audit_with_references(
+        &s,
+        vec![
+            EvidenceReference {
+                kind: EvidenceKind::SnapshotField,
+                reference: "spot_price".to_owned(),
+            },
+            EvidenceReference {
+                kind: EvidenceKind::DeterministicFeature,
+                reference: "trend.ema_slope".to_owned(),
+            },
+            gex_strategy::gex_level_reference(&GexScope::Aggregate, 610.0).unwrap(),
+            EvidenceReference {
+                kind: EvidenceKind::Catalyst,
+                reference: "not-a-verified-input".to_owned(),
+            },
+        ],
+    );
+    let packet = ResearchReviewEvidencePacket::build(
+        &s,
+        a,
+        roles(&s, None),
+        timing(&s, 1_020, true),
+        veto(&s, HardCondition::Unknown),
+    )
+    .unwrap();
+    let summary = packet.diagnostic_summary();
+    assert_eq!(summary.reference_counts().observed(), 1);
+    assert_eq!(summary.reference_counts().missing(), 1);
+    assert_eq!(summary.reference_counts().ambiguous(), 1);
+    assert_eq!(summary.reference_counts().unsupported(), 1);
+    assert_eq!(summary.reference_counts().data_quality_unknown(), 0);
+    assert_eq!(summary.unknown_claims(), 1);
+    assert_eq!(summary.unverified_role_levels(), 0);
+    assert_eq!(summary.conflicting_role_levels(), 0);
+    assert_eq!(summary.hard_veto_verdict(), HardVetoVerdict::Wait);
+    assert_eq!(summary.failed_hard_conditions(), 0);
+    assert_eq!(summary.unknown_hard_conditions(), 13);
+}
+
+#[test]
+fn diagnostics_keep_unknown_quality_and_conflicting_roles_separate_from_veto_failure() {
+    let s = MarketSnapshot::build(
+        MarketSnapshotInput {
+            snapshot_id: "unknown-diagnostics".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Unknown,
+        },
+        &[RawGexLevel {
+            strike: 610.0,
+            gex_value: 5.0,
+            scope: GexScope::Aggregate,
+        }],
+    )
+    .unwrap();
+    let a = audit_with_references(
+        &s,
+        vec![EvidenceReference {
+            kind: EvidenceKind::SnapshotField,
+            reference: "spot_price".to_owned(),
+        }],
+    );
+    let first = roles(&s, Some(GexLevelRole::Support));
+    let other = ResearchGexRoleReport::build(
+        &s,
+        vec![ResearchGexRoleInput {
+            snapshot_id: s.snapshot_id().to_owned(),
+            level_index: 0,
+            scope: GexScope::Aggregate,
+            strike: 610.0,
+            role: GexLevelRole::Resistance,
+            rationale: "Unverified contradictory research claim".to_owned(),
+        }],
+    )
+    .unwrap();
+    let competing = ResearchGexRoleSubmission::new("gamma-other", other).unwrap();
+    let comparison = ResearchGexRoleComparison::build(
+        &s,
+        vec![first.submissions()[0].clone(), competing],
+    )
+    .unwrap();
+    let packet = ResearchReviewEvidencePacket::build(
+        &s,
+        a,
+        comparison,
+        timing(&s, 1_020, false),
+        veto(&s, HardCondition::Fail),
+    )
+    .unwrap();
+    let summary = packet.diagnostic_summary();
+    assert_eq!(summary.reference_counts().data_quality_unknown(), 1);
+    assert_eq!(summary.reference_counts().observed(), 0);
+    assert_eq!(summary.unknown_claims(), 1);
+    assert_eq!(summary.conflicting_role_levels(), 1);
+    assert_eq!(summary.unverified_role_levels(), 0);
+    assert_eq!(summary.independent_gex_timing(), TemporalStatus::Missing);
+    assert_eq!(summary.hard_veto_verdict(), HardVetoVerdict::Reject);
+    assert_eq!(summary.failed_hard_conditions(), 13);
+    assert_eq!(summary.unknown_hard_conditions(), 0);
+}
