@@ -1,7 +1,7 @@
 use gex_strategy::{
     AdvisoryDirection, AiNativeFeatureInput, AiNativeFeatureSet, ClaimObservationStatus,
     DataQuality, EvidenceAuditError, EvidenceClaimInput, EvidenceKind, EvidenceReference,
-    FeatureReference, FeatureSource, GexScope, MarketSnapshot, MarketSnapshotInput, RawGexLevel,
+    FeatureReference, FeatureSource, GexScope, MarketSnapshot, MarketSnapshotInput, ObservedValue, RawGexLevel,
     ReferenceStatus, Session, SpecialistBatch, SpecialistOutput, SpecialistOutputInput,
     SpecialistRole, SpecialistStatus, audit_specialist_evidence, gex_level_reference,
     resolve_feature_reference, resolve_reference,
@@ -28,7 +28,7 @@ fn features(snapshot: &MarketSnapshot) -> AiNativeFeatureSet {
         snapshot_id: snapshot.snapshot_id().to_owned(),
         ..Default::default()
     };
-    input.trend.trend_strength = Some(3.5);
+    input.trend.trend_strength = Some(ObservedValue::Feature(3.5));
     input.participation.relative_volume = Some(2.0);
     AiNativeFeatureSet::build(snapshot, input).unwrap()
 }
@@ -80,10 +80,10 @@ fn observed_snapshot_and_feature_values_are_real() {
     let snap = snapshot("s1", DataQuality::Structured, &[]);
     let vals = features(&snap);
     for (key, expected) in [
-        ("spot_price", 600.0),
-        ("source_timestamp_millis", 1_000.0),
-        ("received_timestamp_millis", 1_012.0),
-        ("data_age_millis", 12.0),
+        ("spot_price", ObservedValue::Price(600.0)),
+        ("source_timestamp_millis", ObservedValue::TimestampMillis(1_000)),
+        ("received_timestamp_millis", ObservedValue::TimestampMillis(1_012)),
+        ("data_age_millis", ObservedValue::AgeMillis(12)),
     ] {
         let actual =
             resolve_reference(&snap, &vals, &reference(EvidenceKind::SnapshotField, key)).unwrap();
@@ -96,7 +96,7 @@ fn observed_snapshot_and_feature_values_are_real() {
         &reference(EvidenceKind::DeterministicFeature, "trend.trend_strength"),
     )
     .unwrap();
-    assert_eq!(observed.observed_value, Some(3.5));
+    assert_eq!(observed.observed_value, Some(ObservedValue::Feature(3.5)));
     let missing = resolve_reference(
         &snap,
         &vals,
@@ -144,7 +144,7 @@ fn unsupported_fields_and_wrong_feature_groups_cannot_be_laundered() {
         },
     )
     .unwrap();
-    assert_eq!(correct.observed_value, Some(3.5));
+    assert_eq!(correct.observed_value, Some(ObservedValue::Feature(3.5)));
     let wrong_group = resolve_feature_reference(
         &snap,
         &vals,
@@ -180,13 +180,13 @@ fn gex_reference_requires_exact_scope_and_existing_level() {
         resolve_reference(&snap, &vals, &aggregate)
             .unwrap()
             .observed_value,
-        Some(-25.0)
+        Some(ObservedValue::Gex(-25.0))
     );
     assert_eq!(
         resolve_reference(&snap, &vals, &expiry)
             .unwrap()
             .observed_value,
-        Some(6.0)
+        Some(ObservedValue::Gex(6.0))
     );
     assert_eq!(
         resolve_reference(
@@ -275,7 +275,7 @@ fn batch_audits_claims_without_promoting_text_or_unverified_freshness() {
     assert_eq!(report.snapshot_id, "s1");
     assert_eq!(report.specialists.len(), 1);
     let item = &report.specialists[0];
-    assert_eq!(item.feature_references[0].observed_value, Some(3.5));
+    assert_eq!(item.feature_references[0].observed_value, Some(ObservedValue::Feature(3.5)));
     assert_eq!(
         item.supporting[0].status,
         ClaimObservationStatus::ObservedReferencesOnly
@@ -284,7 +284,7 @@ fn batch_audits_claims_without_promoting_text_or_unverified_freshness() {
         item.contradicting[0].status,
         ClaimObservationStatus::Unknown
     );
-    assert_eq!(item.supporting[0].references[0].observed_value, Some(40.0));
+    assert_eq!(item.supporting[0].references[0].observed_value, Some(ObservedValue::Gex(40.0)));
     // No ALLOW, broker execution, calibrated probability or claim-semantic proof exists.
 }
 
