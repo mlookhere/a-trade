@@ -15,11 +15,11 @@ pub enum ResearchEmaSeed {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResearchEmaConfig {
-    timeframe: OhlcvTimeframe,
-    fast_window: usize,
-    middle_window: usize,
-    slow_window: usize,
-    seed: ResearchEmaSeed,
+    pub timeframe: OhlcvTimeframe,
+    pub fast_window: usize,
+    pub middle_window: usize,
+    pub slow_window: usize,
+    pub seed: ResearchEmaSeed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,11 +49,11 @@ pub struct ResearchEmaObservation {
     snapshot_id: String,
     symbol: String,
     source_id: String,
-    pub timeframe: OhlcvTimeframe,
-    pub fast_window: usize,
-    pub middle_window: usize,
-    pub slow_window: usize,
-    pub seed: ResearchEmaSeed,
+    timeframe: OhlcvTimeframe,
+    fast_window: usize,
+    middle_window: usize,
+    slow_window: usize,
+    seed: ResearchEmaSeed,
     fast_value: f64,
     middle_value: f64,
     slow_value: f64,
