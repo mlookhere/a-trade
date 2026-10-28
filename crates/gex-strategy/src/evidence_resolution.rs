@@ -1,7 +1,6 @@
 use crate::{
-    AiNativeFeatureSet, ClaimStatus, DataQuality, EvidenceClaim, EvidenceKind,
-    EvidenceReference, FeatureReference, FeatureSource, GexScope, MarketSnapshot,
-    SpecialistBatch,
+    AiNativeFeatureSet, ClaimStatus, DataQuality, EvidenceClaim, EvidenceKind, EvidenceReference,
+    FeatureReference, FeatureSource, GexScope, MarketSnapshot, SpecialistBatch,
 };
 
 /// AI-native GEX §§6–8,24–27,33,39,42. This layer verifies actual
@@ -112,7 +111,9 @@ fn feature_field(features: &AiNativeFeatureSet, key: &str) -> Option<Option<f64>
         "structure.range_contraction" => features.structure().range_contraction,
         "structure.volatility_compression" => features.structure().volatility_compression,
         "structure.volume_contraction" => features.structure().volume_contraction,
-        "structure.directional_structure_preserved" => features.structure().directional_structure_preserved,
+        "structure.directional_structure_preserved" => {
+            features.structure().directional_structure_preserved
+        }
         "structure.breakout_pressure" => features.structure().breakout_pressure,
         "candle_event.rejection_strength" => features.candle_event().rejection_strength,
         "candle_event.wick_asymmetry" => features.candle_event().wick_asymmetry,
@@ -134,25 +135,53 @@ fn feature_field(features: &AiNativeFeatureSet, key: &str) -> Option<Option<f64>
         "participation.liquidity_depletion" => features.participation().liquidity_depletion,
         "participation.spread_quality" => features.participation().spread_quality,
         "participation.quote_replenishment" => features.participation().quote_replenishment,
-        "participation.price_movement_per_unit_volume" => features.participation().price_movement_per_unit_volume,
-        "participation.consolidation_volume_contraction" => features.participation().consolidation_volume_contraction,
-        "participation.breakout_volume_expansion" => features.participation().breakout_volume_expansion,
+        "participation.price_movement_per_unit_volume" => {
+            features.participation().price_movement_per_unit_volume
+        }
+        "participation.consolidation_volume_contraction" => {
+            features.participation().consolidation_volume_contraction
+        }
+        "participation.breakout_volume_expansion" => {
+            features.participation().breakout_volume_expansion
+        }
         "participation.participation_score" => features.participation().participation_score,
-        "liquidity_execution.liquidity_depletion" => features.liquidity_execution().liquidity_depletion,
+        "liquidity_execution.liquidity_depletion" => {
+            features.liquidity_execution().liquidity_depletion
+        }
         "liquidity_execution.spread_quality" => features.liquidity_execution().spread_quality,
-        "liquidity_execution.quote_replenishment" => features.liquidity_execution().quote_replenishment,
-        "liquidity_execution.expected_spread_cost" => features.liquidity_execution().expected_spread_cost,
+        "liquidity_execution.quote_replenishment" => {
+            features.liquidity_execution().quote_replenishment
+        }
+        "liquidity_execution.expected_spread_cost" => {
+            features.liquidity_execution().expected_spread_cost
+        }
         "liquidity_execution.expected_slippage" => features.liquidity_execution().expected_slippage,
         "liquidity_execution.fees" => features.liquidity_execution().fees,
-        "liquidity_execution.execution_risk_penalty" => features.liquidity_execution().execution_risk_penalty,
+        "liquidity_execution.execution_risk_penalty" => {
+            features.liquidity_execution().execution_risk_penalty
+        }
         "portfolio_broker.gross_exposure" => features.portfolio_broker().gross_exposure,
-        "portfolio_broker.net_directional_exposure" => features.portfolio_broker().net_directional_exposure,
-        "portfolio_broker.same_underlying_exposure" => features.portfolio_broker().same_underlying_exposure,
-        "portfolio_broker.correlated_underlying_exposure" => features.portfolio_broker().correlated_underlying_exposure,
-        "portfolio_broker.concentration_exposure" => features.portfolio_broker().concentration_exposure,
-        "portfolio_broker.aggregate_gamma_exposure" => features.portfolio_broker().aggregate_gamma_exposure,
-        "portfolio_broker.aggregate_vega_exposure" => features.portfolio_broker().aggregate_vega_exposure,
-        "portfolio_broker.aggregate_theta_exposure" => features.portfolio_broker().aggregate_theta_exposure,
+        "portfolio_broker.net_directional_exposure" => {
+            features.portfolio_broker().net_directional_exposure
+        }
+        "portfolio_broker.same_underlying_exposure" => {
+            features.portfolio_broker().same_underlying_exposure
+        }
+        "portfolio_broker.correlated_underlying_exposure" => {
+            features.portfolio_broker().correlated_underlying_exposure
+        }
+        "portfolio_broker.concentration_exposure" => {
+            features.portfolio_broker().concentration_exposure
+        }
+        "portfolio_broker.aggregate_gamma_exposure" => {
+            features.portfolio_broker().aggregate_gamma_exposure
+        }
+        "portfolio_broker.aggregate_vega_exposure" => {
+            features.portfolio_broker().aggregate_vega_exposure
+        }
+        "portfolio_broker.aggregate_theta_exposure" => {
+            features.portfolio_broker().aggregate_theta_exposure
+        }
         "portfolio_broker.daily_loss" => features.portfolio_broker().daily_loss,
         "portfolio_broker.open_order_risk" => features.portfolio_broker().open_order_risk,
         _ => return None,
@@ -297,7 +326,10 @@ pub fn audit_specialist_evidence(
     batch: &SpecialistBatch,
 ) -> Result<EvidenceAudit, EvidenceAuditError> {
     if batch.snapshot_id() != snapshot.snapshot_id()
-        || batch.outputs().iter().any(|o| o.snapshot_id() != snapshot.snapshot_id())
+        || batch
+            .outputs()
+            .iter()
+            .any(|o| o.snapshot_id() != snapshot.snapshot_id())
     {
         return Err(EvidenceAuditError::SnapshotMismatch);
     }
