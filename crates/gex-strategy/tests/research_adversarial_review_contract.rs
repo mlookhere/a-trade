@@ -243,3 +243,68 @@ fn same_id_revisions_and_swapped_packet_contents_reject() {
     );
     assert_eq!(review.validate_inputs(&s, &p), Ok(()));
 }
+
+#[test]
+fn independent_reviewers_preserve_separate_objections_without_consensus() {
+    let s = snapshot("two-reviewers", 600.0);
+    let packet = packet(&s, None);
+    let first = challenge(&s, ResearchChallengeClaimSide::Supporting);
+    let mut second = first.clone();
+    second.reviewer_id = "reviewer-b".to_owned();
+    second.rationale = "Source is present but not sufficient for the narrative".to_owned();
+
+    let review = ResearchAdversarialReview::build(&s, &packet, vec![first, second]).unwrap();
+    assert_eq!(review.challenges().len(), 2);
+    assert_eq!(review.challenges()[0].reviewer_id(), "adversarial-reviewer");
+    assert_eq!(review.challenges()[1].reviewer_id(), "reviewer-b");
+    assert_eq!(review.challenges()[0].target_claim(), review.challenges()[1].target_claim());
+    assert_eq!(
+        review.challenges()[1].observed_status(),
+        ClaimObservationStatus::ObservedReferencesOnly
+    );
+    assert_eq!(review.validate_inputs(&s, &packet), Ok(()));
+}
+
+#[test]
+fn same_id_timestamp_and_quality_revisions_cannot_reuse_original_review() {
+    let s = snapshot("same-id", 600.0);
+    let packet = packet(&s, None);
+    let review = ResearchAdversarialReview::build(&s, &packet, vec![]).unwrap();
+
+    for input in [
+        MarketSnapshotInput {
+            snapshot_id: "same-id".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 999,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Structured,
+        },
+        MarketSnapshotInput {
+            snapshot_id: "same-id".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_011,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Structured,
+        },
+        MarketSnapshotInput {
+            snapshot_id: "same-id".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Unknown,
+        },
+    ] {
+        let altered = MarketSnapshot::build(input, &[]).unwrap();
+        assert_ne!(altered, s);
+        assert_eq!(
+            review.validate_inputs(&altered, &packet),
+            Err(ResearchAdversarialReviewError::SnapshotContentsMismatch)
+        );
+    }
+}
