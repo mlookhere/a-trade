@@ -919,3 +919,185 @@ fn out_of_sample_cases_remain_separate_with_unknown_direction_preserved() {
     assert_eq!(report.different_known_direction(), 0);
     assert_eq!(report.unknown_direction(), 1);
 }
+
+#[test]
+fn stored_paired_replay_revalidates_original_manifest_baseline_and_proposal() {
+    let manifest = evaluation_manifest();
+    let s = snapshot("revalidate-oos", 600.0);
+    let packet = packet(&s, None);
+    let review = ResearchAdversarialReview::build(&s, &packet, vec![]).unwrap();
+    let input = proposal_input(&s);
+    let proposal = ResearchDecisionProposal::build(&s, &review, input.clone()).unwrap();
+    let baseline = explicit_baseline(&s, AdvisoryDirection::Unknown);
+    let saved = ResearchPairedReplayCase::record(
+        &manifest,
+        "stored-oos-case",
+        "2026-02-05",
+        &s,
+        baseline.clone(),
+        &proposal,
+    )
+    .unwrap();
+
+    assert_eq!(saved.phase(), ResearchEvaluationPhase::OutOfSample);
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &baseline, &proposal),
+        Ok(())
+    );
+    assert_eq!(saved.baseline().direction, AdvisoryDirection::Unknown);
+    assert_eq!(saved.ai_native().source_input().direction, AdvisoryDirection::Unknown);
+
+    let mut new_version = manifest.clone();
+    new_version.ai_native_version = "unapproved-version-change".to_owned();
+    assert_eq!(
+        saved.validate_inputs(&new_version, &s, &baseline, &proposal),
+        Err(ResearchPairedReplayError::ManifestChanged)
+    );
+    let mut changed_split = manifest.clone();
+    changed_split.out_of_sample_session_ids.push("2026-02-06".to_owned());
+    assert_eq!(
+        saved.validate_inputs(&changed_split, &s, &baseline, &proposal),
+        Err(ResearchPairedReplayError::ManifestChanged)
+    );
+
+    let mut different_baseline = baseline.clone();
+    different_baseline.direction = AdvisoryDirection::Long;
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &different_baseline, &proposal),
+        Err(ResearchPairedReplayError::BaselineChanged)
+    );
+    let mut different_source_record = baseline.clone();
+    different_source_record.source_record_id = "swapped-record".to_owned();
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &different_source_record, &proposal),
+        Err(ResearchPairedReplayError::BaselineChanged)
+    );
+    let mut different_rationale = baseline.clone();
+    different_rationale.rationale = "new baseline explanation".to_owned();
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &different_rationale, &proposal),
+        Err(ResearchPairedReplayError::BaselineChanged)
+    );
+    let mut missing_source_record = baseline.clone();
+    missing_source_record.source_record_id = " ".to_owned();
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &missing_source_record, &proposal),
+        Err(ResearchPairedReplayError::MissingBaselineRecordId)
+    );
+    let mut missing_snapshot = baseline.clone();
+    missing_snapshot.snapshot_id = " ".to_owned();
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &missing_snapshot, &proposal),
+        Err(ResearchPairedReplayError::MissingBaselineSnapshotId)
+    );
+    let mut foreign_baseline = baseline.clone();
+    foreign_baseline.snapshot_id = "foreign".to_owned();
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &foreign_baseline, &proposal),
+        Err(ResearchPairedReplayError::BaselineSnapshotMismatch)
+    );
+
+    let mut different_proposal_input = input.clone();
+    different_proposal_input.direction = AdvisoryDirection::Short;
+    let different_proposal =
+        ResearchDecisionProposal::build(&s, &review, different_proposal_input).unwrap();
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &baseline, &different_proposal),
+        Err(ResearchPairedReplayError::ProposalChanged)
+    );
+    let different_review = ResearchAdversarialReview::build(
+        &s,
+        &packet,
+        vec![challenge(&s, ResearchChallengeClaimSide::Supporting)],
+    )
+    .unwrap();
+    let changed_review_proposal =
+        ResearchDecisionProposal::build(&s, &different_review, input).unwrap();
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &baseline, &changed_review_proposal),
+        Err(ResearchPairedReplayError::ProposalChanged)
+    );
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &baseline, &proposal),
+        Ok(())
+    );
+}
+
+#[test]
+fn stored_paired_replay_rejects_same_id_source_revisions_and_foreign_proposals() {
+    let manifest = evaluation_manifest();
+    let s = snapshot("revalidate-source", 600.0);
+    let source_packet = packet(&s, None);
+    let review = ResearchAdversarialReview::build(&s, &source_packet, vec![]).unwrap();
+    let proposal = ResearchDecisionProposal::build(&s, &review, proposal_input(&s)).unwrap();
+    let baseline = explicit_baseline(&s, AdvisoryDirection::Long);
+    let saved = ResearchPairedReplayCase::record(
+        &manifest,
+        "revalidate-backtest",
+        "2026-01-05",
+        &s,
+        baseline.clone(),
+        &proposal,
+    )
+    .unwrap();
+
+    let foreign = snapshot("different-source", 600.0);
+    assert_eq!(
+        saved.validate_inputs(&manifest, &foreign, &baseline, &proposal),
+        Err(ResearchPairedReplayError::SnapshotMismatch)
+    );
+    let changed_spot = snapshot("revalidate-source", 601.0);
+    assert_eq!(
+        saved.validate_inputs(&manifest, &changed_spot, &baseline, &proposal),
+        Err(ResearchPairedReplayError::SnapshotContentsMismatch)
+    );
+    for input in [
+        MarketSnapshotInput {
+            snapshot_id: "revalidate-source".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 999,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Structured,
+        },
+        MarketSnapshotInput {
+            snapshot_id: "revalidate-source".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_011,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Structured,
+        },
+        MarketSnapshotInput {
+            snapshot_id: "revalidate-source".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Unknown,
+        },
+    ] {
+        let changed = MarketSnapshot::build(input, &[]).unwrap();
+        assert_eq!(
+            saved.validate_inputs(&manifest, &changed, &baseline, &proposal),
+            Err(ResearchPairedReplayError::SnapshotContentsMismatch)
+        );
+    }
+    let foreign_packet = packet(&foreign, None);
+    let foreign_review =
+        ResearchAdversarialReview::build(&foreign, &foreign_packet, vec![]).unwrap();
+    let foreign_proposal =
+        ResearchDecisionProposal::build(&foreign, &foreign_review, proposal_input(&foreign))
+            .unwrap();
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &baseline, &foreign_proposal),
+        Err(ResearchPairedReplayError::ProposalSnapshotMismatch)
+    );
+    assert_eq!(
+        saved.validate_inputs(&manifest, &s, &baseline, &proposal),
+        Ok(())
+    );
+}
