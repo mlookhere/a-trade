@@ -42,7 +42,14 @@ fn snapshot(
 }
 
 fn base() -> MarketSnapshot {
-    snapshot(950, 1_000, 600.0, Session::Regular, DataQuality::Structured, false)
+    snapshot(
+        950,
+        1_000,
+        600.0,
+        Session::Regular,
+        DataQuality::Structured,
+        false,
+    )
 }
 
 fn series(snap: &MarketSnapshot) -> OhlcvObservationSeries {
@@ -86,11 +93,19 @@ fn source_snapshot_retained_and_exact_original_still_accepted() {
     assert_eq!(src.source_snapshot(), &snap);
     let coverage = assess_required_ohlcv_coverage(&snap, Some(&src), 1_010, &limits()).unwrap();
     let close = calculate_research_close_location_at_decision(
-        &snap, &src, &coverage, OhlcvTimeframe::Minute5, 1_010,
+        &snap,
+        &src,
+        &coverage,
+        OhlcvTimeframe::Minute5,
+        1_010,
     )
     .unwrap();
     let wick = calculate_research_wick_anatomy_at_decision(
-        &snap, &src, &coverage, OhlcvTimeframe::Minute5, 1_010,
+        &snap,
+        &src,
+        &coverage,
+        OhlcvTimeframe::Minute5,
+        1_010,
     )
     .unwrap();
     assert_eq!(close.checked_age().observation().source_snapshot(), &snap);
@@ -127,20 +142,70 @@ fn matching_labels_cannot_substitute_revised_snapshot_contents() {
     let src = series(&snap);
     let coverage = assess_required_ohlcv_coverage(&snap, Some(&src), 1_010, &limits()).unwrap();
     let close = calculate_research_close_location_at_decision(
-        &snap, &src, &coverage, OhlcvTimeframe::Minute5, 1_010,
+        &snap,
+        &src,
+        &coverage,
+        OhlcvTimeframe::Minute5,
+        1_010,
     )
     .unwrap();
     let wick = calculate_research_wick_anatomy_at_decision(
-        &snap, &src, &coverage, OhlcvTimeframe::Minute5, 1_010,
+        &snap,
+        &src,
+        &coverage,
+        OhlcvTimeframe::Minute5,
+        1_010,
     )
     .unwrap();
     for changed in [
-        snapshot(951, 1_000, 600.0, Session::Regular, DataQuality::Structured, false),
-        snapshot(950, 1_001, 600.0, Session::Regular, DataQuality::Structured, false),
-        snapshot(950, 1_000, 601.0, Session::Regular, DataQuality::Structured, false),
-        snapshot(950, 1_000, 600.0, Session::Premarket, DataQuality::Structured, false),
-        snapshot(950, 1_000, 600.0, Session::Regular, DataQuality::Parsed, false),
-        snapshot(950, 1_000, 600.0, Session::Regular, DataQuality::Structured, true),
+        snapshot(
+            951,
+            1_000,
+            600.0,
+            Session::Regular,
+            DataQuality::Structured,
+            false,
+        ),
+        snapshot(
+            950,
+            1_001,
+            600.0,
+            Session::Regular,
+            DataQuality::Structured,
+            false,
+        ),
+        snapshot(
+            950,
+            1_000,
+            601.0,
+            Session::Regular,
+            DataQuality::Structured,
+            false,
+        ),
+        snapshot(
+            950,
+            1_000,
+            600.0,
+            Session::Premarket,
+            DataQuality::Structured,
+            false,
+        ),
+        snapshot(
+            950,
+            1_000,
+            600.0,
+            Session::Regular,
+            DataQuality::Parsed,
+            false,
+        ),
+        snapshot(
+            950,
+            1_000,
+            600.0,
+            Session::Regular,
+            DataQuality::Structured,
+            true,
+        ),
     ] {
         assert_eq!(changed.snapshot_id(), snap.snapshot_id());
         assert_eq!(changed.symbol(), snap.symbol());
