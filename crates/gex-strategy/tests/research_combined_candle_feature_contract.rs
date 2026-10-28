@@ -31,7 +31,10 @@ fn checked_pair(
     timeframe: OhlcvTimeframe,
     bar_time: i64,
     decision_time: i64,
-) -> (ResearchCloseLocationAtDecision, ResearchWickAnatomyAtDecision) {
+) -> (
+    ResearchCloseLocationAtDecision,
+    ResearchWickAnatomyAtDecision,
+) {
     let bars = OhlcvObservationSeries::build(
         snap,
         OhlcvObservationInput {
@@ -109,7 +112,10 @@ fn matching_source_candle_yields_only_two_calculator_owned_values() {
     );
     assert_eq!(a.features().trend(), &TrendFeatures::default());
     assert_eq!(a.features().structure(), &StructureFeatures::default());
-    assert_eq!(a.features().participation(), &ParticipationFeatures::default());
+    assert_eq!(
+        a.features().participation(),
+        &ParticipationFeatures::default()
+    );
     assert_eq!(
         a.features().liquidity_execution(),
         &LiquidityExecutionFeatures::default()
@@ -118,7 +124,10 @@ fn matching_source_candle_yields_only_two_calculator_owned_values() {
         a.features().portfolio_broker(),
         &PortfolioBrokerFeatures::default()
     );
-    assert_eq!(AiNativeFeatureInput::default().candle_event.wick_asymmetry, None);
+    assert_eq!(
+        AiNativeFeatureInput::default().candle_event.wick_asymmetry,
+        None
+    );
 
     let close_obs = a.close_location().checked_age().observation();
     let wick_obs = a.wick_anatomy().observation();
@@ -128,8 +137,14 @@ fn matching_source_candle_yields_only_two_calculator_owned_values() {
     assert_eq!(close_obs.source_quality(), DataQuality::Structured);
     assert_eq!(close_obs.timeframe(), OhlcvTimeframe::Minute5);
     assert_eq!(close_obs.source_timestamp_millis(), 800);
-    assert_eq!(close_obs.provenance(), RuleProvenance::ValidationRequiredAssumption);
-    assert_eq!(wick_obs.provenance(), RuleProvenance::ValidationRequiredAssumption);
+    assert_eq!(
+        close_obs.provenance(),
+        RuleProvenance::ValidationRequiredAssumption
+    );
+    assert_eq!(
+        wick_obs.provenance(),
+        RuleProvenance::ValidationRequiredAssumption
+    );
     assert_eq!(a.close_location().measured_source_age_millis(), 210);
     assert_eq!(a.wick_anatomy().measured_source_age_millis(), 210);
     assert_eq!(a.close_location().decision_timestamp_millis(), 1_010);
@@ -140,15 +155,30 @@ fn matching_source_candle_yields_only_two_calculator_owned_values() {
 fn foreign_snapshot_and_symbol_cannot_be_composed() {
     let snap = snapshot("s106", "SPY");
     let (close, _) = checked_pair(
-        &snap, "provider-106", DataQuality::Structured, OhlcvTimeframe::Minute5, 800, 1_010,
+        &snap,
+        "provider-106",
+        DataQuality::Structured,
+        OhlcvTimeframe::Minute5,
+        800,
+        1_010,
     );
     for (other_snapshot, expected) in [
-        (snapshot("other", "SPY"), ResearchCombinedCandleFeatureError::SnapshotMismatch),
-        (snapshot("s106", "QQQ"), ResearchCombinedCandleFeatureError::SymbolMismatch),
+        (
+            snapshot("other", "SPY"),
+            ResearchCombinedCandleFeatureError::SnapshotMismatch,
+        ),
+        (
+            snapshot("s106", "QQQ"),
+            ResearchCombinedCandleFeatureError::SymbolMismatch,
+        ),
     ] {
         let (_, foreign_wick) = checked_pair(
-            &other_snapshot, "provider-106", DataQuality::Structured,
-            OhlcvTimeframe::Minute5, 800, 1_010,
+            &other_snapshot,
+            "provider-106",
+            DataQuality::Structured,
+            OhlcvTimeframe::Minute5,
+            800,
+            1_010,
         );
         assert_eq!(
             bind_research_combined_candle_feature(&snap, &close, &foreign_wick, 1_010),
@@ -156,12 +186,15 @@ fn foreign_snapshot_and_symbol_cannot_be_composed() {
         );
     }
     let (_, wick) = checked_pair(
-        &snap, "provider-106", DataQuality::Structured, OhlcvTimeframe::Minute5, 800, 1_010,
+        &snap,
+        "provider-106",
+        DataQuality::Structured,
+        OhlcvTimeframe::Minute5,
+        800,
+        1_010,
     );
     assert_eq!(
-        bind_research_combined_candle_feature(
-            &snapshot("other", "SPY"), &close, &wick, 1_010
-        ),
+        bind_research_combined_candle_feature(&snapshot("other", "SPY"), &close, &wick, 1_010),
         Err(ResearchCombinedCandleFeatureError::SnapshotMismatch)
     );
 }
@@ -170,23 +203,40 @@ fn foreign_snapshot_and_symbol_cannot_be_composed() {
 fn different_provider_quality_timeframe_and_candle_timestamp_reject() {
     let snap = snapshot("s106", "SPY");
     let (close, _) = checked_pair(
-        &snap, "provider-106", DataQuality::Structured, OhlcvTimeframe::Minute5, 800, 1_010,
+        &snap,
+        "provider-106",
+        DataQuality::Structured,
+        OhlcvTimeframe::Minute5,
+        800,
+        1_010,
     );
     for (source, quality, timeframe, timestamp, expected) in [
         (
-            "different-provider", DataQuality::Structured, OhlcvTimeframe::Minute5, 800,
+            "different-provider",
+            DataQuality::Structured,
+            OhlcvTimeframe::Minute5,
+            800,
             ResearchCombinedCandleFeatureError::SourceMismatch,
         ),
         (
-            "provider-106", DataQuality::Parsed, OhlcvTimeframe::Minute5, 800,
+            "provider-106",
+            DataQuality::Parsed,
+            OhlcvTimeframe::Minute5,
+            800,
             ResearchCombinedCandleFeatureError::SourceQualityMismatch,
         ),
         (
-            "provider-106", DataQuality::Structured, OhlcvTimeframe::Minute1, 800,
+            "provider-106",
+            DataQuality::Structured,
+            OhlcvTimeframe::Minute1,
+            800,
             ResearchCombinedCandleFeatureError::TimeframeMismatch,
         ),
         (
-            "provider-106", DataQuality::Structured, OhlcvTimeframe::Minute5, 801,
+            "provider-106",
+            DataQuality::Structured,
+            OhlcvTimeframe::Minute5,
+            801,
             ResearchCombinedCandleFeatureError::BarTimestampMismatch,
         ),
     ] {
@@ -202,7 +252,12 @@ fn different_provider_quality_timeframe_and_candle_timestamp_reject() {
 fn mismatched_assessment_age_and_caller_clock_fail_closed() {
     let snap = snapshot("s106", "SPY");
     let (close, wick) = checked_pair(
-        &snap, "provider-106", DataQuality::Structured, OhlcvTimeframe::Minute5, 800, 1_010,
+        &snap,
+        "provider-106",
+        DataQuality::Structured,
+        OhlcvTimeframe::Minute5,
+        800,
+        1_010,
     );
     for different_clock in [1_009, 1_011, -1] {
         assert_eq!(
@@ -214,7 +269,12 @@ fn mismatched_assessment_age_and_caller_clock_fail_closed() {
     // A genuinely different source-assessment clock necessarily changes
     // measured age for the same bar timestamp; that disagreement must reject.
     let (_, later_wick) = checked_pair(
-        &snap, "provider-106", DataQuality::Structured, OhlcvTimeframe::Minute5, 800, 1_011,
+        &snap,
+        "provider-106",
+        DataQuality::Structured,
+        OhlcvTimeframe::Minute5,
+        800,
+        1_011,
     );
     assert_eq!(
         bind_research_combined_candle_feature(&snap, &close, &later_wick, 1_010),
