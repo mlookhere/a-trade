@@ -6,7 +6,8 @@ use gex_strategy::{
     ExplicitAgeLimits, GexLevelRole, GexScope, GexTimeObservation, HardCondition, HardVetoInput,
     HardVetoProvenanceError, HardVetoResult, HardVetoVerdict, MarketSnapshot, MarketSnapshotInput,
     RawGexLevel, ResearchGexRoleComparison, ResearchGexRoleComparisonError, ResearchGexRoleInput,
-    ResearchGexRoleReport, ResearchGexRoleSubmission, ResearchReviewEvidencePacket,
+    ResearchGexRoleReport, ResearchGexRoleSubmission, ResearchReviewDecisionContext,
+    ResearchReviewEvidencePacket,
     ResearchReviewPacketError, Session, SnapshotTimingAssessment, SnapshotTimingProvenanceError,
     SpecialistBatch, TemporalStatus, assess_snapshot_timing, audit_specialist_evidence,
     evaluate_hard_vetoes,
@@ -78,6 +79,13 @@ fn limits() -> ExplicitAgeLimits {
     }
 }
 
+fn decision(clock: i64, age_limits: ExplicitAgeLimits) -> ResearchReviewDecisionContext {
+    ResearchReviewDecisionContext {
+        decision_timestamp_millis: clock,
+        age_limits,
+    }
+}
+
 fn gex(s: &MarketSnapshot) -> GexTimeObservation {
     GexTimeObservation {
         snapshot_id: s.snapshot_id().to_owned(),
@@ -140,7 +148,7 @@ fn reports_from_one_exact_snapshot_form_a_read_only_review_packet() {
         Some(DecisionVerdict::Wait)
     );
     assert_eq!(
-        packet.validate_inputs(&s, &a, &r, &t, &v, 1_020, &limits()),
+        packet.validate_inputs(&s, &a, &r, &t, &v, decision(1_020, limits())),
         Ok(())
     );
     assert_eq!(packet.role_comparison().levels().len(), 1);
@@ -203,7 +211,7 @@ fn altered_reports_and_later_clocks_cannot_replace_original_review_inputs() {
             .unwrap();
 
     assert_eq!(
-        packet.validate_inputs(&s, &audit(&s, Some(3.0)), &r, &t, &v, 1_020, &limits()),
+        packet.validate_inputs(&s, &audit(&s, Some(3.0)), &r, &t, &v, decision(1_020, limits())),
         Err(ResearchReviewPacketError::AuditChanged)
     );
     assert_eq!(
@@ -213,13 +221,12 @@ fn altered_reports_and_later_clocks_cannot_replace_original_review_inputs() {
             &roles(&s, Some(GexLevelRole::Support)),
             &t,
             &v,
-            1_020,
-            &limits(),
+            decision(1_020, limits()),
         ),
         Err(ResearchReviewPacketError::RoleComparisonChanged)
     );
     assert_eq!(
-        packet.validate_inputs(&s, &a, &r, &t, &v, 1_021, &limits()),
+        packet.validate_inputs(&s, &a, &r, &t, &v, decision(1_021, limits())),
         Err(ResearchReviewPacketError::TimingProvenance(
             SnapshotTimingProvenanceError::DecisionClockMismatch
         ))
@@ -227,22 +234,22 @@ fn altered_reports_and_later_clocks_cannot_replace_original_review_inputs() {
     let mut changed_limits = limits();
     changed_limits.gex_stale_timeout_ms += 1;
     assert_eq!(
-        packet.validate_inputs(&s, &a, &r, &t, &v, 1_020, &changed_limits),
+        packet.validate_inputs(&s, &a, &r, &t, &v, decision(1_020, changed_limits)),
         Err(ResearchReviewPacketError::TimingProvenance(
             SnapshotTimingProvenanceError::AgeLimitsMismatch
         ))
     );
     let later = timing(&s, 1_021, true);
     assert_eq!(
-        packet.validate_inputs(&s, &a, &r, &later, &v, 1_021, &limits()),
+        packet.validate_inputs(&s, &a, &r, &later, &v, decision(1_021, limits())),
         Err(ResearchReviewPacketError::TimingAssessmentChanged)
     );
     assert_eq!(
-        packet.validate_inputs(&snapshot("other", 600.0), &a, &r, &t, &v, 1_020, &limits()),
+        packet.validate_inputs(&snapshot("other", 600.0), &a, &r, &t, &v, decision(1_020, limits())),
         Err(ResearchReviewPacketError::SnapshotMismatch)
     );
     assert_eq!(
-        packet.validate_inputs(&snapshot("one", 601.0), &a, &r, &t, &v, 1_020, &limits()),
+        packet.validate_inputs(&snapshot("one", 601.0), &a, &r, &t, &v, decision(1_020, limits())),
         Err(ResearchReviewPacketError::SnapshotContentsMismatch)
     );
 }
@@ -262,12 +269,12 @@ fn missing_independent_gex_stays_missing_in_a_consistent_packet() {
     assert_eq!(packet.timing().gex_data(), TemporalStatus::Missing);
     assert!(!packet.timing().observed_clocks_within_limits());
     assert_eq!(
-        packet.validate_inputs(&s, &a, &r, &t, &v, 1_020, &limits()),
+        packet.validate_inputs(&s, &a, &r, &t, &v, decision(1_020, limits())),
         Ok(())
     );
     let present_gex = timing(&s, 1_020, true);
     assert_eq!(
-        packet.validate_inputs(&s, &a, &r, &present_gex, &v, 1_020, &limits()),
+        packet.validate_inputs(&s, &a, &r, &present_gex, &v, decision(1_020, limits())),
         Err(ResearchReviewPacketError::TimingAssessmentChanged)
     );
 }
@@ -308,11 +315,11 @@ fn hard_veto_report_is_required_and_cannot_be_relabelled_after_review() {
     assert_eq!(rejected.verdict(), HardVetoVerdict::Reject);
     assert_eq!(rejected.blocking_decision(), Some(DecisionVerdict::Reject));
     assert_eq!(
-        packet.validate_inputs(&s, &a, &r, &t, &cleared, 1_020, &limits()),
+        packet.validate_inputs(&s, &a, &r, &t, &cleared, decision(1_020, limits())),
         Err(ResearchReviewPacketError::HardVetoChanged)
     );
     assert_eq!(
-        packet.validate_inputs(&s, &a, &r, &t, &rejected, 1_020, &limits()),
+        packet.validate_inputs(&s, &a, &r, &t, &rejected, decision(1_020, limits())),
         Err(ResearchReviewPacketError::HardVetoChanged)
     );
     assert_eq!(
@@ -320,7 +327,7 @@ fn hard_veto_report_is_required_and_cannot_be_relabelled_after_review() {
         Err(HardVetoProvenanceError::InputContentsMismatch)
     );
     assert_eq!(
-        packet.validate_inputs(&s, &a, &r, &t, &waiting, 1_020, &limits()),
+        packet.validate_inputs(&s, &a, &r, &t, &waiting, decision(1_020, limits())),
         Ok(())
     );
 
