@@ -1,0 +1,235 @@
+//! A research evidence packet is a source-consistency witness, not a trade gate.
+//! Canonical §§5–6,11,14–16,70,103,116: unknown source/broker/risk means NO_TRADE.
+
+use gex_strategy::{
+    AiNativeFeatureInput, AiNativeFeatureSet, DataQuality, EvidenceAudit,
+    ExplicitAgeLimits, GexLevelRole, GexScope, GexTimeObservation, MarketSnapshot,
+    MarketSnapshotInput, RawGexLevel, ResearchGexRoleComparison,
+    ResearchGexRoleComparisonError, ResearchGexRoleInput, ResearchGexRoleReport,
+    ResearchGexRoleSubmission, ResearchReviewEvidencePacket, ResearchReviewPacketError,
+    Session, SnapshotTimingAssessment, SnapshotTimingProvenanceError, SpecialistBatch,
+    TemporalStatus, assess_snapshot_timing, audit_specialist_evidence,
+};
+
+fn snapshot(id: &str, spot: f64) -> MarketSnapshot {
+    MarketSnapshot::build(
+        MarketSnapshotInput {
+            snapshot_id: id.to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_010,
+            spot_price: spot,
+            session: Session::Regular,
+            data_quality: DataQuality::Structured,
+        },
+        &[RawGexLevel {
+            strike: 610.0,
+            gex_value: 12.0,
+            scope: GexScope::Aggregate,
+        }],
+    )
+    .unwrap()
+}
+
+fn features(s: &MarketSnapshot, strength: Option<f64>) -> AiNativeFeatureSet {
+    let mut input = AiNativeFeatureInput {
+        snapshot_id: s.snapshot_id().to_owned(),
+        ..Default::default()
+    };
+    input.trend.trend_strength = strength;
+    AiNativeFeatureSet::build(s, input).unwrap()
+}
+
+fn audit(s: &MarketSnapshot, strength: Option<f64>) -> EvidenceAudit {
+    let f = features(s, strength);
+    let batch = SpecialistBatch::build(s, vec![]).unwrap();
+    audit_specialist_evidence(s, &f, &batch).unwrap()
+}
+
+fn roles(s: &MarketSnapshot, role: Option<GexLevelRole>) -> ResearchGexRoleComparison {
+    let submissions = role
+        .map(|role| {
+            let level = &s.gex_levels()[0];
+            let report = ResearchGexRoleReport::build(
+                s,
+                vec![ResearchGexRoleInput {
+                    snapshot_id: s.snapshot_id().to_owned(),
+                    level_index: 0,
+                    scope: level.scope.clone(),
+                    strike: level.strike,
+                    role,
+                    rationale: "Unverified agent annotation".to_owned(),
+                }],
+            )
+            .unwrap();
+            vec![ResearchGexRoleSubmission::new("gamma", report).unwrap()]
+        })
+        .unwrap_or_default();
+    ResearchGexRoleComparison::build(s, submissions).unwrap()
+}
+
+fn limits() -> ExplicitAgeLimits {
+    // Local synthetic test configuration; never a production age threshold.
+    ExplicitAgeLimits {
+        market_data_stale_timeout_ms: 20,
+        gex_stale_timeout_ms: 20,
+        max_decision_age_ms: 10,
+    }
+}
+
+fn gex(s: &MarketSnapshot) -> GexTimeObservation {
+    GexTimeObservation {
+        snapshot_id: s.snapshot_id().to_owned(),
+        symbol: s.symbol().to_owned(),
+        source_timestamp_millis: Some(1_002),
+        received_timestamp_millis: Some(1_011),
+        data_quality: DataQuality::Structured,
+    }
+}
+
+fn timing(s: &MarketSnapshot, clock: i64, has_gex: bool) -> SnapshotTimingAssessment {
+    let gex = if has_gex { Some(gex(s)) } else { None };
+    assess_snapshot_timing(s, gex, clock, &limits())
+}
+
+#[test]
+fn reports_from_one_exact_snapshot_form_a_read_only_review_packet() {
+    let s = snapshot("same", 600.0);
+    let a = audit(&s, None);
+    let r = roles(&s, Some(GexLevelRole::Support));
+    let t = timing(&s, 1_020, true);
+    let packet = ResearchReviewEvidencePacket::build(&s, a.clone(), r.clone(), t.clone()).unwrap();
+
+    assert_eq!(packet.source_snapshot(), &s);
+    assert_eq!(packet.audit(), &a);
+    assert_eq!(packet.role_comparison(), &r);
+    assert_eq!(packet.timing(), &t);
+    assert_eq!(
+        packet.validate_inputs(&s, &a, &r, &t, 1_020, &limits()),
+        Ok(())
+    );
+    assert_eq!(packet.role_comparison().levels().len(), 1);
+    // A review packet does not expose an aggregate verdict or ALLOW method.
+}
+
+#[test]
+fn mixed_snapshot_identity_and_same_id_revisions_are_rejected_at_construction() {
+    let s = snapshot("one", 600.0);
+    let revised = snapshot("one", 601.0);
+    let foreign = snapshot("two", 600.0);
+    let a = audit(&s, None);
+    let r = roles(&s, None);
+    let t = timing(&s, 1_020, true);
+
+    assert_eq!(
+        ResearchReviewEvidencePacket::build(&foreign, a.clone(), r.clone(), t.clone()),
+        Err(ResearchReviewPacketError::SnapshotMismatch)
+    );
+    assert_eq!(
+        ResearchReviewEvidencePacket::build(&revised, a.clone(), r.clone(), t.clone()),
+        Err(ResearchReviewPacketError::SnapshotContentsMismatch)
+    );
+    assert_eq!(
+        ResearchReviewEvidencePacket::build(&s, audit(&revised, None), r.clone(), t.clone()),
+        Err(ResearchReviewPacketError::SnapshotContentsMismatch)
+    );
+    assert_eq!(
+        ResearchReviewEvidencePacket::build(&s, a.clone(), roles(&foreign, None), t.clone()),
+        Err(ResearchReviewPacketError::SnapshotMismatch)
+    );
+    assert_eq!(
+        ResearchReviewEvidencePacket::build(&s, a, r, timing(&revised, 1_020, true)),
+        Err(ResearchReviewPacketError::SnapshotContentsMismatch)
+    );
+}
+
+#[test]
+fn altered_reports_and_later_clocks_cannot_replace_original_review_inputs() {
+    let s = snapshot("one", 600.0);
+    let a = audit(&s, None);
+    let r = roles(&s, None);
+    let t = timing(&s, 1_020, true);
+    let packet = ResearchReviewEvidencePacket::build(&s, a.clone(), r.clone(), t.clone()).unwrap();
+
+    assert_eq!(
+        packet.validate_inputs(&s, &audit(&s, Some(3.0)), &r, &t, 1_020, &limits()),
+        Err(ResearchReviewPacketError::AuditChanged)
+    );
+    assert_eq!(
+        packet.validate_inputs(
+            &s,
+            &a,
+            &roles(&s, Some(GexLevelRole::Support)),
+            &t,
+            1_020,
+            &limits(),
+        ),
+        Err(ResearchReviewPacketError::RoleComparisonChanged)
+    );
+    assert_eq!(
+        packet.validate_inputs(&s, &a, &r, &t, 1_021, &limits()),
+        Err(ResearchReviewPacketError::TimingProvenance(
+            SnapshotTimingProvenanceError::DecisionClockMismatch
+        ))
+    );
+    let mut changed_limits = limits();
+    changed_limits.gex_stale_timeout_ms += 1;
+    assert_eq!(
+        packet.validate_inputs(&s, &a, &r, &t, 1_020, &changed_limits),
+        Err(ResearchReviewPacketError::TimingProvenance(
+            SnapshotTimingProvenanceError::AgeLimitsMismatch
+        ))
+    );
+    let later = timing(&s, 1_021, true);
+    assert_eq!(
+        packet.validate_inputs(&s, &a, &r, &later, 1_021, &limits()),
+        Err(ResearchReviewPacketError::TimingAssessmentChanged)
+    );
+    assert_eq!(
+        packet.validate_inputs(&snapshot("other", 600.0), &a, &r, &t, 1_020, &limits()),
+        Err(ResearchReviewPacketError::SnapshotMismatch)
+    );
+    assert_eq!(
+        packet.validate_inputs(&snapshot("one", 601.0), &a, &r, &t, 1_020, &limits()),
+        Err(ResearchReviewPacketError::SnapshotContentsMismatch)
+    );
+}
+
+#[test]
+fn missing_independent_gex_stays_missing_in_a_consistent_packet() {
+    let s = snapshot("empty", 600.0);
+    let a = audit(&s, None);
+    let r = roles(&s, None);
+    let t = timing(&s, 1_020, false);
+    assert_eq!(t.gex_data(), TemporalStatus::Missing);
+    let packet = ResearchReviewEvidencePacket::build(&s, a.clone(), r.clone(), t.clone()).unwrap();
+    assert!(packet.role_comparison().levels().is_empty());
+    assert_eq!(packet.timing().gex_data(), TemporalStatus::Missing);
+    assert!(!packet.timing().observed_clocks_within_limits());
+    assert_eq!(
+        packet.validate_inputs(&s, &a, &r, &t, 1_020, &limits()),
+        Ok(())
+    );
+    assert_eq!(
+        packet.validate_inputs(
+            &s,
+            &a,
+            &r,
+            &timing(&s, 1_020, true),
+            1_020,
+            &limits(),
+        ),
+        Err(ResearchReviewPacketError::TimingAssessmentChanged)
+    );
+}
+
+#[test]
+fn independent_role_report_snapshot_mismatch_remains_rejected() {
+    let s = snapshot("original", 600.0);
+    let r = roles(&s, None);
+    let changed = snapshot("original", 602.0);
+    assert_eq!(
+        r.validate_snapshot(&changed),
+        Err(ResearchGexRoleComparisonError::SnapshotContentsMismatch)
+    );
+}
