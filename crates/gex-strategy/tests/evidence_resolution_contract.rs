@@ -1,5 +1,5 @@
 use gex_strategy::{
-    AiNativeFeatureInput, AiNativeFeatureSet, AdvisoryDirection, ClaimObservationStatus,
+    AdvisoryDirection, AiNativeFeatureInput, AiNativeFeatureSet, ClaimObservationStatus,
     DataQuality, EvidenceAuditError, EvidenceClaimInput, EvidenceKind, EvidenceReference,
     FeatureReference, FeatureSource, GexScope, MarketSnapshot, MarketSnapshotInput, RawGexLevel,
     ReferenceStatus, Session, SpecialistBatch, SpecialistOutput, SpecialistOutputInput,
@@ -40,10 +40,7 @@ fn reference(kind: EvidenceKind, key: &str) -> EvidenceReference {
     }
 }
 
-fn specialist(
-    snapshot: &MarketSnapshot,
-    reference: EvidenceReference,
-) -> SpecialistOutput {
+fn specialist(snapshot: &MarketSnapshot, reference: EvidenceReference) -> SpecialistOutput {
     SpecialistOutput::build(
         snapshot,
         SpecialistOutputInput {
@@ -88,12 +85,8 @@ fn observed_snapshot_and_feature_values_are_real() {
         ("received_timestamp_millis", 1_012.0),
         ("data_age_millis", 12.0),
     ] {
-        let actual = resolve_reference(
-            &snap,
-            &vals,
-            &reference(EvidenceKind::SnapshotField, key),
-        )
-        .unwrap();
+        let actual =
+            resolve_reference(&snap, &vals, &reference(EvidenceKind::SnapshotField, key)).unwrap();
         assert_eq!(actual.status, ReferenceStatus::Observed);
         assert_eq!(actual.observed_value, Some(expected));
     }
@@ -184,11 +177,15 @@ fn gex_reference_requires_exact_scope_and_existing_level() {
     let expiry = gex_level_reference(&GexScope::Expiry("2026-10-30".to_owned()), 610.0).unwrap();
     assert_ne!(aggregate.reference, expiry.reference);
     assert_eq!(
-        resolve_reference(&snap, &vals, &aggregate).unwrap().observed_value,
+        resolve_reference(&snap, &vals, &aggregate)
+            .unwrap()
+            .observed_value,
         Some(-25.0)
     );
     assert_eq!(
-        resolve_reference(&snap, &vals, &expiry).unwrap().observed_value,
+        resolve_reference(&snap, &vals, &expiry)
+            .unwrap()
+            .observed_value,
         Some(6.0)
     );
     assert_eq!(
