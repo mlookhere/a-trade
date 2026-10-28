@@ -2,6 +2,8 @@
 
 mod features;
 pub use features::*;
+mod specialists;
+pub use specialists::*;
 
 use std::collections::BTreeMap;
 
