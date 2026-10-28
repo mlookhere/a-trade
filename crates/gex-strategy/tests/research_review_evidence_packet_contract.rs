@@ -427,7 +427,10 @@ fn diagnostics_do_not_upgrade_cleared_veto_or_missing_independent_gex() {
     assert_eq!(summary.failed_hard_conditions(), 0);
     assert_eq!(summary.unknown_hard_conditions(), 0);
     assert_eq!(packet.hard_veto().blocking_decision(), None);
-    assert_ne!(packet.hard_veto().blocking_decision(), Some(DecisionVerdict::Allow));
+    assert_ne!(
+        packet.hard_veto().blocking_decision(),
+        Some(DecisionVerdict::Allow)
+    );
 }
 
 #[test]
@@ -536,11 +539,9 @@ fn diagnostics_keep_unknown_quality_and_conflicting_roles_separate_from_veto_fai
     )
     .unwrap();
     let competing = ResearchGexRoleSubmission::new("gamma-other", other).unwrap();
-    let comparison = ResearchGexRoleComparison::build(
-        &s,
-        vec![first.submissions()[0].clone(), competing],
-    )
-    .unwrap();
+    let comparison =
+        ResearchGexRoleComparison::build(&s, vec![first.submissions()[0].clone(), competing])
+            .unwrap();
     let packet = ResearchReviewEvidencePacket::build(
         &s,
         a,
