@@ -1,7 +1,5 @@
 use crate::timing::classify_pair;
-use crate::{
-    DataQuality, MarketSnapshot, OhlcvObservationSeries, OhlcvTimeframe, TemporalStatus,
-};
+use crate::{DataQuality, MarketSnapshot, OhlcvObservationSeries, OhlcvTimeframe, TemporalStatus};
 
 /// Five required OHLCV scopes in canonical auction §11, assessed as data
 /// coverage evidence only. An AI-native playbook may have additional explicit
