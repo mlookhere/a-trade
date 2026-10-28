@@ -7,10 +7,9 @@ use gex_strategy::{
     HardVetoProvenanceError, HardVetoResult, HardVetoVerdict, MarketSnapshot, MarketSnapshotInput,
     RawGexLevel, ResearchGexRoleComparison, ResearchGexRoleComparisonError, ResearchGexRoleInput,
     ResearchGexRoleReport, ResearchGexRoleSubmission, ResearchReviewDecisionContext,
-    ResearchReviewEvidencePacket,
-    ResearchReviewPacketError, Session, SnapshotTimingAssessment, SnapshotTimingProvenanceError,
-    SpecialistBatch, TemporalStatus, assess_snapshot_timing, audit_specialist_evidence,
-    evaluate_hard_vetoes,
+    ResearchReviewEvidencePacket, ResearchReviewPacketError, Session, SnapshotTimingAssessment,
+    SnapshotTimingProvenanceError, SpecialistBatch, TemporalStatus, assess_snapshot_timing,
+    audit_specialist_evidence, evaluate_hard_vetoes,
 };
 
 fn snapshot(id: &str, spot: f64) -> MarketSnapshot {
@@ -211,7 +210,14 @@ fn altered_reports_and_later_clocks_cannot_replace_original_review_inputs() {
             .unwrap();
 
     assert_eq!(
-        packet.validate_inputs(&s, &audit(&s, Some(3.0)), &r, &t, &v, decision(1_020, limits())),
+        packet.validate_inputs(
+            &s,
+            &audit(&s, Some(3.0)),
+            &r,
+            &t,
+            &v,
+            decision(1_020, limits())
+        ),
         Err(ResearchReviewPacketError::AuditChanged)
     );
     assert_eq!(
@@ -245,11 +251,25 @@ fn altered_reports_and_later_clocks_cannot_replace_original_review_inputs() {
         Err(ResearchReviewPacketError::TimingAssessmentChanged)
     );
     assert_eq!(
-        packet.validate_inputs(&snapshot("other", 600.0), &a, &r, &t, &v, decision(1_020, limits())),
+        packet.validate_inputs(
+            &snapshot("other", 600.0),
+            &a,
+            &r,
+            &t,
+            &v,
+            decision(1_020, limits())
+        ),
         Err(ResearchReviewPacketError::SnapshotMismatch)
     );
     assert_eq!(
-        packet.validate_inputs(&snapshot("one", 601.0), &a, &r, &t, &v, decision(1_020, limits())),
+        packet.validate_inputs(
+            &snapshot("one", 601.0),
+            &a,
+            &r,
+            &t,
+            &v,
+            decision(1_020, limits())
+        ),
         Err(ResearchReviewPacketError::SnapshotContentsMismatch)
     );
 }
