@@ -2,10 +2,10 @@
 //! Canonical §§5–6,11,14–16,70,103,116: unknown source/broker/risk means NO_TRADE.
 
 use gex_strategy::{
-    AiNativeFeatureInput, AiNativeFeatureSet, DataQuality, EvidenceAudit, ExplicitAgeLimits,
-    DecisionVerdict, GexLevelRole, GexScope, GexTimeObservation, HardCondition, HardVetoInput,
-    HardVetoProvenanceError, HardVetoResult, HardVetoVerdict, MarketSnapshot, MarketSnapshotInput, RawGexLevel,
-    ResearchGexRoleComparison, ResearchGexRoleComparisonError, ResearchGexRoleInput,
+    AiNativeFeatureInput, AiNativeFeatureSet, DataQuality, DecisionVerdict, EvidenceAudit,
+    ExplicitAgeLimits, GexLevelRole, GexScope, GexTimeObservation, HardCondition, HardVetoInput,
+    HardVetoProvenanceError, HardVetoResult, HardVetoVerdict, MarketSnapshot, MarketSnapshotInput,
+    RawGexLevel, ResearchGexRoleComparison, ResearchGexRoleComparisonError, ResearchGexRoleInput,
     ResearchGexRoleReport, ResearchGexRoleSubmission, ResearchReviewEvidencePacket,
     ResearchReviewPacketError, Session, SnapshotTimingAssessment, SnapshotTimingProvenanceError,
     SpecialistBatch, TemporalStatus, assess_snapshot_timing, audit_specialist_evidence,
@@ -125,7 +125,9 @@ fn reports_from_one_exact_snapshot_form_a_read_only_review_packet() {
     let r = roles(&s, Some(GexLevelRole::Support));
     let t = timing(&s, 1_020, true);
     let v = veto(&s, HardCondition::Unknown);
-    let packet = ResearchReviewEvidencePacket::build(&s, a.clone(), r.clone(), t.clone(), v.clone()).unwrap();
+    let packet =
+        ResearchReviewEvidencePacket::build(&s, a.clone(), r.clone(), t.clone(), v.clone())
+            .unwrap();
 
     assert_eq!(packet.source_snapshot(), &s);
     assert_eq!(packet.audit(), &a);
@@ -133,7 +135,10 @@ fn reports_from_one_exact_snapshot_form_a_read_only_review_packet() {
     assert_eq!(packet.timing(), &t);
     assert_eq!(packet.hard_veto(), &v);
     assert_eq!(packet.hard_veto().verdict(), HardVetoVerdict::Wait);
-    assert_eq!(packet.hard_veto().blocking_decision(), Some(DecisionVerdict::Wait));
+    assert_eq!(
+        packet.hard_veto().blocking_decision(),
+        Some(DecisionVerdict::Wait)
+    );
     assert_eq!(
         packet.validate_inputs(&s, &a, &r, &t, &v, 1_020, &limits()),
         Ok(())
@@ -161,11 +166,23 @@ fn mixed_snapshot_identity_and_same_id_revisions_are_rejected_at_construction() 
         Err(ResearchReviewPacketError::SnapshotContentsMismatch)
     );
     assert_eq!(
-        ResearchReviewEvidencePacket::build(&s, audit(&revised, None), r.clone(), t.clone(), v.clone()),
+        ResearchReviewEvidencePacket::build(
+            &s,
+            audit(&revised, None),
+            r.clone(),
+            t.clone(),
+            v.clone()
+        ),
         Err(ResearchReviewPacketError::SnapshotContentsMismatch)
     );
     assert_eq!(
-        ResearchReviewEvidencePacket::build(&s, a.clone(), roles(&foreign, None), t.clone(), v.clone()),
+        ResearchReviewEvidencePacket::build(
+            &s,
+            a.clone(),
+            roles(&foreign, None),
+            t.clone(),
+            v.clone()
+        ),
         Err(ResearchReviewPacketError::SnapshotMismatch)
     );
     assert_eq!(
@@ -181,7 +198,9 @@ fn altered_reports_and_later_clocks_cannot_replace_original_review_inputs() {
     let r = roles(&s, None);
     let t = timing(&s, 1_020, true);
     let v = veto(&s, HardCondition::Unknown);
-    let packet = ResearchReviewEvidencePacket::build(&s, a.clone(), r.clone(), t.clone(), v.clone()).unwrap();
+    let packet =
+        ResearchReviewEvidencePacket::build(&s, a.clone(), r.clone(), t.clone(), v.clone())
+            .unwrap();
 
     assert_eq!(
         packet.validate_inputs(&s, &audit(&s, Some(3.0)), &r, &t, &v, 1_020, &limits()),
@@ -236,7 +255,9 @@ fn missing_independent_gex_stays_missing_in_a_consistent_packet() {
     let t = timing(&s, 1_020, false);
     let v = veto(&s, HardCondition::Unknown);
     assert_eq!(t.gex_data(), TemporalStatus::Missing);
-    let packet = ResearchReviewEvidencePacket::build(&s, a.clone(), r.clone(), t.clone(), v.clone()).unwrap();
+    let packet =
+        ResearchReviewEvidencePacket::build(&s, a.clone(), r.clone(), t.clone(), v.clone())
+            .unwrap();
     assert!(packet.role_comparison().levels().is_empty());
     assert_eq!(packet.timing().gex_data(), TemporalStatus::Missing);
     assert!(!packet.timing().observed_clocks_within_limits());
@@ -277,7 +298,10 @@ fn hard_veto_report_is_required_and_cannot_be_relabelled_after_review() {
 
     assert_eq!(packet.hard_veto().verdict(), HardVetoVerdict::Wait);
     assert_eq!(packet.hard_veto().unknown_conditions().len(), 13);
-    assert_eq!(packet.hard_veto().blocking_decision(), Some(DecisionVerdict::Wait));
+    assert_eq!(
+        packet.hard_veto().blocking_decision(),
+        Some(DecisionVerdict::Wait)
+    );
     assert_eq!(cleared.verdict(), HardVetoVerdict::Cleared);
     assert_eq!(cleared.blocking_decision(), None);
     assert_ne!(cleared.blocking_decision(), Some(DecisionVerdict::Allow));
@@ -313,13 +337,7 @@ fn hard_veto_report_is_required_and_cannot_be_relabelled_after_review() {
     );
     let different = snapshot("another", 600.0);
     assert_eq!(
-        ResearchReviewEvidencePacket::build(
-            &s,
-            a,
-            r,
-            t,
-            veto(&different, HardCondition::Unknown),
-        ),
+        ResearchReviewEvidencePacket::build(&s, a, r, t, veto(&different, HardCondition::Unknown),),
         Err(ResearchReviewPacketError::SnapshotMismatch)
     );
 }
