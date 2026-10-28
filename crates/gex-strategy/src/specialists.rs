@@ -281,35 +281,65 @@ impl SpecialistOutput {
     }
 
     #[must_use]
-    pub fn agent_id(&self) -> &str { &self.agent_id }
+    pub fn agent_id(&self) -> &str {
+        &self.agent_id
+    }
     #[must_use]
-    pub const fn role(&self) -> SpecialistRole { self.role }
+    pub const fn role(&self) -> SpecialistRole {
+        self.role
+    }
     #[must_use]
-    pub fn snapshot_id(&self) -> &str { &self.snapshot_id }
+    pub fn snapshot_id(&self) -> &str {
+        &self.snapshot_id
+    }
     #[must_use]
-    pub const fn status(&self) -> SpecialistStatus { self.status }
+    pub const fn status(&self) -> SpecialistStatus {
+        self.status
+    }
     #[must_use]
-    pub const fn direction(&self) -> AdvisoryDirection { self.direction }
+    pub const fn direction(&self) -> AdvisoryDirection {
+        self.direction
+    }
     #[must_use]
-    pub const fn confidence(&self) -> Option<InternalConfidence> { self.confidence }
+    pub const fn confidence(&self) -> Option<InternalConfidence> {
+        self.confidence
+    }
     #[must_use]
-    pub fn observations(&self) -> &[String] { &self.observations }
+    pub fn observations(&self) -> &[String] {
+        &self.observations
+    }
     #[must_use]
-    pub fn features(&self) -> &[FeatureReference] { &self.features }
+    pub fn features(&self) -> &[FeatureReference] {
+        &self.features
+    }
     #[must_use]
-    pub fn supporting_evidence(&self) -> &[EvidenceClaim] { &self.supporting_evidence }
+    pub fn supporting_evidence(&self) -> &[EvidenceClaim] {
+        &self.supporting_evidence
+    }
     #[must_use]
-    pub fn contradicting_evidence(&self) -> &[EvidenceClaim] { &self.contradicting_evidence }
+    pub fn contradicting_evidence(&self) -> &[EvidenceClaim] {
+        &self.contradicting_evidence
+    }
     #[must_use]
-    pub fn unknowns(&self) -> &[String] { &self.unknowns }
+    pub fn unknowns(&self) -> &[String] {
+        &self.unknowns
+    }
     #[must_use]
-    pub fn risks(&self) -> &[String] { &self.risks }
+    pub fn risks(&self) -> &[String] {
+        &self.risks
+    }
     #[must_use]
-    pub fn proposed_invalidation(&self) -> &[String] { &self.proposed_invalidation }
+    pub fn proposed_invalidation(&self) -> &[String] {
+        &self.proposed_invalidation
+    }
     #[must_use]
-    pub const fn hard_veto_reported(&self) -> bool { self.hard_veto_reported }
+    pub const fn hard_veto_reported(&self) -> bool {
+        self.hard_veto_reported
+    }
     #[must_use]
-    pub fn reason_codes(&self) -> &[String] { &self.reason_codes }
+    pub fn reason_codes(&self) -> &[String] {
+        &self.reason_codes
+    }
 }
 
 fn validate_nonblank(
@@ -351,7 +381,11 @@ impl SpecialistBatch {
     }
 
     #[must_use]
-    pub fn snapshot_id(&self) -> &str { &self.snapshot_id }
+    pub fn snapshot_id(&self) -> &str {
+        &self.snapshot_id
+    }
     #[must_use]
-    pub fn outputs(&self) -> &[SpecialistOutput] { &self.outputs }
+    pub fn outputs(&self) -> &[SpecialistOutput] {
+        &self.outputs
+    }
 }
