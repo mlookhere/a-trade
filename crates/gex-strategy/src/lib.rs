@@ -28,6 +28,8 @@ mod research_wick_anatomy;
 pub use research_wick_anatomy::*;
 mod research_wick_anatomy_decision;
 pub use research_wick_anatomy_decision::*;
+mod research_wick_anatomy_feature;
+pub use research_wick_anatomy_feature::*;
 
 use std::collections::BTreeMap;
 
