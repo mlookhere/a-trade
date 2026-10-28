@@ -12,6 +12,8 @@ mod ohlcv;
 pub use ohlcv::*;
 mod ohlcv_coverage;
 pub use ohlcv_coverage::*;
+mod research_ema;
+pub use research_ema::*;
 
 use std::collections::BTreeMap;
 
