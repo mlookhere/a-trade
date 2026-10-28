@@ -162,3 +162,20 @@ fn stale_or_different_decision_clock_never_reuses_research_evidence() {
         );
     }
 }
+
+#[test]
+fn wick_extremes_symmetry_and_full_body_remain_signed_research_descriptions() {
+    let snap = snapshot("s104", "SPY");
+    for (open, close, expected) in [
+        (100.0, 100.0, -1.0),
+        (120.0, 120.0, 1.0),
+        (110.0, 110.0, 0.0),
+        (100.0, 120.0, 0.0),
+    ] {
+        let source = verified_source(&snap, open, close);
+        let evidence = bind_research_wick_anatomy_feature(&snap, &source, 1_010).unwrap();
+        assert_eq!(evidence.features().candle_event().wick_asymmetry, Some(expected));
+        assert_eq!(evidence.source().observation().wick_asymmetry_ratio(), expected);
+        assert_eq!(evidence.features().candle_event().close_location_value, None);
+    }
+}
