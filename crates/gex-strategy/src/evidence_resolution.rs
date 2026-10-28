@@ -365,7 +365,10 @@ pub fn audit_specialist_evidence(
     }
     validate_feature_snapshot(snapshot, features)?;
     if batch.source_snapshot() != snapshot
-        || batch.outputs().iter().any(|o| o.source_snapshot() != snapshot)
+        || batch
+            .outputs()
+            .iter()
+            .any(|o| o.source_snapshot() != snapshot)
     {
         return Err(EvidenceAuditError::SpecialistSnapshotContentsMismatch);
     }
