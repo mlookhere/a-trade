@@ -55,7 +55,7 @@ impl SnapshotTimingAssessment {
     }
 }
 
-fn classify_pair(
+pub(crate) fn classify_pair(
     source_timestamp_millis: Option<i64>,
     received_timestamp_millis: Option<i64>,
     observation_time_millis: i64,
