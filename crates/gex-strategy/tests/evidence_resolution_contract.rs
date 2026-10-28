@@ -1,10 +1,10 @@
 use gex_strategy::{
     AdvisoryDirection, AiNativeFeatureInput, AiNativeFeatureSet, ClaimObservationStatus,
-    DataQuality, EvidenceAuditError, EvidenceAuditProvenanceError, EvidenceClaimInput, EvidenceKind, EvidenceReference,
-    FeatureReference, FeatureSource, GexScope, MarketSnapshot, MarketSnapshotInput, ObservedValue,
-    RawGexLevel, ReferenceStatus, Session, SpecialistBatch, SpecialistOutput,
-    SpecialistOutputInput, SpecialistRole, SpecialistStatus, audit_specialist_evidence,
-    gex_level_reference, resolve_feature_reference, resolve_reference,
+    DataQuality, EvidenceAuditError, EvidenceAuditProvenanceError, EvidenceClaimInput,
+    EvidenceKind, EvidenceReference, FeatureReference, FeatureSource, GexScope, MarketSnapshot,
+    MarketSnapshotInput, ObservedValue, RawGexLevel, ReferenceStatus, Session, SpecialistBatch,
+    SpecialistOutput, SpecialistOutputInput, SpecialistRole, SpecialistStatus,
+    audit_specialist_evidence, gex_level_reference, resolve_feature_reference, resolve_reference,
 };
 
 fn snapshot(id: &str, quality: DataQuality, levels: &[RawGexLevel]) -> MarketSnapshot {
@@ -102,7 +102,10 @@ fn observed_snapshot_and_feature_values_are_real() {
         &reference(EvidenceKind::DeterministicFeature, "trend.trend_strength"),
     )
     .unwrap();
-    assert_eq!(observed.observed_value().cloned(), Some(ObservedValue::Feature(3.5)));
+    assert_eq!(
+        observed.observed_value().cloned(),
+        Some(ObservedValue::Feature(3.5))
+    );
     let missing = resolve_reference(
         &snap,
         &vals,
@@ -150,7 +153,10 @@ fn unsupported_fields_and_wrong_feature_groups_cannot_be_laundered() {
         },
     )
     .unwrap();
-    assert_eq!(correct.observed_value().cloned(), Some(ObservedValue::Feature(3.5)));
+    assert_eq!(
+        correct.observed_value().cloned(),
+        Some(ObservedValue::Feature(3.5))
+    );
     let wrong_group = resolve_feature_reference(
         &snap,
         &vals,
@@ -185,13 +191,15 @@ fn gex_reference_requires_exact_scope_and_existing_level() {
     assert_eq!(
         resolve_reference(&snap, &vals, &aggregate)
             .unwrap()
-            .observed_value().cloned(),
+            .observed_value()
+            .cloned(),
         Some(ObservedValue::Gex(-25.0))
     );
     assert_eq!(
         resolve_reference(&snap, &vals, &expiry)
             .unwrap()
-            .observed_value().cloned(),
+            .observed_value()
+            .cloned(),
         Some(ObservedValue::Gex(6.0))
     );
     assert_eq!(
@@ -294,7 +302,9 @@ fn batch_audits_claims_without_promoting_text_or_unverified_freshness() {
         ClaimObservationStatus::Unknown
     );
     assert_eq!(
-        item.supporting()[0].references()[0].observed_value().cloned(),
+        item.supporting()[0].references()[0]
+            .observed_value()
+            .cloned(),
         Some(ObservedValue::Gex(40.0))
     );
     // No ALLOW, broker execution, calibrated probability or claim-semantic proof exists.
