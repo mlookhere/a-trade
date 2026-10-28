@@ -94,16 +94,18 @@ fn research_ema_preserves_explicit_windows_and_bullish_baseline() {
         &config(ResearchEmaSeed::InitialSimpleAverage),
     )
     .unwrap();
-    assert_eq!(result.baseline_stack, EmaStackState::Bullish);
-    assert!(result.fast_value > result.middle_value);
-    assert!(result.middle_value > result.slow_value);
-    assert_eq!(result.snapshot_id, "s82");
-    assert_eq!(result.source_id, "source");
-    assert_eq!(result.fast_window, 9);
-    assert_eq!(result.middle_window, 21);
-    assert_eq!(result.slow_window, 50);
+    assert_eq!(result.baseline_stack(), EmaStackState::Bullish);
+    assert!(result.fast_value() > result.middle_value());
+    assert!(result.middle_value() > result.slow_value());
+    assert_eq!(result.snapshot_id(), "s82");
+    assert_eq!(result.symbol(), "SPY");
+    assert_eq!(result.timeframe(), OhlcvTimeframe::Minute5);
+    assert_eq!(result.source_id(), "source");
+    assert_eq!(result.fast_window(), 9);
+    assert_eq!(result.middle_window(), 21);
+    assert_eq!(result.slow_window(), 50);
     assert_eq!(
-        result.provenance,
+        result.provenance(),
         RuleProvenance::ValidationRequiredAssumption
     );
 }
@@ -121,7 +123,7 @@ fn research_ema_recognizes_bearish_and_equal_stacks_without_a_veto() {
         &config(ResearchEmaSeed::FirstCompletedClose),
     )
     .unwrap();
-    assert_eq!(result.baseline_stack, EmaStackState::Bearish);
+    assert_eq!(result.baseline_stack(), EmaStackState::Bearish);
 
     let flat = series(
         &snap,
@@ -138,8 +140,8 @@ fn research_ema_recognizes_bearish_and_equal_stacks_without_a_veto() {
         &config(ResearchEmaSeed::InitialSimpleAverage),
     )
     .unwrap();
-    assert_eq!(same.baseline_stack, EmaStackState::Mixed);
-    assert!((same.fast_value - 200.0).abs() < 1e-10);
+    assert_eq!(same.baseline_stack(), EmaStackState::Mixed);
+    assert!((same.fast_value() - 200.0).abs() < 1e-10);
 }
 
 #[test]
@@ -162,9 +164,9 @@ fn different_explicit_seed_formalizations_are_not_hidden() {
         &config(ResearchEmaSeed::FirstCompletedClose),
     )
     .unwrap();
-    assert_ne!(sma.slow_value, first.slow_value);
-    assert_eq!(sma.seed, ResearchEmaSeed::InitialSimpleAverage);
-    assert_eq!(first.seed, ResearchEmaSeed::FirstCompletedClose);
+    assert_ne!(sma.slow_value(), first.slow_value());
+    assert_eq!(sma.seed(), ResearchEmaSeed::InitialSimpleAverage);
+    assert_eq!(first.seed(), ResearchEmaSeed::FirstCompletedClose);
 }
 
 #[test]
