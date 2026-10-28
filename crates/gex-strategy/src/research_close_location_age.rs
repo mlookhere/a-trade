@@ -1,7 +1,7 @@
 use crate::{
-    MarketSnapshot, OhlcvObservationSeries, OhlcvTimeframe,
-    RequiredOhlcvCoverage, ResearchCloseLocationError,
-    ResearchCloseLocationObservation, TemporalStatus, calculate_research_close_location,
+    MarketSnapshot, OhlcvObservationSeries, OhlcvTimeframe, RequiredOhlcvCoverage,
+    ResearchCloseLocationError, ResearchCloseLocationObservation, TemporalStatus,
+    calculate_research_close_location,
 };
 
 /// Configured-age observation for ONE OHLCV source/timeframe only. Neither
