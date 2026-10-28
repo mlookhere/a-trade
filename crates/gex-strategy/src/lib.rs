@@ -14,6 +14,8 @@ mod ohlcv_coverage;
 pub use ohlcv_coverage::*;
 mod research_ema;
 pub use research_ema::*;
+mod ohlcv_source_spacing;
+pub use ohlcv_source_spacing::*;
 
 use std::collections::BTreeMap;
 
