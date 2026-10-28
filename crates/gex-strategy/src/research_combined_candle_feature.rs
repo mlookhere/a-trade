@@ -47,6 +47,7 @@ impl ResearchCombinedCandleFeatureEvidence {
 pub enum ResearchCombinedCandleFeatureError {
     SnapshotMismatch,
     SymbolMismatch,
+    SnapshotContentsMismatch,
     SourceMismatch,
     SourceQualityMismatch,
     TimeframeMismatch,
@@ -83,6 +84,9 @@ pub fn bind_research_combined_candle_feature(
     }
     if close.symbol() != snapshot.symbol() || wick.symbol() != snapshot.symbol() {
         return Err(ResearchCombinedCandleFeatureError::SymbolMismatch);
+    }
+    if close.source_snapshot() != snapshot || wick.source_snapshot() != snapshot {
+        return Err(ResearchCombinedCandleFeatureError::SnapshotContentsMismatch);
     }
     if close.source_id() != wick.source_id() {
         return Err(ResearchCombinedCandleFeatureError::SourceMismatch);
