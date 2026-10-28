@@ -14,6 +14,8 @@ mod ohlcv_coverage;
 pub use ohlcv_coverage::*;
 mod research_ema;
 pub use research_ema::*;
+mod research_ema_decision;
+pub use research_ema_decision::*;
 mod ohlcv_source_spacing;
 pub use ohlcv_source_spacing::*;
 mod research_close_location;
