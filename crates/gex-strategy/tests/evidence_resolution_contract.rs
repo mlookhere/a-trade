@@ -28,7 +28,7 @@ fn features(snapshot: &MarketSnapshot) -> AiNativeFeatureSet {
         snapshot_id: snapshot.snapshot_id().to_owned(),
         ..Default::default()
     };
-    input.trend.trend_strength = Some(ObservedValue::Feature(3.5));
+    input.trend.trend_strength = Some(3.5);
     input.participation.relative_volume = Some(2.0);
     AiNativeFeatureSet::build(snapshot, input).unwrap()
 }
