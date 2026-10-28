@@ -29,7 +29,11 @@ fn limits() -> ExplicitAgeLimits {
 }
 
 fn gex(source: i64, received: i64) -> GexTimeObservation {
+        snapshot_id: "snapshot-76".to_owned(),
+        symbol: "SPY".to_owned(),
     GexTimeObservation {
+        snapshot_id: "snapshot-76".to_owned(),
+        symbol: "SPY".to_owned(),
         source_timestamp_millis: Some(source),
         received_timestamp_millis: Some(received),
         data_quality: DataQuality::Structured,
@@ -88,6 +92,8 @@ fn absent_gex_feed_metadata_remains_missing_even_with_fresh_spot() {
     let b = assess_snapshot_timing(
         &s,
         Some(GexTimeObservation {
+        snapshot_id: "snapshot-76".to_owned(),
+        symbol: "SPY".to_owned(),
             source_timestamp_millis: None,
             received_timestamp_millis: Some(1_010),
             data_quality: DataQuality::Structured,
@@ -128,6 +134,8 @@ fn data_quality_unknown_is_not_treated_as_freshness_proof() {
     let b = assess_snapshot_timing(
         &snapshot(1_000, 1_010, DataQuality::Structured),
         Some(GexTimeObservation {
+        snapshot_id: "snapshot-76".to_owned(),
+        symbol: "SPY".to_owned(),
             source_timestamp_millis: Some(1_002),
             received_timestamp_millis: Some(1_011),
             data_quality: DataQuality::Unknown,
@@ -161,4 +169,20 @@ fn negative_decision_time_fails_without_overflow() {
     assert_eq!(a.market_data, TemporalStatus::InvalidTimeline);
     assert_eq!(a.gex_data, TemporalStatus::InvalidTimeline);
     assert_eq!(a.decision_age, TemporalStatus::InvalidTimeline);
+}
+
+#[test]
+fn gex_timestamp_identity_must_match_snapshot_and_symbol() {
+    let s = snapshot(1_000, 1_010, DataQuality::Structured);
+    let mut wrong_snapshot = gex(1_002, 1_011);
+    wrong_snapshot.snapshot_id = "other-decision".to_owned();
+    let a = assess_snapshot_timing(&s, Some(wrong_snapshot), 1_020, &limits());
+    assert_eq!(a.gex_data, TemporalStatus::IdentityMismatch);
+    assert!(!a.observed_clocks_within_limits());
+
+    let mut wrong_symbol = gex(1_002, 1_011);
+    wrong_symbol.symbol = "QQQ".to_owned();
+    let b = assess_snapshot_timing(&s, Some(wrong_symbol), 1_020, &limits());
+    assert_eq!(b.gex_data, TemporalStatus::IdentityMismatch);
+    assert!(!b.observed_clocks_within_limits());
 }
