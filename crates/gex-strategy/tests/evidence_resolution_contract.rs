@@ -449,10 +449,10 @@ fn immutable_evidence_report_rejects_reused_source_and_rewritten_feature_inputs(
     // Canonical §§5–6,11,14,16,116: a historical audit is not current trade ALLOW.
     let original = snapshot("s1", DataQuality::Structured, &[]);
     let values = features(&original);
-    let reference = reference(EvidenceKind::SnapshotField, "spot_price");
+    let spot_reference = reference(EvidenceKind::SnapshotField, "spot_price");
     let batch = SpecialistBatch::build(
         &original,
-        vec![specialist(&original, reference.clone())],
+        vec![specialist(&original, spot_reference.clone())],
     )
     .unwrap();
     let audit = audit_specialist_evidence(&original, &values, &batch).unwrap();
