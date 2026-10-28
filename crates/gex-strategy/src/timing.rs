@@ -12,8 +12,12 @@ pub struct ExplicitAgeLimits {
 
 /// A separate provider-sourced GEX timestamp pair. The market snapshot's
 /// timestamp MUST NOT be substituted for independently sampled GEX metadata.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GexTimeObservation {
+    /// Must identify the exact decision snapshot and underlying; matching
+    /// timestamps from another instrument cannot serve as freshness proof.
+    pub snapshot_id: String,
+    pub symbol: String,
     pub source_timestamp_millis: Option<i64>,
     pub received_timestamp_millis: Option<i64>,
     pub data_quality: DataQuality,
@@ -28,6 +32,7 @@ pub enum TemporalStatus {
     Missing,
     InvalidTimeline,
     UnknownQuality,
+    IdentityMismatch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,6 +110,11 @@ pub fn assess_snapshot_timing(
     );
 
     let gex_data = match gex {
+        Some(gex)
+            if gex.snapshot_id != snapshot.snapshot_id() || gex.symbol != snapshot.symbol() =>
+        {
+            TemporalStatus::IdentityMismatch
+        }
         Some(gex) => classify_pair(
             gex.source_timestamp_millis,
             gex.received_timestamp_millis,
