@@ -41,6 +41,7 @@ impl ResearchWickAnatomyFeatureEvidence {
 pub enum ResearchWickAnatomyFeatureError {
     SnapshotMismatch,
     SymbolMismatch,
+    SnapshotContentsMismatch,
     AssessmentClockMismatch,
     InvalidFeatureSet(FeatureSetError),
 }
@@ -63,6 +64,9 @@ pub fn bind_research_wick_anatomy_feature(
     }
     if observation.symbol() != snapshot.symbol() {
         return Err(ResearchWickAnatomyFeatureError::SymbolMismatch);
+    }
+    if observation.source_snapshot() != snapshot {
+        return Err(ResearchWickAnatomyFeatureError::SnapshotContentsMismatch);
     }
     if decision_timestamp_millis != source.decision_timestamp_millis() {
         return Err(ResearchWickAnatomyFeatureError::AssessmentClockMismatch);

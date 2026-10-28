@@ -111,6 +111,7 @@ impl ObservedOhlcvBar {
 /// synthetic values, EMA, volatility score, trading signal or broker authority.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OhlcvObservationSeries {
+    source_snapshot: MarketSnapshot,
     snapshot_id: String,
     symbol: String,
     source_id: String,
@@ -119,6 +120,12 @@ pub struct OhlcvObservationSeries {
 }
 
 impl OhlcvObservationSeries {
+    /// Immutable full source snapshot used to build this structurally checked series.
+    #[must_use]
+    pub fn source_snapshot(&self) -> &MarketSnapshot {
+        &self.source_snapshot
+    }
+
     pub fn build(
         snapshot: &MarketSnapshot,
         input: OhlcvObservationInput,
@@ -194,6 +201,7 @@ impl OhlcvObservationSeries {
         }
 
         Ok(Self {
+            source_snapshot: snapshot.clone(),
             snapshot_id: input.snapshot_id,
             symbol: input.symbol,
             source_id: input.source_id,

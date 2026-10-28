@@ -40,6 +40,7 @@ impl RequiredOhlcvAgeLimits {
 pub enum OhlcvCoverageError {
     SnapshotMismatch,
     SymbolMismatch,
+    SnapshotContentsMismatch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,6 +118,9 @@ pub fn assess_required_ohlcv_coverage(
         }
         if series.symbol() != snapshot.symbol() {
             return Err(OhlcvCoverageError::SymbolMismatch);
+        }
+        if series.source_snapshot() != snapshot {
+            return Err(OhlcvCoverageError::SnapshotContentsMismatch);
         }
     }
 

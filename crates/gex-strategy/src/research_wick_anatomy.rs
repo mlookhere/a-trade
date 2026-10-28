@@ -10,6 +10,7 @@ use crate::{
 pub enum ResearchWickAnatomyError {
     SnapshotMismatch,
     SymbolMismatch,
+    SnapshotContentsMismatch,
     MissingCompletedBar,
     ZeroRangeBar,
     NonFiniteCalculation,
@@ -20,6 +21,7 @@ pub enum ResearchWickAnatomyError {
 /// feed-supplied and is not an inferred candle-close timestamp.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResearchWickAnatomyObservation {
+    source_snapshot: MarketSnapshot,
     snapshot_id: String,
     symbol: String,
     source_id: String,
@@ -32,6 +34,12 @@ pub struct ResearchWickAnatomyObservation {
 }
 
 impl ResearchWickAnatomyObservation {
+    /// Immutable complete snapshot supplied to the validated source calculator.
+    #[must_use]
+    pub fn source_snapshot(&self) -> &MarketSnapshot {
+        &self.source_snapshot
+    }
+
     #[must_use]
     pub fn snapshot_id(&self) -> &str {
         &self.snapshot_id
@@ -97,6 +105,9 @@ pub fn calculate_research_wick_anatomy(
     if snapshot.symbol() != series.symbol() {
         return Err(ResearchWickAnatomyError::SymbolMismatch);
     }
+    if series.source_snapshot() != snapshot {
+        return Err(ResearchWickAnatomyError::SnapshotContentsMismatch);
+    }
     let bar = series
         .latest_completed(timeframe)
         .ok_or(ResearchWickAnatomyError::MissingCompletedBar)?;
@@ -124,6 +135,7 @@ pub fn calculate_research_wick_anatomy(
     }
 
     Ok(ResearchWickAnatomyObservation {
+        source_snapshot: snapshot.clone(),
         snapshot_id: snapshot.snapshot_id().to_owned(),
         symbol: snapshot.symbol().to_owned(),
         source_id: series.source_id().to_owned(),

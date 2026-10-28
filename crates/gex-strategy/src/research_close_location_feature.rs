@@ -44,6 +44,7 @@ impl ResearchCloseLocationFeatureEvidence {
 pub enum ResearchCloseLocationFeatureError {
     SnapshotMismatch,
     SymbolMismatch,
+    SnapshotContentsMismatch,
     AssessmentClockMismatch,
     InvalidFeatureSet(FeatureSetError),
 }
@@ -66,6 +67,9 @@ pub fn bind_research_close_location_feature(
     }
     if observation.symbol() != snapshot.symbol() {
         return Err(ResearchCloseLocationFeatureError::SymbolMismatch);
+    }
+    if observation.source_snapshot() != snapshot {
+        return Err(ResearchCloseLocationFeatureError::SnapshotContentsMismatch);
     }
     if decision_timestamp_millis != source.decision_timestamp_millis() {
         return Err(ResearchCloseLocationFeatureError::AssessmentClockMismatch);

@@ -10,6 +10,7 @@ use crate::{
 pub enum ResearchCloseLocationError {
     SnapshotMismatch,
     SymbolMismatch,
+    SnapshotContentsMismatch,
     MissingCompletedBar,
     ZeroRangeBar,
     NonFiniteCalculation,
@@ -20,6 +21,7 @@ pub enum ResearchCloseLocationError {
 /// continuity, feature normalization outside this ratio, or trading permission.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResearchCloseLocationObservation {
+    source_snapshot: MarketSnapshot,
     snapshot_id: String,
     symbol: String,
     source_id: String,
@@ -32,6 +34,12 @@ pub struct ResearchCloseLocationObservation {
 }
 
 impl ResearchCloseLocationObservation {
+    /// Immutable complete snapshot supplied to the validated source calculator.
+    #[must_use]
+    pub fn source_snapshot(&self) -> &MarketSnapshot {
+        &self.source_snapshot
+    }
+
     #[must_use]
     pub fn snapshot_id(&self) -> &str {
         &self.snapshot_id
@@ -97,6 +105,9 @@ pub fn calculate_research_close_location(
     if snapshot.symbol() != series.symbol() {
         return Err(ResearchCloseLocationError::SymbolMismatch);
     }
+    if series.source_snapshot() != snapshot {
+        return Err(ResearchCloseLocationError::SnapshotContentsMismatch);
+    }
     let bar = series
         .latest_completed(timeframe)
         .ok_or(ResearchCloseLocationError::MissingCompletedBar)?;
@@ -113,6 +124,7 @@ pub fn calculate_research_close_location(
         return Err(ResearchCloseLocationError::NonFiniteCalculation);
     }
     Ok(ResearchCloseLocationObservation {
+        source_snapshot: snapshot.clone(),
         snapshot_id: snapshot.snapshot_id().to_owned(),
         symbol: snapshot.symbol().to_owned(),
         source_id: series.source_id().to_owned(),
