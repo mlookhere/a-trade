@@ -70,11 +70,12 @@ fn calculate_ema(
         ResearchEmaSeed::FirstCompletedClose => (bars[0].close(), 1),
         ResearchEmaSeed::InitialSimpleAverage => {
             let divisor = window as f64;
-            let mut average = 0.0_f64;
+            let anchor = bars[0].close();
+            let mut centered_average = 0.0_f64;
             for bar in bars.iter().take(window) {
-                average += bar.close() / divisor;
+                centered_average += (bar.close() - anchor) / divisor;
             }
-            (average, window)
+            (anchor + centered_average, window)
         }
     };
     let alpha = 2.0 / (window as f64 + 1.0);
