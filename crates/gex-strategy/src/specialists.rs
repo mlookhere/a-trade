@@ -361,6 +361,7 @@ fn validate_nonblank(
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpecialistBatch {
     snapshot_id: String,
+    source_snapshot: MarketSnapshot,
     outputs: Vec<SpecialistOutput>,
 }
 
@@ -383,6 +384,7 @@ impl SpecialistBatch {
         }
         Ok(Self {
             snapshot_id: snapshot.snapshot_id().to_owned(),
+            source_snapshot: snapshot.clone(),
             outputs,
         })
     }
@@ -390,6 +392,11 @@ impl SpecialistBatch {
     #[must_use]
     pub fn snapshot_id(&self) -> &str {
         &self.snapshot_id
+    }
+    /// Complete source snapshot retained even for a batch with zero specialist outputs.
+    #[must_use]
+    pub fn source_snapshot(&self) -> &MarketSnapshot {
+        &self.source_snapshot
     }
     #[must_use]
     pub fn outputs(&self) -> &[SpecialistOutput] {

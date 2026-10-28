@@ -110,6 +110,7 @@ pub enum FeatureSetError {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AiNativeFeatureSet {
     snapshot_id: String,
+    source_snapshot: MarketSnapshot,
     trend: TrendFeatures,
     structure: StructureFeatures,
     candle_event: CandleEventFeatures,
@@ -135,6 +136,7 @@ impl AiNativeFeatureSet {
 
         Ok(Self {
             snapshot_id: input.snapshot_id,
+            source_snapshot: snapshot.clone(),
             trend: input.trend,
             structure: input.structure,
             candle_event: input.candle_event,
@@ -147,6 +149,12 @@ impl AiNativeFeatureSet {
     #[must_use]
     pub fn snapshot_id(&self) -> &str {
         &self.snapshot_id
+    }
+
+    /// Full immutable source snapshot; a matching ID alone is insufficient provenance.
+    #[must_use]
+    pub fn source_snapshot(&self) -> &MarketSnapshot {
+        &self.source_snapshot
     }
 
     #[must_use]

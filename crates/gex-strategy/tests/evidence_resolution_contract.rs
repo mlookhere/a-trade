@@ -318,3 +318,128 @@ fn mixed_snapshot_batch_fails_closed_even_when_references_are_valid() {
         Err(EvidenceAuditError::SnapshotMismatch)
     );
 }
+
+#[test]
+fn same_id_revised_snapshot_cannot_launder_research_feature_evidence() {
+    // Canonical §§11,16,116: provenance consistency only, never trade authorization.
+    let original = snapshot("same-id", DataQuality::Structured, &[]);
+    let original_features = features(&original);
+    let reference = reference(EvidenceKind::SnapshotField, "spot_price");
+    let invalid_group = FeatureReference {
+        source: FeatureSource::Trend,
+        key: "portfolio_broker.daily_loss".to_owned(),
+    };
+    let original_batch =
+        SpecialistBatch::build(&original, vec![specialist(&original, reference.clone())]).unwrap();
+    let original_empty = SpecialistBatch::build(&original, vec![]).unwrap();
+
+    assert_eq!(original_features.source_snapshot(), &original);
+    assert_eq!(original_batch.source_snapshot(), &original);
+    assert_eq!(original_empty.source_snapshot(), &original);
+    assert!(resolve_reference(&original, &original_features, &reference).is_ok());
+    assert!(audit_specialist_evidence(&original, &original_features, &original_batch).is_ok());
+    assert!(audit_specialist_evidence(&original, &original_features, &original_empty).is_ok());
+
+    let base = MarketSnapshotInput {
+        snapshot_id: "same-id".to_owned(),
+        symbol: "SPY".to_owned(),
+        source_timestamp_millis: 1_000,
+        received_timestamp_millis: 1_012,
+        spot_price: 600.0,
+        session: Session::Regular,
+        data_quality: DataQuality::Structured,
+    };
+    let revised_inputs = [
+        (
+            MarketSnapshotInput {
+                source_timestamp_millis: 999,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                received_timestamp_millis: 1_013,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                spot_price: 601.0,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                session: Session::Premarket,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Parsed,
+                ..base.clone()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Unknown,
+                ..base.clone()
+            },
+            false,
+        ),
+        (base, true),
+    ];
+    let gex = [RawGexLevel {
+        strike: 610.0,
+        gex_value: 20.0,
+        scope: GexScope::Aggregate,
+    }];
+    for (input, with_gex) in revised_inputs {
+        let levels: &[RawGexLevel] = if with_gex { &gex } else { &[] };
+        let revised = MarketSnapshot::build(input, levels).unwrap();
+        assert_eq!(revised.snapshot_id(), original.snapshot_id());
+        assert_ne!(revised, original);
+        let revised_features = features(&revised);
+        let revised_empty = SpecialistBatch::build(&revised, vec![]).unwrap();
+        let revised_batch =
+            SpecialistBatch::build(&revised, vec![specialist(&revised, reference.clone())])
+                .unwrap();
+
+        assert_eq!(
+            resolve_reference(&original, &revised_features, &reference),
+            Err(EvidenceAuditError::FeatureSnapshotContentsMismatch)
+        );
+        assert_eq!(
+            resolve_feature_reference(&original, &revised_features, &invalid_group),
+            Err(EvidenceAuditError::FeatureSnapshotContentsMismatch)
+        );
+        assert_eq!(
+            audit_specialist_evidence(&original, &revised_features, &original_empty),
+            Err(EvidenceAuditError::FeatureSnapshotContentsMismatch)
+        );
+        assert_eq!(
+            audit_specialist_evidence(&original, &original_features, &revised_empty),
+            Err(EvidenceAuditError::SpecialistSnapshotContentsMismatch)
+        );
+        assert_eq!(
+            audit_specialist_evidence(&original, &original_features, &revised_batch),
+            Err(EvidenceAuditError::SpecialistSnapshotContentsMismatch)
+        );
+    }
+
+    let foreign = snapshot("other-id", DataQuality::Structured, &[]);
+    assert_eq!(
+        resolve_reference(&original, &features(&foreign), &reference),
+        Err(EvidenceAuditError::FeatureSnapshotMismatch)
+    );
+    let foreign_batch = SpecialistBatch::build(&foreign, vec![]).unwrap();
+    assert_eq!(
+        audit_specialist_evidence(&original, &original_features, &foreign_batch),
+        Err(EvidenceAuditError::SnapshotMismatch)
+    );
+}

@@ -66,7 +66,9 @@ pub struct EvidenceAudit {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EvidenceAuditError {
     SnapshotMismatch,
+    SpecialistSnapshotContentsMismatch,
     FeatureSnapshotMismatch,
+    FeatureSnapshotContentsMismatch,
     InvalidGexIdentity,
 }
 
@@ -219,6 +221,20 @@ fn unresolved(reference: &EvidenceReference, status: ReferenceStatus) -> Referen
     }
 }
 
+/// Enforce complete feature provenance before checking even unsupported reference keys.
+fn validate_feature_snapshot(
+    snapshot: &MarketSnapshot,
+    features: &AiNativeFeatureSet,
+) -> Result<(), EvidenceAuditError> {
+    if snapshot.snapshot_id() != features.snapshot_id() {
+        return Err(EvidenceAuditError::FeatureSnapshotMismatch);
+    }
+    if features.source_snapshot() != snapshot {
+        return Err(EvidenceAuditError::FeatureSnapshotContentsMismatch);
+    }
+    Ok(())
+}
+
 /// Inspect an EvidenceReference against the actual immutable snapshot/feature set.
 /// This API has no execution/ALLOW/EV output. Even Observed requires a separate
 /// deterministic timestamp, provenance and rule-specific validity gate.
@@ -227,9 +243,7 @@ pub fn resolve_reference(
     features: &AiNativeFeatureSet,
     reference: &EvidenceReference,
 ) -> Result<ReferenceCheck, EvidenceAuditError> {
-    if snapshot.snapshot_id() != features.snapshot_id() {
-        return Err(EvidenceAuditError::FeatureSnapshotMismatch);
-    }
+    validate_feature_snapshot(snapshot, features)?;
     if snapshot.data_quality() == DataQuality::Unknown {
         return Ok(unresolved(reference, ReferenceStatus::DataQualityUnknown));
     }
@@ -278,6 +292,7 @@ pub fn resolve_feature_reference(
     features: &AiNativeFeatureSet,
     reference: &FeatureReference,
 ) -> Result<ReferenceCheck, EvidenceAuditError> {
+    validate_feature_snapshot(snapshot, features)?;
     let kind = match reference.source {
         FeatureSource::Trend
         | FeatureSource::Structure
@@ -348,8 +363,14 @@ pub fn audit_specialist_evidence(
     {
         return Err(EvidenceAuditError::SnapshotMismatch);
     }
-    if features.snapshot_id() != snapshot.snapshot_id() {
-        return Err(EvidenceAuditError::FeatureSnapshotMismatch);
+    validate_feature_snapshot(snapshot, features)?;
+    if batch.source_snapshot() != snapshot
+        || batch
+            .outputs()
+            .iter()
+            .any(|o| o.source_snapshot() != snapshot)
+    {
+        return Err(EvidenceAuditError::SpecialistSnapshotContentsMismatch);
     }
     let mut specialists = Vec::with_capacity(batch.outputs().len());
     for output in batch.outputs() {
