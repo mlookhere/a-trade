@@ -829,3 +829,93 @@ fn paired_summary_rejects_duplicate_case_and_snapshot_keys_mixed_phases_and_mani
         Err(ResearchPairedReplayError::ManifestChanged)
     );
 }
+
+#[test]
+fn paired_record_rejects_same_id_timestamp_and_quality_substitutions() {
+    let manifest = evaluation_manifest();
+    let s = snapshot("paired-revised", 600.0);
+    let original_packet = packet(&s, None);
+    let review = ResearchAdversarialReview::build(&s, &original_packet, vec![]).unwrap();
+    let proposal = ResearchDecisionProposal::build(&s, &review, proposal_input(&s)).unwrap();
+    let baseline = explicit_baseline(&s, AdvisoryDirection::Unknown);
+
+    let mut missing_baseline_id = baseline.clone();
+    missing_baseline_id.snapshot_id = " ".to_owned();
+    assert_eq!(
+        ResearchPairedReplayCase::record(
+            &manifest,
+            "blank-baseline",
+            "2026-01-05",
+            &s,
+            missing_baseline_id,
+            &proposal
+        ),
+        Err(ResearchPairedReplayError::MissingBaselineSnapshotId)
+    );
+
+    for input in [
+        MarketSnapshotInput {
+            snapshot_id: "paired-revised".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 999,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Structured,
+        },
+        MarketSnapshotInput {
+            snapshot_id: "paired-revised".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_011,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Structured,
+        },
+        MarketSnapshotInput {
+            snapshot_id: "paired-revised".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Unknown,
+        },
+    ] {
+        let changed = MarketSnapshot::build(input, &[]).unwrap();
+        assert_eq!(changed.snapshot_id(), s.snapshot_id());
+        assert_ne!(changed, s);
+        assert_eq!(
+            ResearchPairedReplayCase::record(
+                &manifest,
+                "revised-case",
+                "2026-01-05",
+                &changed,
+                baseline.clone(),
+                &proposal
+            ),
+            Err(ResearchPairedReplayError::SnapshotContentsMismatch)
+        );
+    }
+}
+
+#[test]
+fn out_of_sample_cases_remain_separate_with_unknown_direction_preserved() {
+    let manifest = evaluation_manifest();
+    let source = snapshot("paired-oos", 600.0);
+    let oos = paired_case(
+        &manifest,
+        "oos-only",
+        "2026-02-05",
+        &source,
+        AdvisoryDirection::Long,
+        AdvisoryDirection::Unknown,
+    );
+    let report =
+        summarize_research_pairs(&manifest, ResearchEvaluationPhase::OutOfSample, &[oos]).unwrap();
+    assert_eq!(report.phase(), ResearchEvaluationPhase::OutOfSample);
+    assert_eq!(report.total_cases(), 1);
+    assert_eq!(report.same_known_direction(), 0);
+    assert_eq!(report.different_known_direction(), 0);
+    assert_eq!(report.unknown_direction(), 1);
+}
