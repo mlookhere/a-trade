@@ -107,7 +107,10 @@ fn absent_gex_feed_metadata_remains_missing_even_with_fresh_spot() {
 fn conflicting_or_future_provider_timestamps_are_invalid() {
     let s = snapshot(1_000, 1_010, DataQuality::Structured);
     let future_decision = assess_snapshot_timing(&s, Some(gex(1_002, 1_011)), 1_009, &limits());
-    assert_eq!(future_decision.market_data(), TemporalStatus::InvalidTimeline);
+    assert_eq!(
+        future_decision.market_data(),
+        TemporalStatus::InvalidTimeline
+    );
     assert_eq!(
         future_decision.decision_age(),
         TemporalStatus::InvalidTimeline
@@ -191,12 +194,8 @@ fn source_bound_timing_assessment_rejects_reused_snapshot_labels_and_clock() {
     // §§11,14,16,116: matching labels do not prove matching source evidence.
     let original = snapshot(1_000, 1_010, DataQuality::Structured);
     let original_gex = gex(1_002, 1_011);
-    let assessment = assess_snapshot_timing(
-        &original,
-        Some(original_gex.clone()),
-        1_020,
-        &limits(),
-    );
+    let assessment =
+        assess_snapshot_timing(&original, Some(original_gex.clone()), 1_020, &limits());
     assert_eq!(assessment.snapshot_id(), original.snapshot_id());
     assert_eq!(assessment.source_snapshot(), &original);
     assert_eq!(assessment.source_gex(), Some(&original_gex));
@@ -313,7 +312,10 @@ fn absent_gex_timing_provenance_can_only_be_revalidated_as_absent() {
     let report = assess_snapshot_timing(&original, None, 1_020, &limits());
     assert_eq!(report.gex_data(), TemporalStatus::Missing);
     assert_eq!(report.source_gex(), None);
-    assert_eq!(report.validate_inputs(&original, None, 1_020, &limits()), Ok(()));
+    assert_eq!(
+        report.validate_inputs(&original, None, 1_020, &limits()),
+        Ok(())
+    );
     let new_gex = gex(1_002, 1_011);
     assert_eq!(
         report.validate_inputs(&original, Some(&new_gex), 1_020, &limits()),
