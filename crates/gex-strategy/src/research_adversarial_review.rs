@@ -185,8 +185,7 @@ impl ResearchAdversarialReview {
         {
             return Err(ResearchAdversarialReviewError::SnapshotMismatch);
         }
-        if snapshot != self.source_packet.source_snapshot()
-            || packet.source_snapshot() != snapshot
+        if snapshot != self.source_packet.source_snapshot() || packet.source_snapshot() != snapshot
         {
             return Err(ResearchAdversarialReviewError::SnapshotContentsMismatch);
         }
