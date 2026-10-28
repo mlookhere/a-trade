@@ -24,6 +24,8 @@ mod research_close_location_decision;
 pub use research_close_location_decision::*;
 mod research_close_location_feature;
 pub use research_close_location_feature::*;
+mod research_wick_anatomy;
+pub use research_wick_anatomy::*;
 
 use std::collections::BTreeMap;
 
