@@ -30,6 +30,8 @@ mod research_wick_anatomy_decision;
 pub use research_wick_anatomy_decision::*;
 mod research_wick_anatomy_feature;
 pub use research_wick_anatomy_feature::*;
+mod research_combined_candle_feature;
+pub use research_combined_candle_feature::*;
 
 use std::collections::BTreeMap;
 
