@@ -85,20 +85,26 @@ fn exact_snapshot_and_source_coverage_succeed_without_new_strategy_rules() {
     assert_eq!(age.source_snapshot(), &snap);
     assert_eq!(source.source_snapshot(), &snap);
     assert!(
-        calculate_research_close_location_with_age(
-            &snap, &source, &age, OhlcvTimeframe::Minute5
-        )
-        .is_ok()
+        calculate_research_close_location_with_age(&snap, &source, &age, OhlcvTimeframe::Minute5)
+            .is_ok()
     );
     assert!(
         calculate_research_close_location_at_decision(
-            &snap, &source, &age, OhlcvTimeframe::Minute5, 1_010
+            &snap,
+            &source,
+            &age,
+            OhlcvTimeframe::Minute5,
+            1_010
         )
         .is_ok()
     );
     assert!(
         calculate_research_wick_anatomy_at_decision(
-            &snap, &source, &age, OhlcvTimeframe::Minute5, 1_010
+            &snap,
+            &source,
+            &age,
+            OhlcvTimeframe::Minute5,
+            1_010
         )
         .is_ok()
     );
@@ -116,11 +122,41 @@ fn different_snapshot_contents_with_identical_labels_and_candle_are_not_intercha
         scope: GexScope::Aggregate,
     }];
     let changes = [
-        (MarketSnapshotInput { source_timestamp_millis: 951, ..input() }, false),
-        (MarketSnapshotInput { received_timestamp_millis: 1_001, ..input() }, false),
-        (MarketSnapshotInput { spot_price: 601.0, ..input() }, false),
-        (MarketSnapshotInput { session: Session::Premarket, ..input() }, false),
-        (MarketSnapshotInput { data_quality: DataQuality::Parsed, ..input() }, false),
+        (
+            MarketSnapshotInput {
+                source_timestamp_millis: 951,
+                ..input()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                received_timestamp_millis: 1_001,
+                ..input()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                spot_price: 601.0,
+                ..input()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                session: Session::Premarket,
+                ..input()
+            },
+            false,
+        ),
+        (
+            MarketSnapshotInput {
+                data_quality: DataQuality::Parsed,
+                ..input()
+            },
+            false,
+        ),
         (input(), true),
     ];
     for (revised_input, with_gex) in changes {
@@ -136,16 +172,26 @@ fn different_snapshot_contents_with_identical_labels_and_candle_are_not_intercha
             source.latest_completed(OhlcvTimeframe::Minute5)
         );
         assert_eq!(revised_report.decision_timestamp_millis(), 1_010);
-        assert_ne!(revised_report.source_snapshot(), original_report.source_snapshot());
+        assert_ne!(
+            revised_report.source_snapshot(),
+            original_report.source_snapshot()
+        );
         assert_eq!(
             calculate_research_close_location_with_age(
-                &original, &source, &revised_report, OhlcvTimeframe::Minute5
+                &original,
+                &source,
+                &revised_report,
+                OhlcvTimeframe::Minute5
             ),
             Err(ResearchCloseLocationAgeError::SnapshotContentsMismatch)
         );
         assert_eq!(
             calculate_research_close_location_at_decision(
-                &original, &source, &revised_report, OhlcvTimeframe::Minute5, 1_010
+                &original,
+                &source,
+                &revised_report,
+                OhlcvTimeframe::Minute5,
+                1_010
             ),
             Err(ResearchCloseLocationDecisionError::InvalidScopeAgeEvidence(
                 ResearchCloseLocationAgeError::SnapshotContentsMismatch
@@ -153,7 +199,11 @@ fn different_snapshot_contents_with_identical_labels_and_candle_are_not_intercha
         );
         assert_eq!(
             calculate_research_wick_anatomy_at_decision(
-                &original, &source, &revised_report, OhlcvTimeframe::Minute5, 1_010
+                &original,
+                &source,
+                &revised_report,
+                OhlcvTimeframe::Minute5,
+                1_010
             ),
             Err(ResearchWickAnatomyDecisionError::SnapshotContentsMismatch)
         );
@@ -169,23 +219,36 @@ fn mismatched_id_symbol_and_missing_or_stale_inputs_preserve_existing_rejections
     let snap = snapshot(input(), &[]);
     let source = bars(&snap);
     let wrong_id = snapshot(
-        MarketSnapshotInput { snapshot_id: "other".to_owned(), ..input() },
+        MarketSnapshotInput {
+            snapshot_id: "other".to_owned(),
+            ..input()
+        },
         &[],
     );
     let wrong_symbol = snapshot(
-        MarketSnapshotInput { symbol: "QQQ".to_owned(), ..input() },
+        MarketSnapshotInput {
+            symbol: "QQQ".to_owned(),
+            ..input()
+        },
         &[],
     );
     let foreign_report = coverage(&wrong_id, Some(&bars(&wrong_id)), 110);
     assert_eq!(
         calculate_research_close_location_with_age(
-            &snap, &source, &foreign_report, OhlcvTimeframe::Minute5
+            &snap,
+            &source,
+            &foreign_report,
+            OhlcvTimeframe::Minute5
         ),
         Err(ResearchCloseLocationAgeError::SnapshotMismatch)
     );
     assert_eq!(
         calculate_research_wick_anatomy_at_decision(
-            &snap, &source, &foreign_report, OhlcvTimeframe::Minute5, 1_010
+            &snap,
+            &source,
+            &foreign_report,
+            OhlcvTimeframe::Minute5,
+            1_010
         ),
         Err(ResearchWickAnatomyDecisionError::SnapshotMismatch)
     );
@@ -196,14 +259,16 @@ fn mismatched_id_symbol_and_missing_or_stale_inputs_preserve_existing_rejections
     );
     let stale = coverage(&snap, Some(&source), 109);
     assert_eq!(
-        calculate_research_close_location_with_age(
-            &snap, &source, &stale, OhlcvTimeframe::Minute5
-        ),
+        calculate_research_close_location_with_age(&snap, &source, &stale, OhlcvTimeframe::Minute5),
         Err(ResearchCloseLocationAgeError::MissingOrInvalidScopeAge)
     );
     assert_eq!(
         calculate_research_wick_anatomy_at_decision(
-            &snap, &source, &stale, OhlcvTimeframe::Minute5, 1_010
+            &snap,
+            &source,
+            &stale,
+            OhlcvTimeframe::Minute5,
+            1_010
         ),
         Err(ResearchWickAnatomyDecisionError::MissingOrInvalidScopeAge)
     );
