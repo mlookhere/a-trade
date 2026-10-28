@@ -57,7 +57,10 @@ fn explicit_role_annotations_are_snapshot_bound_and_do_not_mutate_gex_levels() {
     assert_eq!(report.annotations()[0].scope(), &GexScope::Aggregate);
     assert_eq!(report.annotations()[0].strike(), 510.0);
     assert!(!report.annotations()[0].rationale().trim().is_empty());
-    assert_eq!(report.explicit_role_for(0), Some(GexLevelRole::TargetMagnet));
+    assert_eq!(
+        report.explicit_role_for(0),
+        Some(GexLevelRole::TargetMagnet)
+    );
     assert_eq!(report.explicit_role_for(1), None);
 
     // A role attached by a caller is never automatically part of raw GEX.
