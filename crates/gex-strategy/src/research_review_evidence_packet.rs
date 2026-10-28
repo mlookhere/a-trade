@@ -1,7 +1,7 @@
 use crate::{
-    EvidenceAudit, EvidenceAuditProvenanceError, ExplicitAgeLimits, MarketSnapshot,
-    ResearchGexRoleComparison, ResearchGexRoleComparisonError, SnapshotTimingAssessment,
-    SnapshotTimingProvenanceError,
+    EvidenceAudit, EvidenceAuditProvenanceError, ExplicitAgeLimits, HardVetoProvenanceError,
+    HardVetoResult, MarketSnapshot, ResearchGexRoleComparison, ResearchGexRoleComparisonError,
+    SnapshotTimingAssessment, SnapshotTimingProvenanceError,
 };
 
 /// Research evidence-consistency errors only; not strategy rejection codes.
@@ -12,9 +12,19 @@ pub enum ResearchReviewPacketError {
     AuditProvenance(EvidenceAuditProvenanceError),
     RoleProvenance(ResearchGexRoleComparisonError),
     TimingProvenance(SnapshotTimingProvenanceError),
+    HardVetoProvenance(HardVetoProvenanceError),
     AuditChanged,
     RoleComparisonChanged,
     TimingAssessmentChanged,
+    HardVetoChanged,
+}
+
+/// Explicit caller-provided decision clock and reviewed age configuration.
+/// A historical review packet never extends its own freshness or authorization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResearchReviewDecisionContext {
+    pub decision_timestamp_millis: i64,
+    pub age_limits: ExplicitAgeLimits,
 }
 
 /// A read-only collection of original reports for review by an agent.
@@ -29,6 +39,7 @@ pub struct ResearchReviewEvidencePacket {
     audit: EvidenceAudit,
     role_comparison: ResearchGexRoleComparison,
     timing: SnapshotTimingAssessment,
+    hard_veto: HardVetoResult,
 }
 
 impl ResearchReviewEvidencePacket {
@@ -37,16 +48,19 @@ impl ResearchReviewEvidencePacket {
         audit: EvidenceAudit,
         role_comparison: ResearchGexRoleComparison,
         timing: SnapshotTimingAssessment,
+        hard_veto: HardVetoResult,
     ) -> Result<Self, ResearchReviewPacketError> {
         if audit.snapshot_id() != snapshot.snapshot_id()
             || role_comparison.source_snapshot().snapshot_id() != snapshot.snapshot_id()
             || timing.snapshot_id() != snapshot.snapshot_id()
+            || hard_veto.snapshot_id() != snapshot.snapshot_id()
         {
             return Err(ResearchReviewPacketError::SnapshotMismatch);
         }
         if audit.source_snapshot() != snapshot
             || role_comparison.source_snapshot() != snapshot
             || timing.source_snapshot() != snapshot
+            || hard_veto.source_snapshot() != snapshot
         {
             return Err(ResearchReviewPacketError::SnapshotContentsMismatch);
         }
@@ -64,12 +78,16 @@ impl ResearchReviewEvidencePacket {
                 &timing.age_limits(),
             )
             .map_err(ResearchReviewPacketError::TimingProvenance)?;
+        hard_veto
+            .validate_inputs(snapshot, hard_veto.source_input())
+            .map_err(ResearchReviewPacketError::HardVetoProvenance)?;
 
         Ok(Self {
             source_snapshot: snapshot.clone(),
             audit,
             role_comparison,
             timing,
+            hard_veto,
         })
     }
 
@@ -93,6 +111,13 @@ impl ResearchReviewEvidencePacket {
         &self.timing
     }
 
+    /// Exact original caller-supplied 13-condition report, never permission
+    /// to trade. Even Cleared is not an Allow verdict.
+    #[must_use]
+    pub fn hard_veto(&self) -> &HardVetoResult {
+        &self.hard_veto
+    }
+
     /// Compare exact source and original report witnesses. A new clock must
     /// yield a new timing assessment; a historical report is never refreshed
     /// by merely revalidating this packet.
@@ -102,8 +127,8 @@ impl ResearchReviewEvidencePacket {
         audit: &EvidenceAudit,
         role_comparison: &ResearchGexRoleComparison,
         timing: &SnapshotTimingAssessment,
-        decision_timestamp_millis: i64,
-        limits: &ExplicitAgeLimits,
+        hard_veto: &HardVetoResult,
+        decision: ResearchReviewDecisionContext,
     ) -> Result<(), ResearchReviewPacketError> {
         if snapshot.snapshot_id() != self.source_snapshot.snapshot_id() {
             return Err(ResearchReviewPacketError::SnapshotMismatch);
@@ -121,10 +146,13 @@ impl ResearchReviewEvidencePacket {
             .validate_inputs(
                 snapshot,
                 timing.source_gex(),
-                decision_timestamp_millis,
-                limits,
+                decision.decision_timestamp_millis,
+                &decision.age_limits,
             )
             .map_err(ResearchReviewPacketError::TimingProvenance)?;
+        hard_veto
+            .validate_inputs(snapshot, hard_veto.source_input())
+            .map_err(ResearchReviewPacketError::HardVetoProvenance)?;
 
         if audit != &self.audit {
             return Err(ResearchReviewPacketError::AuditChanged);
@@ -134,6 +162,9 @@ impl ResearchReviewEvidencePacket {
         }
         if timing != &self.timing {
             return Err(ResearchReviewPacketError::TimingAssessmentChanged);
+        }
+        if hard_veto != &self.hard_veto {
+            return Err(ResearchReviewPacketError::HardVetoChanged);
         }
         Ok(())
     }
