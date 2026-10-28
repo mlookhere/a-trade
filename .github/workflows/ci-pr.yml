@@ -61,6 +61,11 @@ jobs:
         with:
           persist-credentials: false
       - run: ./scripts/bootstrap
+      - name: Cache pinned cargo-audit executable
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-v1-${{ runner.os }}-${{ runner.arch }}-rust-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('ci/dependency-policy.toml') }}
       - run: bash ./scripts/bootstrap-audit
       - run: ./ci/run audit
 
