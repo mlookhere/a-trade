@@ -75,6 +75,7 @@ impl OhlcvSourceSpacingObservation {
 pub enum OhlcvSourceSpacingError {
     SnapshotMismatch,
     SymbolMismatch,
+    SnapshotContentsMismatch,
     InsufficientCompletedHistory,
     InvalidSourceTimestampSequence,
 }
@@ -95,6 +96,9 @@ pub fn measure_ohlcv_source_spacing(
         return Err(OhlcvSourceSpacingError::SymbolMismatch);
     }
 
+    if series.source_snapshot() != snapshot {
+        return Err(OhlcvSourceSpacingError::SnapshotContentsMismatch);
+    }
     let bars = series.completed_bars(timeframe);
     if bars.len() < 2 {
         return Err(OhlcvSourceSpacingError::InsufficientCompletedHistory);
