@@ -3,13 +3,13 @@ use gex_strategy::{
     DataQuality, EvidenceClaimInput, EvidenceKind, EvidenceReference, ExplicitAgeLimits,
     HardCondition, HardVetoInput, MarketSnapshot, MarketSnapshotInput, Playbook,
     ResearchAdversarialChallengeInput, ResearchAdversarialReview, ResearchAdversarialReviewError,
-    ResearchChallengeClaimSide, ResearchDecisionProposal, ResearchDecisionProposalError,
-    ResearchDecisionProposalInput, ResearchBaselineObservationInput,
-    ResearchEvaluationPhase, ResearchGexRoleComparison, ResearchPairedEvaluationManifest,
-    ResearchPairedManifestError, ResearchPairedReplayCase, ResearchPairedReplayError,
-    ResearchReviewEvidencePacket, summarize_research_pairs,
-    Session, SpecialistBatch, SpecialistOutput, SpecialistOutputInput, SpecialistRole,
-    SpecialistStatus, assess_snapshot_timing, audit_specialist_evidence, evaluate_hard_vetoes,
+    ResearchBaselineObservationInput, ResearchChallengeClaimSide, ResearchDecisionProposal,
+    ResearchDecisionProposalError, ResearchDecisionProposalInput, ResearchEvaluationPhase,
+    ResearchGexRoleComparison, ResearchPairedEvaluationManifest, ResearchPairedManifestError,
+    ResearchPairedReplayCase, ResearchPairedReplayError, ResearchReviewEvidencePacket, Session,
+    SpecialistBatch, SpecialistOutput, SpecialistOutputInput, SpecialistRole, SpecialistStatus,
+    assess_snapshot_timing, audit_specialist_evidence, evaluate_hard_vetoes,
+    summarize_research_pairs,
 };
 
 fn snapshot(id: &str, spot: f64) -> MarketSnapshot {
@@ -600,7 +600,10 @@ fn paired_manifest_rejects_missing_duplicate_and_leaking_sessions() {
     );
     let mut blank = manifest.clone();
     blank.backtest_session_ids.push(" ".to_owned());
-    assert_eq!(blank.validate(), Err(ResearchPairedManifestError::BlankSessionId));
+    assert_eq!(
+        blank.validate(),
+        Err(ResearchPairedManifestError::BlankSessionId)
+    );
     let mut duplicate = manifest.clone();
     duplicate.backtest_session_ids.push("2026-01-05".to_owned());
     assert_eq!(
@@ -608,8 +611,13 @@ fn paired_manifest_rejects_missing_duplicate_and_leaking_sessions() {
         Err(ResearchPairedManifestError::DuplicateSessionId)
     );
     let mut overlap = manifest;
-    overlap.out_of_sample_session_ids.push("2026-01-05".to_owned());
-    assert_eq!(overlap.validate(), Err(ResearchPairedManifestError::SplitOverlap));
+    overlap
+        .out_of_sample_session_ids
+        .push("2026-01-05".to_owned());
+    assert_eq!(
+        overlap.validate(),
+        Err(ResearchPairedManifestError::SplitOverlap)
+    );
 }
 
 #[test]
@@ -668,33 +676,47 @@ fn paired_replay_rejects_unlisted_sessions_blank_baseline_evidence_and_changed_s
     let s = snapshot("paired-validate", 600.0);
     let packet = packet(&s, None);
     let review = ResearchAdversarialReview::build(&s, &packet, vec![]).unwrap();
-    let proposal =
-        ResearchDecisionProposal::build(&s, &review, proposal_input(&s)).unwrap();
+    let proposal = ResearchDecisionProposal::build(&s, &review, proposal_input(&s)).unwrap();
     let baseline = explicit_baseline(&s, AdvisoryDirection::Neutral);
 
     assert_eq!(
         ResearchPairedReplayCase::record(
-            &manifest, "case", "not-listed", &s, baseline.clone(), &proposal
+            &manifest,
+            "case",
+            "not-listed",
+            &s,
+            baseline.clone(),
+            &proposal
         ),
         Err(ResearchPairedReplayError::UnknownSession)
     );
     assert_eq!(
-        ResearchPairedReplayCase::record(&manifest, "", "2026-01-05", &s, baseline.clone(), &proposal),
+        ResearchPairedReplayCase::record(
+            &manifest,
+            "",
+            "2026-01-05",
+            &s,
+            baseline.clone(),
+            &proposal
+        ),
         Err(ResearchPairedReplayError::MissingCaseId)
     );
     let mut no_record = baseline.clone();
     no_record.source_record_id = " ".to_owned();
     assert_eq!(
-        ResearchPairedReplayCase::record(
-            &manifest, "case", "2026-01-05", &s, no_record, &proposal
-        ),
+        ResearchPairedReplayCase::record(&manifest, "case", "2026-01-05", &s, no_record, &proposal),
         Err(ResearchPairedReplayError::MissingBaselineRecordId)
     );
     let mut no_rationale = baseline.clone();
     no_rationale.rationale = " ".to_owned();
     assert_eq!(
         ResearchPairedReplayCase::record(
-            &manifest, "case", "2026-01-05", &s, no_rationale, &proposal
+            &manifest,
+            "case",
+            "2026-01-05",
+            &s,
+            no_rationale,
+            &proposal
         ),
         Err(ResearchPairedReplayError::BlankBaselineRationale)
     );
@@ -702,21 +724,36 @@ fn paired_replay_rejects_unlisted_sessions_blank_baseline_evidence_and_changed_s
     wrong_source.snapshot_id = "foreign".to_owned();
     assert_eq!(
         ResearchPairedReplayCase::record(
-            &manifest, "case", "2026-01-05", &s, wrong_source, &proposal
+            &manifest,
+            "case",
+            "2026-01-05",
+            &s,
+            wrong_source,
+            &proposal
         ),
         Err(ResearchPairedReplayError::BaselineSnapshotMismatch)
     );
     let changed = snapshot("paired-validate", 601.0);
     assert_eq!(
         ResearchPairedReplayCase::record(
-            &manifest, "case", "2026-01-05", &changed, baseline.clone(), &proposal
+            &manifest,
+            "case",
+            "2026-01-05",
+            &changed,
+            baseline.clone(),
+            &proposal
         ),
         Err(ResearchPairedReplayError::SnapshotContentsMismatch)
     );
     let foreign = snapshot("foreign", 600.0);
     assert_eq!(
         ResearchPairedReplayCase::record(
-            &manifest, "case", "2026-01-05", &foreign, baseline, &proposal
+            &manifest,
+            "case",
+            "2026-01-05",
+            &foreign,
+            baseline,
+            &proposal
         ),
         Err(ResearchPairedReplayError::BaselineSnapshotMismatch)
     );
@@ -726,47 +763,69 @@ fn paired_replay_rejects_unlisted_sessions_blank_baseline_evidence_and_changed_s
 fn paired_summary_rejects_duplicate_case_and_snapshot_keys_mixed_phases_and_manifest() {
     let manifest = evaluation_manifest();
     let a = paired_case(
-        &manifest, "one", "2026-01-05", &snapshot("same-snapshot", 600.0),
-        AdvisoryDirection::Long, AdvisoryDirection::Long,
+        &manifest,
+        "one",
+        "2026-01-05",
+        &snapshot("same-snapshot", 600.0),
+        AdvisoryDirection::Long,
+        AdvisoryDirection::Long,
     );
     let b = paired_case(
-        &manifest, "two", "2026-01-05", &snapshot("same-snapshot", 600.0),
-        AdvisoryDirection::Short, AdvisoryDirection::Short,
+        &manifest,
+        "two",
+        "2026-01-05",
+        &snapshot("same-snapshot", 600.0),
+        AdvisoryDirection::Short,
+        AdvisoryDirection::Short,
     );
     let same_case_id = paired_case(
-        &manifest, "one", "2026-01-05", &snapshot("different", 600.0),
-        AdvisoryDirection::Short, AdvisoryDirection::Long,
+        &manifest,
+        "one",
+        "2026-01-05",
+        &snapshot("different", 600.0),
+        AdvisoryDirection::Short,
+        AdvisoryDirection::Long,
     );
     assert_eq!(
         summarize_research_pairs(&manifest, ResearchEvaluationPhase::Backtest, &[]),
         Err(ResearchPairedReplayError::EmptyCases)
     );
     assert_eq!(
-        summarize_research_pairs(&manifest, ResearchEvaluationPhase::Backtest, &[a.clone(), b]),
+        summarize_research_pairs(
+            &manifest,
+            ResearchEvaluationPhase::Backtest,
+            &[a.clone(), b]
+        ),
         Err(ResearchPairedReplayError::DuplicateSessionSnapshot)
     );
     assert_eq!(
         summarize_research_pairs(
-            &manifest, ResearchEvaluationPhase::Backtest, &[a.clone(), same_case_id]
+            &manifest,
+            ResearchEvaluationPhase::Backtest,
+            &[a.clone(), same_case_id]
         ),
         Err(ResearchPairedReplayError::DuplicateCaseId)
     );
     let oos = paired_case(
-        &manifest, "out", "2026-02-05", &snapshot("other", 600.0),
-        AdvisoryDirection::Unknown, AdvisoryDirection::Unknown,
+        &manifest,
+        "out",
+        "2026-02-05",
+        &snapshot("other", 600.0),
+        AdvisoryDirection::Unknown,
+        AdvisoryDirection::Unknown,
     );
     assert_eq!(
         summarize_research_pairs(
-            &manifest, ResearchEvaluationPhase::Backtest, &[a.clone(), oos]
+            &manifest,
+            ResearchEvaluationPhase::Backtest,
+            &[a.clone(), oos]
         ),
         Err(ResearchPairedReplayError::MixedPhases)
     );
     let mut altered_manifest = manifest.clone();
     altered_manifest.ai_native_version = "other-version".to_owned();
     assert_eq!(
-        summarize_research_pairs(
-            &altered_manifest, ResearchEvaluationPhase::Backtest, &[a]
-        ),
+        summarize_research_pairs(&altered_manifest, ResearchEvaluationPhase::Backtest, &[a]),
         Err(ResearchPairedReplayError::ManifestChanged)
     );
 }
