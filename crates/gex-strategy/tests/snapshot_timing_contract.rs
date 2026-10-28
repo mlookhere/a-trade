@@ -1,6 +1,7 @@
 use gex_strategy::{
-    DataQuality, ExplicitAgeLimits, GexTimeObservation, MarketSnapshot, MarketSnapshotInput,
-    RawGexLevel, GexScope, Session, SnapshotTimingProvenanceError, TemporalStatus, assess_snapshot_timing,
+    DataQuality, ExplicitAgeLimits, GexScope, GexTimeObservation, MarketSnapshot,
+    MarketSnapshotInput, RawGexLevel, Session, SnapshotTimingProvenanceError, TemporalStatus,
+    assess_snapshot_timing,
 };
 
 fn snapshot(source: i64, received: i64, quality: DataQuality) -> MarketSnapshot {
