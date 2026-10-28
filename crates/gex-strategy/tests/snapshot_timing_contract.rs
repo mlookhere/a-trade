@@ -1,6 +1,6 @@
 use gex_strategy::{
     DataQuality, ExplicitAgeLimits, GexTimeObservation, MarketSnapshot, MarketSnapshotInput,
-    Session, SnapshotTimingProvenanceError, TemporalStatus, assess_snapshot_timing,
+    RawGexLevel, GexScope, Session, SnapshotTimingProvenanceError, TemporalStatus, assess_snapshot_timing,
 };
 
 fn snapshot(source: i64, received: i64, quality: DataQuality) -> MarketSnapshot {
@@ -211,6 +211,23 @@ fn source_bound_timing_assessment_rejects_reused_snapshot_labels_and_clock() {
         snapshot(999, 1_010, DataQuality::Structured),
         snapshot(1_000, 1_011, DataQuality::Structured),
         snapshot(1_000, 1_010, DataQuality::Unknown),
+        MarketSnapshot::build(
+            MarketSnapshotInput {
+                snapshot_id: "snapshot-76".to_owned(),
+                symbol: "SPY".to_owned(),
+                source_timestamp_millis: 1_000,
+                received_timestamp_millis: 1_010,
+                spot_price: 600.0,
+                session: Session::Regular,
+                data_quality: DataQuality::Structured,
+            },
+            &[RawGexLevel {
+                strike: 610.0,
+                gex_value: 25.0,
+                scope: GexScope::Aggregate,
+            }],
+        )
+        .unwrap(),
         MarketSnapshot::build(
             MarketSnapshotInput {
                 snapshot_id: "snapshot-76".to_owned(),
