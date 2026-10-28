@@ -15,12 +15,23 @@ pub enum ReferenceStatus {
     DataQualityUnknown,
 }
 
+/// Preserve the original numeric domain: timestamps are integers, not
+/// approximate floating-point values disguised as market evidence.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ObservedValue {
+    Price(f64),
+    TimestampMillis(i64),
+    AgeMillis(u64),
+    Feature(f64),
+    Gex(f64),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReferenceCheck {
     pub reference: EvidenceReference,
     pub status: ReferenceStatus,
     /// Present only when the corresponding numeric observation really exists.
-    pub observed_value: Option<f64>,
+    pub observed_value: Option<ObservedValue>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,12 +95,12 @@ pub fn gex_level_reference(
 
 /// The only accepted snapshot field names are explicit and backed by the
 /// immutable typed MarketSnapshot. Numeric presence alone is not freshness.
-fn snapshot_field(snapshot: &MarketSnapshot, key: &str) -> Option<f64> {
+fn snapshot_field(snapshot: &MarketSnapshot, key: &str) -> Option<ObservedValue> {
     match key {
-        "spot_price" => Some(snapshot.spot_price()),
-        "source_timestamp_millis" => Some(snapshot.source_timestamp_millis() as f64),
-        "received_timestamp_millis" => Some(snapshot.received_timestamp_millis() as f64),
-        "data_age_millis" => Some(snapshot.data_age_millis() as f64),
+        "spot_price" => Some(ObservedValue::Price(snapshot.spot_price())),
+        "source_timestamp_millis" => Some(ObservedValue::TimestampMillis(snapshot.source_timestamp_millis())),
+        "received_timestamp_millis" => Some(ObservedValue::TimestampMillis(snapshot.received_timestamp_millis())),
+        "data_age_millis" => Some(ObservedValue::AgeMillis(snapshot.data_age_millis())),
         _ => None,
     }
 }
@@ -188,7 +199,7 @@ fn feature_field(features: &AiNativeFeatureSet, key: &str) -> Option<Option<f64>
     })
 }
 
-fn observed(reference: &EvidenceReference, value: f64) -> ReferenceCheck {
+fn observed(reference: &EvidenceReference, value: ObservedValue) -> ReferenceCheck {
     ReferenceCheck {
         reference: reference.clone(),
         status: ReferenceStatus::Observed,
@@ -224,7 +235,7 @@ pub fn resolve_reference(
             .map(|v| observed(reference, v))
             .unwrap_or_else(|| unresolved(reference, ReferenceStatus::Unsupported)),
         EvidenceKind::DeterministicFeature => match feature_field(features, &reference.reference) {
-            Some(Some(v)) => observed(reference, v),
+            Some(Some(v)) => observed(reference, ObservedValue::Feature(v)),
             Some(None) => unresolved(reference, ReferenceStatus::Missing),
             None => unresolved(reference, ReferenceStatus::Unsupported),
         },
@@ -240,7 +251,7 @@ pub fn resolve_reference(
             }
             match count {
                 0 => unresolved(reference, ReferenceStatus::Missing),
-                1 => observed(reference, value),
+                1 => observed(reference, ObservedValue::Gex(value)),
                 _ => unresolved(reference, ReferenceStatus::Ambiguous),
             }
         }
