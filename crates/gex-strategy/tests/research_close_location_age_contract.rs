@@ -83,19 +83,18 @@ fn exact_age_boundary_passes_and_remains_research_only() {
     let snap = snapshot("s92", "SPY");
     let source = valid_series(&snap);
     let age = coverage(&snap, Some(&source), 1_010, 210);
-    let proof = calculate_research_close_location_with_age(
-        &snap,
-        &source,
-        &age,
-        OhlcvTimeframe::Minute5,
-    )
-    .unwrap();
+    let proof =
+        calculate_research_close_location_with_age(&snap, &source, &age, OhlcvTimeframe::Minute5)
+            .unwrap();
     assert_eq!(proof.measured_source_age_millis(), 210);
     assert_eq!(proof.observation().close_location_ratio(), 0.75);
     assert_eq!(proof.observation().snapshot_id(), "s92");
     assert_eq!(proof.observation().symbol(), "SPY");
     assert_eq!(proof.observation().source_id(), "source-92");
-    assert_eq!(proof.observation().source_quality(), DataQuality::Structured);
+    assert_eq!(
+        proof.observation().source_quality(),
+        DataQuality::Structured
+    );
     assert_eq!(proof.observation().timeframe(), OhlcvTimeframe::Minute5);
     assert_eq!(proof.observation().source_timestamp_millis(), 800);
     assert_eq!(
@@ -254,12 +253,7 @@ fn unsupported_daily_scope_and_invalid_raw_math_never_promote() {
     let source = valid_series(&snap);
     let age = coverage(&snap, Some(&source), 1_010, 210);
     assert_eq!(
-        calculate_research_close_location_with_age(
-            &snap,
-            &source,
-            &age,
-            OhlcvTimeframe::Daily
-        ),
+        calculate_research_close_location_with_age(&snap, &source, &age, OhlcvTimeframe::Daily),
         Err(ResearchCloseLocationAgeError::UnsupportedTimeframe)
     );
     let zero_range = series(
