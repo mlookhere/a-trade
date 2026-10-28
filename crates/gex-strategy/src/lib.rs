@@ -18,6 +18,8 @@ mod ohlcv_source_spacing;
 pub use ohlcv_source_spacing::*;
 mod research_close_location;
 pub use research_close_location::*;
+mod research_close_location_age;
+pub use research_close_location_age::*;
 
 use std::collections::BTreeMap;
 
