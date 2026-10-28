@@ -14,6 +14,8 @@ mod research_review_diagnostics;
 pub use research_review_diagnostics::*;
 mod research_adversarial_review;
 pub use research_adversarial_review::*;
+mod research_decision_proposal;
+pub use research_decision_proposal::*;
 mod evidence_resolution;
 pub use evidence_resolution::*;
 mod timing;

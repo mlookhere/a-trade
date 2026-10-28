@@ -1,11 +1,12 @@
 use gex_strategy::{
     AdvisoryDirection, AiNativeFeatureInput, AiNativeFeatureSet, ClaimObservationStatus,
     DataQuality, EvidenceClaimInput, EvidenceKind, EvidenceReference, ExplicitAgeLimits,
-    HardCondition, HardVetoInput, MarketSnapshot, MarketSnapshotInput,
+    HardCondition, HardVetoInput, MarketSnapshot, MarketSnapshotInput, Playbook,
     ResearchAdversarialChallengeInput, ResearchAdversarialReview, ResearchAdversarialReviewError,
-    ResearchChallengeClaimSide, ResearchGexRoleComparison, ResearchReviewEvidencePacket, Session,
-    SpecialistBatch, SpecialistOutput, SpecialistOutputInput, SpecialistRole, SpecialistStatus,
-    assess_snapshot_timing, audit_specialist_evidence, evaluate_hard_vetoes,
+    ResearchChallengeClaimSide, ResearchDecisionProposal, ResearchDecisionProposalError,
+    ResearchDecisionProposalInput, ResearchGexRoleComparison, ResearchReviewEvidencePacket,
+    Session, SpecialistBatch, SpecialistOutput, SpecialistOutputInput, SpecialistRole,
+    SpecialistStatus, assess_snapshot_timing, audit_specialist_evidence, evaluate_hard_vetoes,
 };
 
 fn snapshot(id: &str, spot: f64) -> MarketSnapshot {
@@ -310,4 +311,196 @@ fn same_id_timestamp_and_quality_revisions_cannot_reuse_original_review() {
             Err(ResearchAdversarialReviewError::SnapshotContentsMismatch)
         );
     }
+}
+
+fn proposal_input(s: &MarketSnapshot) -> ResearchDecisionProposalInput {
+    ResearchDecisionProposalInput {
+        snapshot_id: s.snapshot_id().to_owned(),
+        proposer_id: "research-proposer".to_owned(),
+        playbook: Playbook::None,
+        direction: AdvisoryDirection::Unknown,
+        rationale: "Unverified external hypothesis requiring independent validation".to_owned(),
+    }
+}
+
+#[test]
+fn proposal_preserves_unknown_playbook_direction_and_all_original_review_witnesses() {
+    let s = snapshot("proposal-1", 600.0);
+    let p = packet(&s, None);
+    let review = ResearchAdversarialReview::build(
+        &s,
+        &p,
+        vec![challenge(&s, ResearchChallengeClaimSide::Supporting)],
+    )
+    .unwrap();
+    let input = proposal_input(&s);
+    let proposal = ResearchDecisionProposal::build(&s, &review, input.clone()).unwrap();
+
+    assert_eq!(proposal.source_snapshot(), &s);
+    assert_eq!(proposal.source_review(), &review);
+    assert_eq!(proposal.source_input(), &input);
+    assert_eq!(proposal.source_input().playbook, Playbook::None);
+    assert_eq!(
+        proposal.source_input().direction,
+        AdvisoryDirection::Unknown
+    );
+    assert_eq!(proposal.source_review().challenges().len(), 1);
+    assert_eq!(proposal.validate_inputs(&s, &review, &input), Ok(()));
+    assert_eq!(
+        proposal
+            .source_review()
+            .source_packet()
+            .timing()
+            .source_gex(),
+        None
+    );
+}
+
+#[test]
+fn even_explicit_playbook_and_long_direction_are_only_hypotheses() {
+    let s = snapshot("proposal-2", 600.0);
+    let p = packet(&s, None);
+    let review = ResearchAdversarialReview::build(&s, &p, vec![]).unwrap();
+    let mut input = proposal_input(&s);
+    input.playbook = Playbook::PositiveGammaMagnet;
+    input.direction = AdvisoryDirection::Long;
+    let proposal = ResearchDecisionProposal::build(&s, &review, input.clone()).unwrap();
+    assert_eq!(
+        proposal.source_input().playbook,
+        Playbook::PositiveGammaMagnet
+    );
+    assert_eq!(proposal.source_input().direction, AdvisoryDirection::Long);
+    assert!(proposal.source_review().challenges().is_empty());
+    assert_eq!(proposal.validate_inputs(&s, &review, &input), Ok(()));
+    assert_eq!(
+        p.hard_veto().blocking_decision(),
+        Some(gex_strategy::DecisionVerdict::Wait)
+    );
+}
+
+#[test]
+fn blank_or_foreign_proposals_and_changed_fields_reject_without_reinterpretation() {
+    let s = snapshot("proposal-3", 600.0);
+    let p = packet(&s, None);
+    let review = ResearchAdversarialReview::build(&s, &p, vec![]).unwrap();
+    let input = proposal_input(&s);
+
+    let mut missing = input.clone();
+    missing.snapshot_id = " ".to_owned();
+    assert_eq!(
+        ResearchDecisionProposal::build(&s, &review, missing),
+        Err(ResearchDecisionProposalError::MissingSnapshotId)
+    );
+    let mut wrong = input.clone();
+    wrong.snapshot_id = "other".to_owned();
+    assert_eq!(
+        ResearchDecisionProposal::build(&s, &review, wrong),
+        Err(ResearchDecisionProposalError::SnapshotMismatch)
+    );
+    let mut no_proposer = input.clone();
+    no_proposer.proposer_id = " ".to_owned();
+    assert_eq!(
+        ResearchDecisionProposal::build(&s, &review, no_proposer),
+        Err(ResearchDecisionProposalError::MissingProposerId)
+    );
+    let mut no_reason = input.clone();
+    no_reason.rationale = " ".to_owned();
+    assert_eq!(
+        ResearchDecisionProposal::build(&s, &review, no_reason),
+        Err(ResearchDecisionProposalError::BlankRationale)
+    );
+
+    let proposal = ResearchDecisionProposal::build(&s, &review, input.clone()).unwrap();
+    let mut changed_playbook = input.clone();
+    changed_playbook.playbook = Playbook::NegativeGammaExpansion;
+    assert_eq!(
+        proposal.validate_inputs(&s, &review, &changed_playbook),
+        Err(ResearchDecisionProposalError::InputChanged)
+    );
+    let mut changed_direction = input.clone();
+    changed_direction.direction = AdvisoryDirection::Short;
+    assert_eq!(
+        proposal.validate_inputs(&s, &review, &changed_direction),
+        Err(ResearchDecisionProposalError::InputChanged)
+    );
+    let mut changed_rationale = input.clone();
+    changed_rationale.rationale = "Other hypothesis".to_owned();
+    assert_eq!(
+        proposal.validate_inputs(&s, &review, &changed_rationale),
+        Err(ResearchDecisionProposalError::InputChanged)
+    );
+    let mut changed_id = input.clone();
+    changed_id.snapshot_id = "other".to_owned();
+    assert_eq!(
+        proposal.validate_inputs(&s, &review, &changed_id),
+        Err(ResearchDecisionProposalError::SnapshotMismatch)
+    );
+}
+
+#[test]
+fn proposal_never_reuses_changed_market_or_review_packet_contents() {
+    let s = snapshot("proposal-4", 600.0);
+    let p = packet(&s, None);
+    let review = ResearchAdversarialReview::build(&s, &p, vec![]).unwrap();
+    let input = proposal_input(&s);
+    let proposal = ResearchDecisionProposal::build(&s, &review, input.clone()).unwrap();
+
+    let revised = snapshot("proposal-4", 601.0);
+    assert_eq!(
+        ResearchDecisionProposal::build(&revised, &review, input.clone()),
+        Err(ResearchDecisionProposalError::SnapshotContentsMismatch)
+    );
+    assert_eq!(
+        proposal.validate_inputs(&revised, &review, &input),
+        Err(ResearchDecisionProposalError::SnapshotContentsMismatch)
+    );
+
+    for modified in [
+        MarketSnapshotInput {
+            snapshot_id: "proposal-4".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 999,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Structured,
+        },
+        MarketSnapshotInput {
+            snapshot_id: "proposal-4".to_owned(),
+            symbol: "SPY".to_owned(),
+            source_timestamp_millis: 1_000,
+            received_timestamp_millis: 1_010,
+            spot_price: 600.0,
+            session: Session::Regular,
+            data_quality: DataQuality::Unknown,
+        },
+    ] {
+        let altered = MarketSnapshot::build(modified, &[]).unwrap();
+        assert_eq!(
+            proposal.validate_inputs(&altered, &review, &input),
+            Err(ResearchDecisionProposalError::SnapshotContentsMismatch)
+        );
+    }
+
+    let foreign = snapshot("other", 600.0);
+    assert_eq!(
+        proposal.validate_inputs(&foreign, &review, &input),
+        Err(ResearchDecisionProposalError::SnapshotMismatch)
+    );
+    let updated_packet = packet(&s, Some(3.0));
+    let swapped_review = ResearchAdversarialReview::build(&s, &updated_packet, vec![]).unwrap();
+    assert_eq!(
+        proposal.validate_inputs(&s, &swapped_review, &input),
+        Err(ResearchDecisionProposalError::ReviewChanged)
+    );
+    let challenged = ResearchAdversarialReview::build(
+        &s,
+        &p,
+        vec![challenge(&s, ResearchChallengeClaimSide::Supporting)],
+    )
+    .unwrap();
+    assert_eq!(
+        proposal.validate_inputs(&s, &challenged, &input),
+        Err(ResearchDecisionProposalError::ReviewChanged)
+    );
 }
