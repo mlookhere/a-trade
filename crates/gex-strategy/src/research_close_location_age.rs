@@ -1,5 +1,5 @@
 use crate::{
-    DataQuality, MarketSnapshot, OhlcvObservationSeries, OhlcvTimeframe,
+    MarketSnapshot, OhlcvObservationSeries, OhlcvTimeframe,
     RequiredOhlcvCoverage, ResearchCloseLocationError,
     ResearchCloseLocationObservation, TemporalStatus, calculate_research_close_location,
 };
