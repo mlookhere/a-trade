@@ -19,6 +19,14 @@ pub enum ResearchReviewPacketError {
     HardVetoChanged,
 }
 
+/// Explicit caller-provided decision clock and reviewed age configuration.
+/// A historical review packet never extends its own freshness or authorization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResearchReviewDecisionContext {
+    pub decision_timestamp_millis: i64,
+    pub age_limits: ExplicitAgeLimits,
+}
+
 /// A read-only collection of original reports for review by an agent.
 /// It does NOT certify truth, calibrated likelihood, data freshness, risk,
 /// playbook eligibility or the right to send an order.
@@ -120,8 +128,7 @@ impl ResearchReviewEvidencePacket {
         role_comparison: &ResearchGexRoleComparison,
         timing: &SnapshotTimingAssessment,
         hard_veto: &HardVetoResult,
-        decision_timestamp_millis: i64,
-        limits: &ExplicitAgeLimits,
+        decision: ResearchReviewDecisionContext,
     ) -> Result<(), ResearchReviewPacketError> {
         if snapshot.snapshot_id() != self.source_snapshot.snapshot_id() {
             return Err(ResearchReviewPacketError::SnapshotMismatch);
@@ -139,8 +146,8 @@ impl ResearchReviewEvidencePacket {
             .validate_inputs(
                 snapshot,
                 timing.source_gex(),
-                decision_timestamp_millis,
-                limits,
+                decision.decision_timestamp_millis,
+                &decision.age_limits,
             )
             .map_err(ResearchReviewPacketError::TimingProvenance)?;
         hard_veto
