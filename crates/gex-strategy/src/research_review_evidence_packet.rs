@@ -118,7 +118,12 @@ impl ResearchReviewEvidencePacket {
             .validate_snapshot(snapshot)
             .map_err(ResearchReviewPacketError::RoleProvenance)?;
         timing
-            .validate_inputs(snapshot, timing.source_gex(), decision_timestamp_millis, limits)
+            .validate_inputs(
+                snapshot,
+                timing.source_gex(),
+                decision_timestamp_millis,
+                limits,
+            )
             .map_err(ResearchReviewPacketError::TimingProvenance)?;
 
         if audit != &self.audit {
