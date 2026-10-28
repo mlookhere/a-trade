@@ -1,8 +1,7 @@
 use crate::{
     EvidenceAudit, EvidenceAuditProvenanceError, ExplicitAgeLimits, HardVetoProvenanceError,
     HardVetoResult, MarketSnapshot, ResearchGexRoleComparison, ResearchGexRoleComparisonError,
-    SnapshotTimingAssessment,
-    SnapshotTimingProvenanceError,
+    SnapshotTimingAssessment, SnapshotTimingProvenanceError,
 };
 
 /// Research evidence-consistency errors only; not strategy rejection codes.
