@@ -4,6 +4,8 @@ mod features;
 pub use features::*;
 mod specialists;
 pub use specialists::*;
+mod research_gex_role_annotations;
+pub use research_gex_role_annotations::*;
 mod evidence_resolution;
 pub use evidence_resolution::*;
 mod timing;
