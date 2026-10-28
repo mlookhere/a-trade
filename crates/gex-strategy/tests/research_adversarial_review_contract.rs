@@ -257,7 +257,10 @@ fn independent_reviewers_preserve_separate_objections_without_consensus() {
     assert_eq!(review.challenges().len(), 2);
     assert_eq!(review.challenges()[0].reviewer_id(), "adversarial-reviewer");
     assert_eq!(review.challenges()[1].reviewer_id(), "reviewer-b");
-    assert_eq!(review.challenges()[0].target_claim(), review.challenges()[1].target_claim());
+    assert_eq!(
+        review.challenges()[0].target_claim(),
+        review.challenges()[1].target_claim()
+    );
     assert_eq!(
         review.challenges()[1].observed_status(),
         ClaimObservationStatus::ObservedReferencesOnly
