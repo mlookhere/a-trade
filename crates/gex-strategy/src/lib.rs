@@ -16,6 +16,8 @@ mod research_ema;
 pub use research_ema::*;
 mod ohlcv_source_spacing;
 pub use ohlcv_source_spacing::*;
+mod research_close_location;
+pub use research_close_location::*;
 
 use std::collections::BTreeMap;
 
