@@ -6,6 +6,8 @@ mod specialists;
 pub use specialists::*;
 mod evidence_resolution;
 pub use evidence_resolution::*;
+mod timing;
+pub use timing::*;
 
 use std::collections::BTreeMap;
 
