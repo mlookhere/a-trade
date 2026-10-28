@@ -22,6 +22,8 @@ mod research_close_location_age;
 pub use research_close_location_age::*;
 mod research_close_location_decision;
 pub use research_close_location_decision::*;
+mod research_close_location_feature;
+pub use research_close_location_feature::*;
 
 use std::collections::BTreeMap;
 
