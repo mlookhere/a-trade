@@ -54,8 +54,9 @@ pub struct OhlcvScopeObservation {
     pub measured_age_millis: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RequiredOhlcvCoverage {
+    source_snapshot: MarketSnapshot,
     snapshot_id: String,
     symbol: String,
     source_id: Option<String>,
@@ -65,6 +66,13 @@ pub struct RequiredOhlcvCoverage {
 }
 
 impl RequiredOhlcvCoverage {
+    /// Exact immutable snapshot used for this caller-supplied time assessment.
+    /// Equal IDs and symbols do not imply equivalent market state.
+    #[must_use]
+    pub fn source_snapshot(&self) -> &MarketSnapshot {
+        &self.source_snapshot
+    }
+
     #[must_use]
     pub fn snapshot_id(&self) -> &str {
         &self.snapshot_id
@@ -176,6 +184,7 @@ pub fn assess_required_ohlcv_coverage(
     }
 
     Ok(RequiredOhlcvCoverage {
+        source_snapshot: snapshot.clone(),
         snapshot_id: snapshot.snapshot_id().to_owned(),
         symbol: snapshot.symbol().to_owned(),
         source_id: series.map(|s| s.source_id().to_owned()),
