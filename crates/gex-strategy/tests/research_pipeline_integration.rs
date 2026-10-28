@@ -4,12 +4,11 @@
 use gex_strategy::{
     AdvisoryDirection, AiNativeFeatureInput, AiNativeFeatureSet, DataQuality, DecisionVerdict,
     EvidenceAuditProvenanceError, EvidenceClaimInput, EvidenceKind, EvidenceReference,
-    ExplicitAgeLimits, GexTimeObservation, HardCondition, HardVetoInput,
-    HardVetoProvenanceError, HardVetoVerdict, MarketSnapshot, MarketSnapshotInput,
-    ObservedValue, ReferenceStatus, Session, SnapshotTimingProvenanceError, SpecialistBatch,
-    SpecialistContractError, SpecialistOutput, SpecialistOutputInput, SpecialistRole,
-    SpecialistStatus, TemporalStatus, audit_specialist_evidence, assess_snapshot_timing,
-    evaluate_hard_vetoes, resolve_reference,
+    ExplicitAgeLimits, GexTimeObservation, HardCondition, HardVetoInput, HardVetoProvenanceError,
+    HardVetoVerdict, MarketSnapshot, MarketSnapshotInput, ObservedValue, ReferenceStatus, Session,
+    SnapshotTimingProvenanceError, SpecialistBatch, SpecialistContractError, SpecialistOutput,
+    SpecialistOutputInput, SpecialistRole, SpecialistStatus, TemporalStatus,
+    assess_snapshot_timing, audit_specialist_evidence, evaluate_hard_vetoes, resolve_reference,
 };
 
 fn snapshot(id: &str, spot: f64) -> MarketSnapshot {
@@ -129,7 +128,9 @@ fn exact_source_research_reports_remain_observational_and_reject_cross_snapshot_
     assert_eq!(veto.blocking_decision(), Some(DecisionVerdict::Wait));
     assert_eq!(audit.specialists().len(), 1);
     assert_eq!(
-        audit.specialists()[0].supporting()[0].references()[0].observed_value().cloned(),
+        audit.specialists()[0].supporting()[0].references()[0]
+            .observed_value()
+            .cloned(),
         Some(ObservedValue::Price(600.0))
     );
     assert_eq!(
