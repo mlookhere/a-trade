@@ -133,37 +133,68 @@ fn exactly_matching_immutable_source_snapshot_allows_research_observations() {
 fn identical_id_and_symbol_with_revised_snapshot_contents_fail_closed() {
     let original = base();
     let src = series(&original);
-    let coverage = assess_required_ohlcv_coverage(
-        &original,
-        Some(&src),
-        1_010,
-        &age_limits(210),
-    )
-    .unwrap();
+    let coverage =
+        assess_required_ohlcv_coverage(&original, Some(&src), 1_010, &age_limits(210)).unwrap();
     for changed in [
         snapshot(
-            "same-ID", "SPY", 951, 1_000, 600.0,
-            Session::Regular, DataQuality::Structured, false,
+            "same-ID",
+            "SPY",
+            951,
+            1_000,
+            600.0,
+            Session::Regular,
+            DataQuality::Structured,
+            false,
         ),
         snapshot(
-            "same-ID", "SPY", 950, 1_001, 600.0,
-            Session::Regular, DataQuality::Structured, false,
+            "same-ID",
+            "SPY",
+            950,
+            1_001,
+            600.0,
+            Session::Regular,
+            DataQuality::Structured,
+            false,
         ),
         snapshot(
-            "same-ID", "SPY", 950, 1_000, 601.0,
-            Session::Regular, DataQuality::Structured, false,
+            "same-ID",
+            "SPY",
+            950,
+            1_000,
+            601.0,
+            Session::Regular,
+            DataQuality::Structured,
+            false,
         ),
         snapshot(
-            "same-ID", "SPY", 950, 1_000, 600.0,
-            Session::Premarket, DataQuality::Structured, false,
+            "same-ID",
+            "SPY",
+            950,
+            1_000,
+            600.0,
+            Session::Premarket,
+            DataQuality::Structured,
+            false,
         ),
         snapshot(
-            "same-ID", "SPY", 950, 1_000, 600.0,
-            Session::Regular, DataQuality::Parsed, false,
+            "same-ID",
+            "SPY",
+            950,
+            1_000,
+            600.0,
+            Session::Regular,
+            DataQuality::Parsed,
+            false,
         ),
         snapshot(
-            "same-ID", "SPY", 950, 1_000, 600.0,
-            Session::Regular, DataQuality::Structured, true,
+            "same-ID",
+            "SPY",
+            950,
+            1_000,
+            600.0,
+            Session::Regular,
+            DataQuality::Structured,
+            true,
         ),
     ] {
         assert_eq!(changed.snapshot_id(), original.snapshot_id());
@@ -187,12 +218,24 @@ fn different_id_and_symbol_keep_preexisting_rejection_codes() {
     let coverage =
         assess_required_ohlcv_coverage(&snap, Some(&src), 1_010, &age_limits(210)).unwrap();
     let wrong_id = snapshot(
-        "different", "SPY", 950, 1_000, 600.0,
-        Session::Regular, DataQuality::Structured, false,
+        "different",
+        "SPY",
+        950,
+        1_000,
+        600.0,
+        Session::Regular,
+        DataQuality::Structured,
+        false,
     );
     let wrong_symbol = snapshot(
-        "same-ID", "QQQ", 950, 1_000, 600.0,
-        Session::Regular, DataQuality::Structured, false,
+        "same-ID",
+        "QQQ",
+        950,
+        1_000,
+        600.0,
+        Session::Regular,
+        DataQuality::Structured,
+        false,
     );
     assert_eq!(
         calculate_research_ema_stack(&wrong_id, &src, &coverage, &ema_config()),
@@ -216,14 +259,12 @@ fn different_id_and_symbol_keep_preexisting_rejection_codes() {
 fn stale_and_missing_ema_scope_still_reject_without_substituting_data() {
     let snap = base();
     let src = series(&snap);
-    let stale =
-        assess_required_ohlcv_coverage(&snap, Some(&src), 1_010, &age_limits(109)).unwrap();
+    let stale = assess_required_ohlcv_coverage(&snap, Some(&src), 1_010, &age_limits(109)).unwrap();
     assert_eq!(
         calculate_research_ema_stack(&snap, &src, &stale, &ema_config()),
         Err(ResearchEmaError::MissingOrStaleCoverage)
     );
-    let missing =
-        assess_required_ohlcv_coverage(&snap, None, 1_010, &age_limits(210)).unwrap();
+    let missing = assess_required_ohlcv_coverage(&snap, None, 1_010, &age_limits(210)).unwrap();
     assert_eq!(
         calculate_research_ema_stack(&snap, &src, &missing, &ema_config()),
         Err(ResearchEmaError::SourceMismatch)
