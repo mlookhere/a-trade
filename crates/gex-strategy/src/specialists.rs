@@ -132,17 +132,10 @@ impl EvidenceClaim {
         if input.claim.trim().is_empty() {
             return Err(SpecialistContractError::BlankClaim);
         }
-        if input
-            .evidence
-            .iter()
-            .any(|e| e.reference.trim().is_empty())
-        {
+        if input.evidence.iter().any(|e| e.reference.trim().is_empty()) {
             return Err(SpecialistContractError::BlankEvidenceReference);
         }
-        let confidence = input
-            .confidence
-            .map(InternalConfidence::new)
-            .transpose()?;
+        let confidence = input.confidence.map(InternalConfidence::new).transpose()?;
         if input.evidence.is_empty() {
             return Ok(Self {
                 claim: input.claim,
@@ -234,22 +227,25 @@ impl SpecialistOutput {
         if input.snapshot_id != snapshot.snapshot_id() {
             return Err(SpecialistContractError::SnapshotMismatch);
         }
-        validate_nonblank(&input.observations, SpecialistContractError::BlankObservation)?;
+        validate_nonblank(
+            &input.observations,
+            SpecialistContractError::BlankObservation,
+        )?;
         validate_nonblank(&input.unknowns, SpecialistContractError::BlankUnknown)?;
         validate_nonblank(&input.risks, SpecialistContractError::BlankRisk)?;
         validate_nonblank(
             &input.proposed_invalidation,
             SpecialistContractError::BlankInvalidation,
         )?;
-        validate_nonblank(&input.reason_codes, SpecialistContractError::BlankReasonCode)?;
+        validate_nonblank(
+            &input.reason_codes,
+            SpecialistContractError::BlankReasonCode,
+        )?;
         if input.features.iter().any(|f| f.key.trim().is_empty()) {
             return Err(SpecialistContractError::BlankFeatureReference);
         }
 
-        let confidence = input
-            .confidence
-            .map(InternalConfidence::new)
-            .transpose()?;
+        let confidence = input.confidence.map(InternalConfidence::new).transpose()?;
         let supporting_evidence = input
             .supporting_evidence
             .into_iter()
