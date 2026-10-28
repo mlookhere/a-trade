@@ -98,7 +98,10 @@ fn packet(s: &MarketSnapshot, strength: Option<f64>) -> ResearchReviewEvidencePa
     ResearchReviewEvidencePacket::build(s, audit, roles, timing, veto).unwrap()
 }
 
-fn challenge(s: &MarketSnapshot, side: ResearchChallengeClaimSide) -> ResearchAdversarialChallengeInput {
+fn challenge(
+    s: &MarketSnapshot,
+    side: ResearchChallengeClaimSide,
+) -> ResearchAdversarialChallengeInput {
     ResearchAdversarialChallengeInput {
         snapshot_id: s.snapshot_id().to_owned(),
         reviewer_id: "adversarial-reviewer".to_owned(),
@@ -131,10 +134,16 @@ fn exact_claims_and_unresolved_evidence_remain_observational() {
     assert_eq!(first.claim_side(), ResearchChallengeClaimSide::Supporting);
     assert_eq!(first.claim_index(), 0);
     assert_eq!(first.target_claim(), "Spot may inform a trend");
-    assert_eq!(first.observed_status(), ClaimObservationStatus::ObservedReferencesOnly);
+    assert_eq!(
+        first.observed_status(),
+        ClaimObservationStatus::ObservedReferencesOnly
+    );
     assert!(!first.rationale().is_empty());
     let second = &review.challenges()[1];
-    assert_eq!(second.claim_side(), ResearchChallengeClaimSide::Contradicting);
+    assert_eq!(
+        second.claim_side(),
+        ResearchChallengeClaimSide::Contradicting
+    );
     assert_eq!(second.observed_status(), ClaimObservationStatus::Unknown);
     // An objection cannot turn a cleared or a missing source into trade authorization.
     assert!(p.timing().source_gex().is_none());
