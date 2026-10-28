@@ -10,6 +10,8 @@ mod timing;
 pub use timing::*;
 mod ohlcv;
 pub use ohlcv::*;
+mod ohlcv_coverage;
+pub use ohlcv_coverage::*;
 
 use std::collections::BTreeMap;
 
