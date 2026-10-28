@@ -8,6 +8,8 @@ mod evidence_resolution;
 pub use evidence_resolution::*;
 mod timing;
 pub use timing::*;
+mod ohlcv;
+pub use ohlcv::*;
 
 use std::collections::BTreeMap;
 
