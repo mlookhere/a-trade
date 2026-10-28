@@ -114,6 +114,9 @@ pub enum ResearchPairedReplayError {
     ProposalSnapshotMismatch,
     SnapshotContentsMismatch,
     ProposalProvenance(ResearchDecisionProposalError),
+    SnapshotMismatch,
+    BaselineChanged,
+    ProposalChanged,
     EmptyCases,
     ManifestChanged,
     MixedPhases,
@@ -190,6 +193,62 @@ impl ResearchPairedReplayCase {
             baseline,
             ai_native: ai_native.clone(),
         })
+    }
+
+    /// Reconcile externally supplied witnesses with the original immutable
+    /// offline record. Successful reconciliation is not data authenticity,
+    /// market freshness, baseline correctness or strategy authorization.
+    pub fn validate_inputs(
+        &self,
+        manifest: &ResearchPairedEvaluationManifest,
+        snapshot: &MarketSnapshot,
+        baseline: &ResearchBaselineObservationInput,
+        ai_native: &ResearchDecisionProposal,
+    ) -> Result<(), ResearchPairedReplayError> {
+        manifest
+            .validate()
+            .map_err(ResearchPairedReplayError::InvalidManifest)?;
+        if manifest != &self.source_manifest {
+            return Err(ResearchPairedReplayError::ManifestChanged);
+        }
+        if snapshot.snapshot_id() != self.source_snapshot.snapshot_id() {
+            return Err(ResearchPairedReplayError::SnapshotMismatch);
+        }
+        if snapshot != &self.source_snapshot {
+            return Err(ResearchPairedReplayError::SnapshotContentsMismatch);
+        }
+        if baseline.snapshot_id.trim().is_empty() {
+            return Err(ResearchPairedReplayError::MissingBaselineSnapshotId);
+        }
+        if baseline.snapshot_id != snapshot.snapshot_id() {
+            return Err(ResearchPairedReplayError::BaselineSnapshotMismatch);
+        }
+        if baseline.source_record_id.trim().is_empty() {
+            return Err(ResearchPairedReplayError::MissingBaselineRecordId);
+        }
+        if baseline.rationale.trim().is_empty() {
+            return Err(ResearchPairedReplayError::BlankBaselineRationale);
+        }
+        if ai_native.source_snapshot().snapshot_id() != snapshot.snapshot_id() {
+            return Err(ResearchPairedReplayError::ProposalSnapshotMismatch);
+        }
+        if ai_native.source_snapshot() != snapshot {
+            return Err(ResearchPairedReplayError::SnapshotContentsMismatch);
+        }
+        ai_native
+            .validate_inputs(
+                snapshot,
+                ai_native.source_review(),
+                ai_native.source_input(),
+            )
+            .map_err(ResearchPairedReplayError::ProposalProvenance)?;
+        if baseline != &self.baseline {
+            return Err(ResearchPairedReplayError::BaselineChanged);
+        }
+        if ai_native != &self.ai_native {
+            return Err(ResearchPairedReplayError::ProposalChanged);
+        }
+        Ok(())
     }
 
     #[must_use]
