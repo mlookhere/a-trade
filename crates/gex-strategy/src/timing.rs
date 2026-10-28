@@ -60,8 +60,7 @@ fn classify_pair(
     if observation_time_millis < 0 {
         return TemporalStatus::InvalidTimeline;
     }
-    let (Some(source), Some(received)) =
-        (source_timestamp_millis, received_timestamp_millis)
+    let (Some(source), Some(received)) = (source_timestamp_millis, received_timestamp_millis)
     else {
         return TemporalStatus::Missing;
     };
