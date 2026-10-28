@@ -87,11 +87,9 @@ fn completed_bars_preserve_value_scope_and_provenance() {
 #[test]
 fn missing_timeframe_remains_missing_and_is_not_zero_filled() {
     let snap = snapshot();
-    let data = OhlcvObservationSeries::build(
-        &snap,
-        input(vec![bar(OhlcvTimeframe::Minute5, 1_020)]),
-    )
-    .unwrap();
+    let data =
+        OhlcvObservationSeries::build(&snap, input(vec![bar(OhlcvTimeframe::Minute5, 1_020)]))
+            .unwrap();
     assert!(data.latest_completed(OhlcvTimeframe::Minute1).is_none());
     assert!(data.completed_bars(OhlcvTimeframe::Daily).is_empty());
     assert_eq!(data.completed_bars(OhlcvTimeframe::Minute5).len(), 1);
@@ -121,10 +119,7 @@ fn unknown_source_or_snapshot_quality_is_not_trusted() {
     )
     .unwrap();
     assert_eq!(
-        OhlcvObservationSeries::build(
-            &other,
-            input(vec![bar(OhlcvTimeframe::Minute5, 1_020)])
-        ),
+        OhlcvObservationSeries::build(&other, input(vec![bar(OhlcvTimeframe::Minute5, 1_020)])),
         Err(OhlcvError::UnknownDataQuality)
     );
 }
@@ -172,9 +167,12 @@ fn provenance_identity_and_missing_fields_fail_closed() {
 fn duplicate_and_out_of_order_bars_reject_without_repair() {
     let snap = snapshot();
     for times in [[1_020, 1_020], [1_050, 1_020]] {
-        let candidate = input(times.into_iter().map(|t| {
-            bar(OhlcvTimeframe::Minute5, t)
-        }).collect());
+        let candidate = input(
+            times
+                .into_iter()
+                .map(|t| bar(OhlcvTimeframe::Minute5, t))
+                .collect(),
+        );
         assert_eq!(
             OhlcvObservationSeries::build(&snap, candidate),
             Err(OhlcvError::DuplicateOrOutOfOrderBar)
