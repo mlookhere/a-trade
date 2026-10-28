@@ -102,8 +102,7 @@ impl ResearchDecisionProposal {
         {
             return Err(ResearchDecisionProposalError::SnapshotMismatch);
         }
-        if snapshot != &self.source_snapshot
-            || review.source_packet().source_snapshot() != snapshot
+        if snapshot != &self.source_snapshot || review.source_packet().source_snapshot() != snapshot
         {
             return Err(ResearchDecisionProposalError::SnapshotContentsMismatch);
         }
