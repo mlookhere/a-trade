@@ -1,7 +1,8 @@
 use gex_strategy::{
-    DataQuality, MarketSnapshot, MarketSnapshotInput, OhlcvBarInput, OhlcvCoverageError,
-    OhlcvObservationInput, OhlcvObservationSeries, OhlcvTimeframe, RequiredOhlcvAgeLimits,
-    Session, TemporalStatus, assess_required_ohlcv_coverage, CANONICAL_REQUIRED_OHLCV_SCOPES,
+    CANONICAL_REQUIRED_OHLCV_SCOPES, DataQuality, MarketSnapshot, MarketSnapshotInput,
+    OhlcvBarInput, OhlcvCoverageError, OhlcvObservationInput, OhlcvObservationSeries,
+    OhlcvTimeframe, RequiredOhlcvAgeLimits, Session, TemporalStatus,
+    assess_required_ohlcv_coverage,
 };
 
 fn snapshot(id: &str, symbol: &str) -> MarketSnapshot {
@@ -97,9 +98,12 @@ fn one_millisecond_after_each_timeframe_limit_is_stale() {
             .collect(),
     );
     let report = assess_required_ohlcv_coverage(&snap, Some(&data), 1_211, &limits(210)).unwrap();
-    assert!(report.observations().iter().all(|o| {
-        o.status == TemporalStatus::Stale && o.measured_age_millis == Some(211)
-    }));
+    assert!(
+        report
+            .observations()
+            .iter()
+            .all(|o| { o.status == TemporalStatus::Stale && o.measured_age_millis == Some(211) })
+    );
 }
 
 #[test]
@@ -121,7 +125,10 @@ fn partial_or_absent_feeds_remain_missing_and_daily_cannot_substitute() {
         ],
     );
     let report = assess_required_ohlcv_coverage(&snap, Some(&data), 1_210, &limits(210)).unwrap();
-    assert_eq!(report.observations()[0].status, TemporalStatus::WithinConfiguredAge);
+    assert_eq!(
+        report.observations()[0].status,
+        TemporalStatus::WithinConfiguredAge
+    );
     for item in &report.observations()[1..] {
         assert_eq!(item.status, TemporalStatus::Missing);
     }
@@ -150,7 +157,10 @@ fn fresh_one_minute_bar_cannot_hide_stale_four_hour_bar() {
         },
     )
     .unwrap();
-    assert_eq!(report.observations()[0].status, TemporalStatus::WithinConfiguredAge);
+    assert_eq!(
+        report.observations()[0].status,
+        TemporalStatus::WithinConfiguredAge
+    );
     assert_eq!(report.observations()[1].status, TemporalStatus::Missing);
     assert_eq!(report.observations()[4].status, TemporalStatus::Stale);
 }
@@ -176,8 +186,7 @@ fn invalid_decision_clock_cannot_certify_timeframe_freshness() {
     let snap = snapshot("s80", "SPY");
     let data = series(&snap, vec![bar(OhlcvTimeframe::Minute1, 1_190)]);
     for now in [1_199, -1] {
-        let report = assess_required_ohlcv_coverage(&snap, Some(&data), now, &limits(210))
-            .unwrap();
+        let report = assess_required_ohlcv_coverage(&snap, Some(&data), now, &limits(210)).unwrap();
         assert!(report.observations().iter().all(|o| {
             o.status == TemporalStatus::InvalidTimeline && o.measured_age_millis.is_none()
         }));
