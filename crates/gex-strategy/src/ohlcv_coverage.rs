@@ -59,6 +59,7 @@ pub struct RequiredOhlcvCoverage {
     symbol: String,
     source_id: Option<String>,
     quality: Option<DataQuality>,
+    decision_timestamp_millis: i64,
     observations: Vec<OhlcvScopeObservation>,
 }
 
@@ -83,6 +84,13 @@ impl RequiredOhlcvCoverage {
         self.quality
     }
 
+    /// The exact decision clock used for this assessment. A previous
+    /// within-age status is not a claim of freshness at a later clock.
+    #[must_use]
+    pub const fn decision_timestamp_millis(&self) -> i64 {
+        self.decision_timestamp_millis
+    }
+
     /// Order is fixed: 1m, 5m, 15m, 1h, 4h. No authorization score is derived.
     #[must_use]
     pub fn observations(&self) -> &[OhlcvScopeObservation] {
@@ -90,6 +98,8 @@ impl RequiredOhlcvCoverage {
     }
 }
 
+/// This report records its assessment decision time; reusing it later does
+/// not revalidate the same observations at the new decision time.
 /// Partial completeness and time evidence only, NOT canonical DATA_VALID,
 /// entire AI-native DATA_FRESH, a provider trust certificate, or trade ALLOW.
 ///
@@ -166,6 +176,7 @@ pub fn assess_required_ohlcv_coverage(
         symbol: snapshot.symbol().to_owned(),
         source_id: series.map(|s| s.source_id().to_owned()),
         quality: series.map(OhlcvObservationSeries::quality),
+        decision_timestamp_millis,
         observations,
     })
 }

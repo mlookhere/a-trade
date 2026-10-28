@@ -71,6 +71,7 @@ fn all_five_required_scopes_preserve_identity_and_age_at_exact_limit() {
     let report = assess_required_ohlcv_coverage(&snap, Some(&data), 1_210, &limits(210)).unwrap();
 
     assert_eq!(report.snapshot_id(), "s80");
+    assert_eq!(report.decision_timestamp_millis(), 1_210);
     assert_eq!(report.symbol(), "SPY");
     assert_eq!(report.source_id(), Some("structured-provider"));
     assert_eq!(report.source_quality(), Some(DataQuality::Structured));
@@ -104,6 +105,7 @@ fn one_millisecond_after_each_timeframe_limit_is_stale() {
             .iter()
             .all(|o| { o.status == TemporalStatus::Stale && o.measured_age_millis == Some(211) })
     );
+    assert_eq!(report.decision_timestamp_millis(), 1_211);
 }
 
 #[test]
@@ -116,6 +118,7 @@ fn partial_or_absent_feeds_remain_missing_and_daily_cannot_substitute() {
             && o.measured_age_millis.is_none()
     }));
     assert_eq!(report.source_id(), None);
+    assert_eq!(report.decision_timestamp_millis(), 1_210);
 
     let data = series(
         &snap,
@@ -187,6 +190,7 @@ fn invalid_decision_clock_cannot_certify_timeframe_freshness() {
     let data = series(&snap, vec![bar(OhlcvTimeframe::Minute1, 1_190)]);
     for now in [1_199, -1] {
         let report = assess_required_ohlcv_coverage(&snap, Some(&data), now, &limits(210)).unwrap();
+        assert_eq!(report.decision_timestamp_millis(), now);
         assert!(report.observations().iter().all(|o| {
             o.status == TemporalStatus::InvalidTimeline && o.measured_age_millis.is_none()
         }));
@@ -200,5 +204,26 @@ fn per_timeframe_zero_limits_are_explicit_not_hidden_defaults() {
     let report = assess_required_ohlcv_coverage(&snap, Some(&data), 1_210, &limits(0)).unwrap();
     assert_eq!(report.observations()[1].status, TemporalStatus::Stale);
     assert_eq!(report.observations()[1].measured_age_millis, Some(20));
+    assert_eq!(report.decision_timestamp_millis(), 1_210);
     // This report does not claim full DATA_VALID, DATA_FRESH or trade ALLOW.
+}
+
+#[test]
+fn coverage_assessment_clock_is_immutable_historical_context() {
+    let snap = snapshot("s80", "SPY");
+    let data = series(&snap, vec![bar(OhlcvTimeframe::Minute5, 1_190)]);
+    let first = assess_required_ohlcv_coverage(&snap, Some(&data), 1_210, &limits(40)).unwrap();
+    let again = assess_required_ohlcv_coverage(&snap, Some(&data), 1_210, &limits(40)).unwrap();
+    let later = assess_required_ohlcv_coverage(&snap, Some(&data), 1_250, &limits(40)).unwrap();
+    assert_eq!(first, again);
+    assert_eq!(first.decision_timestamp_millis(), 1_210);
+    assert_eq!(later.decision_timestamp_millis(), 1_250);
+    assert_eq!(
+        first.observations()[1].status,
+        TemporalStatus::WithinConfiguredAge
+    );
+    assert_eq!(later.observations()[1].status, TemporalStatus::Stale);
+    assert_eq!(first.observations()[1].measured_age_millis, Some(20));
+    assert_eq!(later.observations()[1].measured_age_millis, Some(60));
+    // The earlier assessment is not a valid report of the later decision-time status.
 }
