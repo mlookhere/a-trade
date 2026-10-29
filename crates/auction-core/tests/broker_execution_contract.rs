@@ -540,8 +540,7 @@ fn shared_risk_ledger(max_dollars: f64) -> SharedPortfolioReservations {
 #[test]
 fn sections_9_67_69_109_offline_coordinators_share_one_atomic_risk_allowance() {
     let sample = proposal("SETUP-OFFLINE-ONE");
-    let trade_risk =
-        sample.open_portfolio_risk_after() - sample.open_portfolio_risk_before();
+    let trade_risk = sample.open_portfolio_risk_after() - sample.open_portfolio_risk_before();
     let ledger = shared_risk_ledger(trade_risk * 1.5);
     let barrier = Arc::new(Barrier::new(3));
     let mut workers = Vec::new();
@@ -570,8 +569,14 @@ fn sections_9_67_69_109_offline_coordinators_share_one_atomic_risk_allowance() {
     }
     barrier.wait();
 
-    let results: Vec<_> = workers.into_iter().map(|worker| worker.join().unwrap()).collect();
-    assert_eq!(results.iter().filter(|(result, _)| result.is_ok()).count(), 1);
+    let results: Vec<_> = workers
+        .into_iter()
+        .map(|worker| worker.join().unwrap())
+        .collect();
+    assert_eq!(
+        results.iter().filter(|(result, _)| result.is_ok()).count(),
+        1
+    );
     assert_eq!(
         results
             .iter()
@@ -612,9 +617,11 @@ fn sections_16_103_109_offline_snapshot_mismatch_clears_only_local_preflight() {
         false
     );
     assert_eq!(ledger.reservation_count(), Ok(0));
-    assert!(coordinator
-        .gate_with_shared_portfolio(&order, ctx, &ledger, SHARED_RISK_SNAPSHOT_ID)
-        .is_ok());
+    assert!(
+        coordinator
+            .gate_with_shared_portfolio(&order, ctx, &ledger, SHARED_RISK_SNAPSHOT_ID)
+            .is_ok()
+    );
     assert_eq!(ledger.reservation_count(), Ok(1));
 }
 
@@ -635,7 +642,9 @@ fn sections_16_109_broker_preflight_failure_never_allocates_shared_risk() {
             &ledger,
             SHARED_RISK_SNAPSHOT_ID
         ),
-        Err(PortfolioCoordinatedGateError::Gate(RejectionCode::BrokerUnsafe))
+        Err(PortfolioCoordinatedGateError::Gate(
+            RejectionCode::BrokerUnsafe
+        ))
     );
     assert_eq!(ledger.reservation_count(), Ok(0));
     assert_eq!(
