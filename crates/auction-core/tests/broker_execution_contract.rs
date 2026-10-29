@@ -609,12 +609,11 @@ fn sections_16_103_109_offline_snapshot_mismatch_clears_only_local_preflight() {
             ReservationError::SnapshotMismatch
         ))
     );
-    assert_eq!(
-        coordinator
+    assert!(
+        !coordinator
             .setup_status(setup_id)
             .unwrap()
-            .order_active_or_reserved,
-        false
+            .order_active_or_reserved
     );
     assert_eq!(ledger.reservation_count(), Ok(0));
     assert!(
@@ -647,12 +646,11 @@ fn sections_16_109_broker_preflight_failure_never_allocates_shared_risk() {
         ))
     );
     assert_eq!(ledger.reservation_count(), Ok(0));
-    assert_eq!(
-        coordinator
+    assert!(
+        !coordinator
             .setup_status(setup_id)
             .unwrap()
-            .order_active_or_reserved,
-        false
+            .order_active_or_reserved
     );
 }
 
@@ -675,11 +673,10 @@ fn sections_16_98_100_invalidated_shared_risk_book_blocks_new_permit() {
         ))
     );
     assert_eq!(ledger.reservation_count(), Ok(0));
-    assert_eq!(
-        coordinator
+    assert!(
+        !coordinator
             .setup_status(setup_id)
             .unwrap()
-            .order_active_or_reserved,
-        false
+            .order_active_or_reserved
     );
 }
