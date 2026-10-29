@@ -269,13 +269,9 @@ fn section_117_fill_is_reconciled_before_any_miss_cancellation() {
 
 #[test]
 fn sections_64_102_118_late_confirmed_fill_still_checks_stop_after_unsafe_latch() {
-    for (i, stop_state) in [
-        Condition::True,
-        Condition::False,
-        Condition::Unknown,
-    ]
-    .into_iter()
-    .enumerate()
+    for (i, stop_state) in [Condition::True, Condition::False, Condition::Unknown]
+        .into_iter()
+        .enumerate()
     {
         let setup_id = format!("SETUP-LATE-FILL-{i}");
         let (mut coordinator, proposal) = pending_long(&setup_id, MockBroker::default());
@@ -299,7 +295,10 @@ fn sections_64_102_118_late_confirmed_fill_still_checks_stop_after_unsafe_latch(
         assert_eq!(coordinator.execution_engine_safe(), Condition::False);
 
         if stop_state == Condition::True {
-            assert!(matches!(result, Ok(ExecutionStatus::FilledProtected { .. })));
+            assert!(matches!(
+                result,
+                Ok(ExecutionStatus::FilledProtected { .. })
+            ));
             assert_eq!(setup.state, Some(SetupState::PositionManagement));
             assert_eq!(coordinator.adapter().flatten_calls, 0);
         } else {
