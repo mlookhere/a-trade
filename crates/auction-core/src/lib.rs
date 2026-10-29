@@ -42,7 +42,7 @@ pub use broker_execution::{
     BrokerSubmission, ExecutionCoordinator, ExecutionGateContext, ExecutionPermit, ExecutionStatus,
     PortfolioCoordinatedGateError, SetupRegistry, SetupRegistryStatus,
 };
-pub use broker_portfolio_evidence::{BrokerEvidenceError, BrokerPortfolioEvidence};
+pub use broker_portfolio_evidence::{AssertedAccountRiskSnapshot, BrokerEvidenceError, BrokerPortfolioEvidence};
 pub use data::{
     DataCycleReadiness, DataHealth, GammaContext, GammaInterpretation, GammaRegime,
     GammaSnapshotError, RelativeExpectation, ReliableGammaSnapshot, RequiredMarketDataStatus,
