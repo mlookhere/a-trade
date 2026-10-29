@@ -530,3 +530,91 @@ fn sections_16_109_new_snapshot_identity_requires_a_new_validated_ledger() {
     );
     assert_eq!(fresh.reservation_count(), Ok(1));
 }
+
+#[test]
+fn sections_9_67_103_111_atomic_audit_view_keeps_snapshot_exposure_and_receipts_coherent() {
+    let mut initial = snapshot(wide_limits());
+    initial.existing = vec![
+        existing_exposure("BASE-Z", "OTHER_CLUSTER", Direction::Long, 300.0),
+        existing_exposure("BASE-A", "OTHER_CLUSTER", Direction::Long, 100.0),
+    ];
+    let ledger = SharedPortfolioReservations::from_snapshot(initial).unwrap();
+    let before = ledger.audit_view().unwrap();
+    assert_eq!(before.snapshot_id, SNAPSHOT_ID);
+    assert_eq!(before.account_equity, 100_000.0);
+    assert_eq!(before.limits.max_portfolio_open_risk_percent, 0.02);
+    assert_eq!(before.limits.max_cluster_open_risk_percent, 0.01);
+    assert_eq!(before.exposures.len(), 2);
+    assert_eq!(before.exposures[0].setup_id, "BASE-A");
+    assert_eq!(before.exposures[1].setup_id, "BASE-Z");
+    assert!(before.accepted_setup_ids.is_empty());
+    assert!(!before.invalidated);
+
+    let order = proposal("SETUP-AUDIT-ACCEPTED");
+    assert_eq!(ledger.reserve(&order, common::OWNER, SNAPSHOT_ID), Ok(()));
+    assert_eq!(ledger.invalidate(), Ok(()));
+
+    let after = ledger.audit_view().unwrap();
+    assert_eq!(after.exposures.len(), 3);
+    assert_eq!(after.accepted_setup_ids, vec![order.setup_id().to_owned()]);
+    assert_eq!(after.exposures[2].setup_id, order.setup_id());
+    assert_eq!(after.exposures[2].risk_dollars, risk(&order));
+    assert!(after.invalidated);
+    // A read-only audit view cannot clear the latch or remove risk.
+    assert_eq!(
+        ledger.reserve(&proposal("SETUP-AFTER-AUDIT"), common::OWNER, SNAPSHOT_ID),
+        Err(ReservationError::Unavailable)
+    );
+    assert_eq!(ledger.reservation_count(), Ok(3));
+}
+
+#[test]
+fn sections_67_69_111_audit_view_is_stably_ordered_for_reversed_broker_input() {
+    let input = vec![
+        existing_exposure("BASE-Z", "OTHER_CLUSTER", Direction::Long, 90.0),
+        existing_exposure("BASE-A", "OTHER_CLUSTER", Direction::Long, 10.0),
+    ];
+    let mut observed = vec![];
+    for reverse in [false, true] {
+        let mut initial = snapshot(wide_limits());
+        initial.existing = input.clone();
+        if reverse {
+            initial.existing.reverse();
+        }
+        let ledger = SharedPortfolioReservations::from_snapshot(initial).unwrap();
+        observed.push(ledger.audit_view().unwrap());
+    }
+    assert_eq!(observed[0].exposures, observed[1].exposures);
+    assert_eq!(observed[0].exposures[0].setup_id, "BASE-A");
+    assert_eq!(observed[0].exposures[1].setup_id, "BASE-Z");
+    assert!(observed.iter().all(|view| view.accepted_setup_ids.is_empty()));
+}
+
+#[test]
+fn sections_9_103_111_audit_view_during_reservation_never_has_torn_state() {
+    let ledger = SharedPortfolioReservations::from_snapshot(snapshot(wide_limits())).unwrap();
+    let barrier = Arc::new(Barrier::new(3));
+    let producer = ledger.clone();
+    let observer = ledger.clone();
+    let submit_barrier = barrier.clone();
+    let submit = thread::spawn(move || {
+        let order = proposal("SETUP-AUDIT-RACE");
+        submit_barrier.wait();
+        producer.reserve(&order, common::OWNER, SNAPSHOT_ID)
+    });
+    let observe_barrier = barrier.clone();
+    let read = thread::spawn(move || {
+        observe_barrier.wait();
+        observer.audit_view().unwrap()
+    });
+    barrier.wait();
+    assert_eq!(submit.join().unwrap(), Ok(()));
+    let view = read.join().unwrap();
+    // One mutex acquisition observes either both effects or neither.
+    assert_eq!(view.exposures.len(), view.accepted_setup_ids.len());
+    if let Some(setup_id) = view.accepted_setup_ids.first() {
+        assert_eq!(setup_id, "SETUP-AUDIT-RACE");
+        assert_eq!(view.exposures[0].setup_id, *setup_id);
+    }
+    assert_eq!(ledger.audit_view().unwrap().accepted_setup_ids.len(), 1);
+}
