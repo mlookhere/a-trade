@@ -17,6 +17,7 @@ pub mod market;
 pub mod news;
 pub mod order_risk;
 pub mod portfolio_reservations;
+pub mod process_account_risk_registry;
 pub mod position_management;
 pub mod promotion;
 pub mod rejection;
@@ -85,6 +86,7 @@ pub use order_risk::{
     entry_trigger, evaluate_portfolio_risk, planned_r, size_futures, slippage_guard,
     stop_replacement_allowed, structural_stop, structural_target_valid, trigger_expired,
 };
+pub use process_account_risk_registry::{ProcessAccountRiskRegistry, ProcessRiskRegistryError};
 pub use portfolio_reservations::{
     PortfolioLedgerAuditView, PortfolioRiskSnapshot, ReservationError, ReservationEvidence,
     RiskExposure, SharedPortfolioReservations,
