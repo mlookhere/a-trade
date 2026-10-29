@@ -5,6 +5,7 @@ pub mod audit;
 pub mod authority;
 pub mod authorization;
 pub mod broker_execution;
+pub mod broker_portfolio_evidence;
 pub mod data;
 pub mod environment;
 pub mod fibonacci;
@@ -41,6 +42,7 @@ pub use broker_execution::{
     BrokerSubmission, ExecutionCoordinator, ExecutionGateContext, ExecutionPermit, ExecutionStatus,
     PortfolioCoordinatedGateError, SetupRegistry, SetupRegistryStatus,
 };
+pub use broker_portfolio_evidence::{BrokerEvidenceError, BrokerPortfolioEvidence};
 pub use data::{
     DataCycleReadiness, DataHealth, GammaContext, GammaInterpretation, GammaRegime,
     GammaSnapshotError, RelativeExpectation, ReliableGammaSnapshot, RequiredMarketDataStatus,
