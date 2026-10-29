@@ -96,6 +96,13 @@ fn sections_67_69_atomic_thread_competition_cannot_double_spend_limit() {
         1
     );
     assert_eq!(ledger.reservation_count(), Ok(1));
+    // Evidence is visible through the shared ledger after concurrent claims,
+    // and no losing proposal can manufacture a reservation receipt.
+    let receipts = ["SETUP-ATOMIC-ONE", "SETUP-ATOMIC-TWO"]
+        .iter()
+        .filter(|id| ledger.reservation_evidence(id).unwrap().is_some())
+        .count();
+    assert_eq!(receipts, 1);
 }
 
 #[test]
