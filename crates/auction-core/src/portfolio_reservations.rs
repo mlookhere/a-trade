@@ -197,9 +197,7 @@ impl SharedPortfolioReservations {
         // Canonical §§16, 103, 109: a proposal's asserted source snapshot
         // cannot be silently substituted, even when budgets still fit.
         // This equality check does not authenticate or timestamp the broker.
-        if expected_snapshot_id.trim().is_empty()
-            || expected_snapshot_id != state.snapshot_id
-        {
+        if expected_snapshot_id.trim().is_empty() || expected_snapshot_id != state.snapshot_id {
             return Err(ReservationError::SnapshotMismatch);
         }
         if state.exposures.contains_key(proposal.setup_id()) {
