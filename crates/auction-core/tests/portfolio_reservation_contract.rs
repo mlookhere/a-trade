@@ -1,5 +1,7 @@
 mod common;
 
+const SNAPSHOT_ID: &str = "BROKER-RECONCILED-SNAPSHOT-1";
+
 use std::sync::{Arc, Barrier};
 use std::thread;
 
@@ -19,7 +21,7 @@ fn risk(proposal: &OrderProposal) -> f64 {
 
 fn snapshot(limits: PortfolioRiskLimits) -> PortfolioRiskSnapshot {
     PortfolioRiskSnapshot {
-        snapshot_id: "BROKER-RECONCILED-SNAPSHOT-1".to_owned(),
+        snapshot_id: SNAPSHOT_ID.to_owned(),
         account_equity: 100_000.0,
         limits,
         broker_reconciled: Condition::True,
@@ -81,7 +83,7 @@ fn sections_67_69_atomic_thread_competition_cannot_double_spend_limit() {
         handles.push(thread::spawn(move || {
             let order = proposal(setup_id);
             barrier.wait();
-            ledger.reserve(&order, common::OWNER)
+            ledger.reserve(&order, common::OWNER, SNAPSHOT_ID)
         }));
     }
     barrier.wait();
@@ -111,13 +113,13 @@ fn sections_8_9_103_same_setup_duplicate_and_wrong_owner_fail_closed() {
     let ledger = SharedPortfolioReservations::from_snapshot(snapshot(wide_limits())).unwrap();
 
     assert_eq!(
-        ledger.reserve(&order, "OTHER_AGENT"),
+        ledger.reserve(&order, "OTHER_AGENT", SNAPSHOT_ID),
         Err(ReservationError::WrongOwner)
     );
     assert_eq!(ledger.reservation_count(), Ok(0));
-    assert_eq!(ledger.reserve(&order, common::OWNER), Ok(()));
+    assert_eq!(ledger.reserve(&order, common::OWNER, SNAPSHOT_ID), Ok(()));
     assert_eq!(
-        ledger.reserve(&order, common::OWNER),
+        ledger.reserve(&order, common::OWNER, SNAPSHOT_ID),
         Err(ReservationError::DuplicateSetup)
     );
     assert_eq!(ledger.reservation_count(), Ok(1));
@@ -129,9 +131,9 @@ fn sections_68_70_opposing_direction_in_same_cluster_fails_closed() {
     let short = short_proposal("SETUP-CLUSTER-SHORT");
     let ledger = SharedPortfolioReservations::from_snapshot(snapshot(wide_limits())).unwrap();
 
-    assert_eq!(ledger.reserve(&long, common::OWNER), Ok(()));
+    assert_eq!(ledger.reserve(&long, common::OWNER, SNAPSHOT_ID), Ok(()));
     assert_eq!(
-        ledger.reserve(&short, common::OWNER),
+        ledger.reserve(&short, common::OWNER, SNAPSHOT_ID),
         Err(ReservationError::ClusterConflict)
     );
     assert_eq!(ledger.reservation_count(), Ok(1));
@@ -190,7 +192,7 @@ fn sections_67_69_rechecks_exposure_not_proposal_stale_before_values() {
     // The proposal was evaluated with a prior risk snapshot. Its portfolio flag
     // cannot compensate for the verified exposure already in this ledger.
     assert_eq!(
-        ledger.reserve(&order, common::OWNER),
+        ledger.reserve(&order, common::OWNER, SNAPSHOT_ID),
         Err(ReservationError::PortfolioLimit)
     );
     assert_eq!(ledger.reservation_count(), Ok(1));
@@ -234,7 +236,7 @@ fn sections_67_69_snapshot_accepts_exact_cluster_ceiling_but_no_more() {
     assert_eq!(ledger.reservation_count(), Ok(2));
     let order = proposal("SETUP-AT-CLUSTER-CEILING");
     assert_eq!(
-        ledger.reserve(&order, common::OWNER),
+        ledger.reserve(&order, common::OWNER, SNAPSHOT_ID),
         Err(ReservationError::ClusterLimit)
     );
     assert_eq!(ledger.reservation_count(), Ok(2));
@@ -284,8 +286,8 @@ fn sections_67_69_baseline_and_reservation_independent_of_vector_order() {
             input.existing.reverse();
         }
         let ledger = SharedPortfolioReservations::from_snapshot(input).unwrap();
-        let first_result = ledger.reserve(&first, common::OWNER);
-        let second_result = ledger.reserve(&second, common::OWNER);
+        let first_result = ledger.reserve(&first, common::OWNER, SNAPSHOT_ID);
+        let second_result = ledger.reserve(&second, common::OWNER, SNAPSHOT_ID);
         outcomes.push((first_result, second_result, ledger.reservation_count()));
     }
 
@@ -324,7 +326,7 @@ fn sections_103_109_111_reservation_evidence_is_bound_to_asserted_snapshot_id() 
 
     assert_eq!(ledger.reservation_evidence(order.setup_id()), Ok(None));
     assert_eq!(ledger.reservation_evidence(""), Ok(None));
-    assert_eq!(ledger.reserve(&order, common::OWNER), Ok(()));
+    assert_eq!(ledger.reserve(&order, common::OWNER, SNAPSHOT_ID), Ok(()));
 
     let evidence = ledger
         .reservation_evidence(order.setup_id())
@@ -340,7 +342,7 @@ fn sections_103_109_111_reservation_evidence_is_bound_to_asserted_snapshot_id() 
     // Duplicate rejection cannot fabricate a second exposure or change
     // the original reservation's read-only provenance.
     assert_eq!(
-        ledger.reserve(&order, common::OWNER),
+        ledger.reserve(&order, common::OWNER, SNAPSHOT_ID),
         Err(ReservationError::DuplicateSetup)
     );
     assert_eq!(
@@ -369,11 +371,11 @@ fn sections_16_98_100_invalidation_blocks_new_reservations_across_clones() {
     assert_eq!(clone.invalidate(), Ok(()));
     assert_eq!(ledger.invalidate(), Ok(()));
     assert_eq!(
-        ledger.reserve(&order, common::OWNER),
+        ledger.reserve(&order, common::OWNER, SNAPSHOT_ID),
         Err(ReservationError::Unavailable)
     );
     assert_eq!(
-        clone.reserve(&order, common::OWNER),
+        clone.reserve(&order, common::OWNER, SNAPSHOT_ID),
         Err(ReservationError::Unavailable)
     );
     assert_eq!(ledger.reservation_count(), Ok(0));
@@ -392,7 +394,10 @@ fn sections_9_16_103_invalidation_preserves_existing_risk_and_receipts() {
     let ledger = SharedPortfolioReservations::from_snapshot(input).unwrap();
     let accepted = proposal("SETUP-ACCEPTED-BEFORE-INVALIDATION");
     let rejected = proposal("SETUP-REJECTED-AFTER-INVALIDATION");
-    assert_eq!(ledger.reserve(&accepted, common::OWNER), Ok(()));
+    assert_eq!(
+        ledger.reserve(&accepted, common::OWNER, SNAPSHOT_ID),
+        Ok(())
+    );
     let original_receipt = ledger
         .reservation_evidence(accepted.setup_id())
         .unwrap()
@@ -400,7 +405,7 @@ fn sections_9_16_103_invalidation_preserves_existing_risk_and_receipts() {
 
     assert_eq!(ledger.invalidate(), Ok(()));
     assert_eq!(
-        ledger.reserve(&rejected, common::OWNER),
+        ledger.reserve(&rejected, common::OWNER, SNAPSHOT_ID),
         Err(ReservationError::Unavailable)
     );
     assert_eq!(ledger.reservation_count(), Ok(2));
@@ -423,7 +428,7 @@ fn sections_9_16_67_109_invalidation_and_reservation_are_serialized() {
     let submission = thread::spawn(move || {
         let order = proposal("SETUP-RACING-INVALIDATION");
         submit_barrier.wait();
-        submitter.reserve(&order, common::OWNER)
+        submitter.reserve(&order, common::OWNER, SNAPSHOT_ID)
     });
     let invalidate_barrier = barrier.clone();
     let invalidation = thread::spawn(move || {
@@ -438,7 +443,11 @@ fn sections_9_16_67_109_invalidation_and_reservation_are_serialized() {
         Ok(()) | Err(ReservationError::Unavailable)
     ));
     assert_eq!(
-        ledger.reserve(&proposal("SETUP-AFTER-RACING-INVALIDATION"), common::OWNER),
+        ledger.reserve(
+            &proposal("SETUP-AFTER-RACING-INVALIDATION"),
+            common::OWNER,
+            SNAPSHOT_ID
+        ),
         Err(ReservationError::Unavailable)
     );
     let expected = if submission_result.is_ok() { 1 } else { 0 };
@@ -450,4 +459,74 @@ fn sections_9_16_67_109_invalidation_and_reservation_are_serialized() {
             .is_some(),
         submission_result.is_ok()
     );
+}
+
+#[test]
+fn sections_16_103_109_reservations_require_matching_asserted_snapshot_identity() {
+    let ledger = SharedPortfolioReservations::from_snapshot(snapshot(wide_limits())).unwrap();
+    let order = proposal("SETUP-SNAPSHOT-MISMATCH");
+
+    assert_eq!(
+        ledger.reserve(&order, common::OWNER, "OLDER-SNAPSHOT"),
+        Err(ReservationError::SnapshotMismatch)
+    );
+    assert_eq!(
+        ledger.reserve(&order, common::OWNER, ""),
+        Err(ReservationError::SnapshotMismatch)
+    );
+    assert_eq!(
+        ledger.reserve(&order, common::OWNER, "   "),
+        Err(ReservationError::SnapshotMismatch)
+    );
+    assert_eq!(ledger.reservation_count(), Ok(0));
+    assert_eq!(ledger.reservation_evidence(order.setup_id()), Ok(None));
+
+    assert_eq!(ledger.reserve(&order, common::OWNER, SNAPSHOT_ID), Ok(()));
+    let receipt = ledger
+        .reservation_evidence(order.setup_id())
+        .unwrap()
+        .unwrap();
+    assert_eq!(receipt.snapshot_id, SNAPSHOT_ID);
+    assert_eq!(
+        ledger.reserve(&order, common::OWNER, "OLDER-SNAPSHOT"),
+        Err(ReservationError::SnapshotMismatch)
+    );
+    assert_eq!(ledger.reservation_count(), Ok(1));
+}
+
+#[test]
+fn sections_16_109_invalidated_snapshot_cannot_be_reused_with_matching_identity() {
+    let ledger = SharedPortfolioReservations::from_snapshot(snapshot(wide_limits())).unwrap();
+    let order = proposal("SETUP-SNAPSHOT-INVALIDATED");
+    assert_eq!(ledger.invalidate(), Ok(()));
+    assert_eq!(
+        ledger.reserve(&order, common::OWNER, SNAPSHOT_ID),
+        Err(ReservationError::Unavailable)
+    );
+    assert_eq!(ledger.reservation_count(), Ok(0));
+}
+
+#[test]
+fn sections_16_109_new_snapshot_identity_requires_a_new_validated_ledger() {
+    let old = SharedPortfolioReservations::from_snapshot(snapshot(wide_limits())).unwrap();
+    old.invalidate().unwrap();
+
+    let mut new_snapshot = snapshot(wide_limits());
+    new_snapshot.snapshot_id = "BROKER-RECONCILED-SNAPSHOT-2".to_owned();
+    let fresh = SharedPortfolioReservations::from_snapshot(new_snapshot).unwrap();
+    let order = proposal("SETUP-SNAPSHOT-REFRESH");
+
+    assert_eq!(
+        fresh.reserve(&order, common::OWNER, SNAPSHOT_ID),
+        Err(ReservationError::SnapshotMismatch)
+    );
+    assert_eq!(
+        old.reserve(&order, common::OWNER, "BROKER-RECONCILED-SNAPSHOT-2"),
+        Err(ReservationError::Unavailable)
+    );
+    assert_eq!(
+        fresh.reserve(&order, common::OWNER, "BROKER-RECONCILED-SNAPSHOT-2"),
+        Ok(())
+    );
+    assert_eq!(fresh.reservation_count(), Ok(1));
 }
