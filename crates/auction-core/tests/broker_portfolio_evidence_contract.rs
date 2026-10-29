@@ -46,10 +46,11 @@ fn evidence() -> BrokerPortfolioEvidence {
 
 #[test]
 fn sections_9_16_67_109_valid_asserted_positions_and_open_orders_are_both_counted() {
-    let snapshot = evidence().into_asserted_snapshot().unwrap();
-    assert_eq!(snapshot.snapshot_id, "ASSERTED-SNAPSHOT-ONE");
-    assert_eq!(snapshot.existing.len(), 2);
-    let ledger = SharedPortfolioReservations::from_snapshot(snapshot).unwrap();
+    let account = evidence().into_asserted_snapshot().unwrap();
+    assert_eq!(account.account_id, "ACCOUNT-ONE");
+    assert_eq!(account.risk_snapshot.snapshot_id, "ASSERTED-SNAPSHOT-ONE");
+    assert_eq!(account.risk_snapshot.existing.len(), 2);
+    let ledger = SharedPortfolioReservations::from_snapshot(account.risk_snapshot).unwrap();
     let view = ledger.audit_view().unwrap();
     assert_eq!(view.exposures.len(), 2);
     assert_eq!(view.exposures[0].setup_id, "ORDER-ONE");
