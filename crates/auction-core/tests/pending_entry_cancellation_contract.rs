@@ -17,6 +17,7 @@ struct MockBroker {
     stop_state: Result<Condition, MockError>,
     cancel_state: Result<Condition, MockError>,
     cancel_calls: usize,
+    flatten_calls: usize,
 }
 
 impl Default for MockBroker {
@@ -26,6 +27,7 @@ impl Default for MockBroker {
             stop_state: Ok(Condition::True),
             cancel_state: Ok(Condition::True),
             cancel_calls: 0,
+            flatten_calls: 0,
         }
     }
 }
@@ -70,6 +72,7 @@ impl BrokerAdapter for MockBroker {
     }
 
     fn flatten_instrument(&mut self, _instrument: &str) -> Result<(), Self::Error> {
+        self.flatten_calls += 1;
         Ok(())
     }
 }
@@ -262,6 +265,80 @@ fn section_117_fill_is_reconciled_before_any_miss_cancellation() {
     let status = coordinator.setup_status(setup_id).unwrap();
     assert_eq!(status.state, Some(SetupState::PositionManagement));
     assert!(status.consumed);
+}
+
+#[test]
+fn sections_64_102_118_late_confirmed_fill_still_checks_stop_after_unsafe_latch() {
+    for (i, stop_state) in [Condition::True, Condition::False, Condition::Unknown]
+        .into_iter()
+        .enumerate()
+    {
+        let setup_id = format!("SETUP-LATE-FILL-{i}");
+        let (mut coordinator, proposal) = pending_long(&setup_id, MockBroker::default());
+        coordinator.adapter_mut().fill_state = Ok(Condition::Unknown);
+        assert_eq!(
+            coordinator.reconcile_pending_entry(&setup_id, proposal.entry_trigger(), 0),
+            Err(RejectionCode::BrokerUnsafe)
+        );
+        assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+        assert_eq!(
+            coordinator.setup_status(&setup_id).unwrap().state,
+            Some(SetupState::OrderPending)
+        );
+
+        coordinator.adapter_mut().fill_state = Ok(Condition::True);
+        coordinator.adapter_mut().stop_state = Ok(stop_state);
+        let result = coordinator.reconcile_pending_entry(&setup_id, proposal.entry_trigger(), 0);
+        let setup = coordinator.setup_status(&setup_id).unwrap();
+        assert!(setup.consumed);
+        assert_eq!(coordinator.adapter().cancel_calls, 0);
+        assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+
+        if stop_state == Condition::True {
+            assert!(matches!(
+                result,
+                Ok(ExecutionStatus::FilledProtected { .. })
+            ));
+            assert_eq!(setup.state, Some(SetupState::PositionManagement));
+            assert_eq!(coordinator.adapter().flatten_calls, 0);
+        } else {
+            assert_eq!(result, Err(RejectionCode::BrokerUnsafe));
+            assert_eq!(setup.state, Some(SetupState::Filled));
+            assert_eq!(coordinator.adapter().flatten_calls, 1);
+        }
+        assert_eq!(
+            coordinator.reconcile_pending_entry(&setup_id, proposal.entry_trigger(), 0),
+            Err(RejectionCode::ProcessError)
+        );
+        assert_eq!(
+            coordinator.gate(&proposal, context()),
+            Err(RejectionCode::BrokerUnsafe)
+        );
+    }
+}
+
+#[test]
+fn sections_16_100_unfilled_order_during_unsafe_latch_is_not_treated_as_safe() {
+    let setup_id = "SETUP-UNSAFE-UNFILLED";
+    let (mut coordinator, proposal) = pending_long(setup_id, MockBroker::default());
+
+    coordinator.adapter_mut().fill_state = Ok(Condition::Unknown);
+    assert_eq!(
+        coordinator.reconcile_pending_entry(setup_id, proposal.entry_trigger(), 0),
+        Err(RejectionCode::BrokerUnsafe)
+    );
+    coordinator.adapter_mut().fill_state = Ok(Condition::False);
+    assert_eq!(
+        coordinator.reconcile_pending_entry(setup_id, proposal.entry_trigger(), 2),
+        Err(RejectionCode::BrokerUnsafe)
+    );
+    assert_eq!(coordinator.adapter().cancel_calls, 0);
+    assert_eq!(coordinator.adapter().flatten_calls, 0);
+    let setup = coordinator.setup_status(setup_id).unwrap();
+    assert_eq!(setup.state, Some(SetupState::OrderPending));
+    assert!(!setup.consumed);
+    assert!(setup.order_active_or_reserved);
+    assert_eq!(coordinator.execution_engine_safe(), Condition::False);
 }
 
 #[test]
