@@ -7,6 +7,7 @@ pub mod authority;
 pub mod authorization;
 pub mod broker_execution;
 pub mod broker_portfolio_evidence;
+pub mod broker_source_witness;
 pub mod data;
 pub mod environment;
 pub mod fibonacci;
@@ -51,6 +52,10 @@ pub use broker_execution::{
 };
 pub use broker_portfolio_evidence::{
     AssertedAccountRiskSnapshot, BrokerEvidenceError, BrokerPortfolioEvidence,
+};
+pub use broker_source_witness::{
+    SourceWitnessError, UntrustedBrokerSourceWitness, UntrustedCollectionWitness,
+    UnverifiedBrokerSourceReview,
 };
 pub use data::{
     DataCycleReadiness, DataHealth, GammaContext, GammaInterpretation, GammaRegime,
