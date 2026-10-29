@@ -90,7 +90,7 @@ Each independently deliverable change follows:
 
 `Issue -> work/<issue>-slug -> PR -> dev`
 
-Hosted gates route through `./ci/run <stage>` using `.claude-workflow.json`. PR/release/nightly policy includes formatting, linting, locked workspace tests/builds, dependency auditing, and workflow-policy validation.
+Hosted gates route through `./ci/run <stage>` using `.chatfreept/ci.json`; ChatGPT/GitHub ownership and required check names are defined in `.chatfreept/project.json` (see [CI policy](docs/CHATFREEPT_CI.md)). PR/release/nightly policy includes formatting, linting, locked workspace tests/builds, dependency auditing, and workflow-policy validation.
 
 `main` is not currently a promoted live trading release. Current development remains pre-production: the canonical deterministic core and Schwab market-data transport exist, but production LLM orchestration, historical/OOS evidence, paper/shadow evidence, an exact real broker execution adapter, final release promotion, and live authorization remain incomplete.
 
