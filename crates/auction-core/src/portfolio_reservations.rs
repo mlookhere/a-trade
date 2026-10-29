@@ -3,7 +3,7 @@
 //! authorize orders. No reservation may be released without a future explicit
 //! broker-reconciled lifecycle contract.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use crate::order_risk::ClusterExposure;
@@ -59,6 +59,7 @@ struct ReservationState {
     account_equity: f64,
     limits: PortfolioRiskLimits,
     exposures: BTreeMap<String, RiskExposure>,
+    accepted_reservations: BTreeSet<String>,
 }
 
 /// Clones share a single mutex-protected ledger. It is deliberately not a
@@ -135,6 +136,7 @@ impl SharedPortfolioReservations {
                 account_equity: snapshot.account_equity,
                 limits: snapshot.limits,
                 exposures,
+                accepted_reservations: BTreeSet::new(),
             })),
         })
     }
@@ -206,6 +208,7 @@ impl SharedPortfolioReservations {
             return Err(ReservationError::ClusterLimit);
         }
 
+        state.accepted_reservations.insert(proposal.setup_id().to_owned());
         state.exposures.insert(
             proposal.setup_id().to_owned(),
             RiskExposure {
@@ -231,10 +234,15 @@ impl SharedPortfolioReservations {
             .state
             .lock()
             .map_err(|_| ReservationError::Unavailable)?;
-        Ok(state.exposures.get(setup_id).map(|exposure| ReservationEvidence {
-            snapshot_id: state.snapshot_id.clone(),
-            exposure: exposure.clone(),
-        }))
+        Ok(state
+            .accepted_reservations
+            .contains(setup_id)
+            .then(|| state.exposures.get(setup_id))
+            .flatten()
+            .map(|exposure| ReservationEvidence {
+                snapshot_id: state.snapshot_id.clone(),
+                exposure: exposure.clone(),
+            }))
     }
 
     pub fn reservation_count(&self) -> Result<usize, ReservationError> {
