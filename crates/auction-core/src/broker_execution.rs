@@ -573,10 +573,9 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
     }
 
     fn reconcile_fill_only(&mut self, setup_id: &str) -> Result<ExecutionStatus, RejectionCode> {
-        // Canonical §§64, 73, 118: an already accepted pending entry may still
-        // fill after a shared execution failure. New-entry authorization remains
-        // disabled, but a confirmed fill must reach protective stop verification.
-        let new_entries_unsafe = !self.engine_safe;
+        // Canonical §§60-64, 73, 118: existing pending orders require
+        // protective fill and cancellation reconciliation even when new
+        // entry authorization is disabled after a shared execution fault.
         let Some(record) = self.registry.execution_record(setup_id) else {
             return Err(RejectionCode::ProcessError);
         };
@@ -591,7 +590,6 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         };
 
         match self.adapter.entry_filled(setup_id) {
-            Ok(Condition::False) if new_entries_unsafe => Err(RejectionCode::BrokerUnsafe),
             Ok(Condition::False) => Ok(ExecutionStatus::Pending { broker_order_id }),
             Ok(Condition::Unknown) | Err(_) => {
                 self.engine_safe = false;
@@ -753,7 +751,13 @@ impl<A: BrokerOrderCancellation> ExecutionCoordinator<A> {
         if slippage_clear == Condition::True
             && !trigger_expired(completed_5m_candles_since_reconfirmation)
         {
-            return Ok(ExecutionStatus::Pending { broker_order_id });
+            // Protective reconciliation can continue under a shared unsafe latch,
+            // but an existing pending order must never be reported as safe.
+            return if self.engine_safe {
+                Ok(ExecutionStatus::Pending { broker_order_id })
+            } else {
+                Err(RejectionCode::BrokerUnsafe)
+            };
         }
 
         match self.adapter.cancel_entry_order(setup_id, &broker_order_id) {
