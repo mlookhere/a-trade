@@ -14,6 +14,7 @@ pub mod long_orderflow;
 pub mod market;
 pub mod news;
 pub mod order_risk;
+pub mod portfolio_reservations;
 pub mod position_management;
 pub mod promotion;
 pub mod rejection;
@@ -74,6 +75,9 @@ pub use order_risk::{
     STRICT_MIN_PLANNED_R, build_order_proposal, cluster_direction_clear, entry_limit_valid,
     entry_trigger, evaluate_portfolio_risk, planned_r, size_futures, slippage_guard,
     stop_replacement_allowed, structural_stop, structural_target_valid, trigger_expired,
+};
+pub use portfolio_reservations::{
+    PortfolioRiskSnapshot, ReservationError, RiskExposure, SharedPortfolioReservations,
 };
 pub use position_management::{
     ManagementDirective, StructuralTrailEvaluation, defensive_stop_candidate_allowed,
