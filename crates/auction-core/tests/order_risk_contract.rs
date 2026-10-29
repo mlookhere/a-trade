@@ -280,6 +280,45 @@ fn sections_67_69_portfolio_and_cluster_limits_are_inclusive_at_exact_ceiling() 
 }
 
 #[test]
+fn sections_67_69_109_overflowing_derived_portfolio_math_fails_closed() {
+    let scenarios = [
+        // Exposure sum overflow with otherwise finite configured ceilings.
+        (100_000.0, f64::MAX, 0.0, f64::MAX, limits()),
+        // Cluster sum overflow with otherwise finite portfolio inputs.
+        (100_000.0, 0.0, f64::MAX, f64::MAX, limits()),
+        // Portfolio ceiling overflow from individually finite config.
+        (
+            100_000.0,
+            100.0,
+            50.0,
+            25.0,
+            PortfolioRiskLimits {
+                max_portfolio_open_risk_percent: f64::MAX,
+                max_cluster_open_risk_percent: 0.01,
+            },
+        ),
+        // Cluster ceiling overflow from individually finite config.
+        (
+            100_000.0,
+            100.0,
+            50.0,
+            25.0,
+            PortfolioRiskLimits {
+                max_portfolio_open_risk_percent: 0.02,
+                max_cluster_open_risk_percent: f64::MAX,
+            },
+        ),
+    ];
+    for (equity, open, cluster, proposed, cfg) in scenarios {
+        let result = evaluate_portfolio_risk(equity, open, cluster, proposed, cfg);
+        assert_eq!(result.portfolio_pass, Condition::Unknown);
+        assert_eq!(result.cluster_pass, Condition::Unknown);
+        assert!(result.open_portfolio_risk_after.is_nan());
+        assert!(result.cluster_risk_after.is_nan());
+    }
+}
+
+#[test]
 fn sections_68_70_same_cluster_opposing_direction_fails_closed() {
     let existing = [ClusterExposure {
         cluster_id: "NASDAQ_CLUSTER",

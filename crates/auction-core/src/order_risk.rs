@@ -257,6 +257,22 @@ pub fn evaluate_portfolio_risk(
     let max_portfolio_risk = account_equity * limits.max_portfolio_open_risk_percent;
     let max_cluster_risk = account_equity * limits.max_cluster_open_risk_percent;
 
+    // Canonical §§67-69, 109: finite inputs alone do not make the
+    // derived exposure and configured ceilings valid. An overflow cannot
+    // become a passing <= infinity risk gate.
+    if !open_portfolio_risk_after.is_finite()
+        || !cluster_risk_after.is_finite()
+        || !max_portfolio_risk.is_finite()
+        || !max_cluster_risk.is_finite()
+    {
+        return PortfolioRiskEvaluation {
+            open_portfolio_risk_after: f64::NAN,
+            cluster_risk_after: f64::NAN,
+            portfolio_pass: Condition::Unknown,
+            cluster_pass: Condition::Unknown,
+        };
+    }
+
     PortfolioRiskEvaluation {
         open_portfolio_risk_after,
         cluster_risk_after,
