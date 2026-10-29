@@ -20,6 +20,14 @@ The non-authorizing `AccountScopedPortfolioReservations::from_evidence` wrapper 
 
 The wrapper does **not** make account IDs cryptographically authenticated, ensure the source is the connected broker, prove timestamp freshness, or coordinate with another process/account. Existing unscoped ledger and broker gate APIs remain available, so this proof is *bypassable and strictly offline*. Account scope is a caller-asserted provenance consistency check, not a new production strategy requirement or new risk threshold.
 
+## Explicit single-process book registry (offline proof)
+
+`ProcessAccountRiskRegistry` is a **caller-shared** in-memory `Arc<Mutex<...>>` registry of one isolated `AccountScopedPortfolioReservations` per asserted account ID. Independently scheduled coordinators which use the **same registry instance** with identical initial account equity, configured limits, source snapshot ID and position/open-order evidence receive clones of the same risk book instead of independently spending the same in-process allowance.
+
+After an account's first book is registered, **changed** source ID, equity, configured limits, position contents or open-order contents are a conflict, not permission to replace or reset the ledger. An account-scoped conflicting or newly UNKNOWN evidence report permanently latches the old book unavailable, retaining accepted exposure for reconciliation and audit. There is no automatic recovery, migration or release. A new exact replay of the initial evidence may reuse a healthy book, but cannot reset a latched book.
+
+**Limitations:** the registry is *not process-global*; two independently created registries, two processes or two hosts can still double-spend. Caller-asserted evidence is unauthenticated. Validated account IDs do not prove aggregate cross-account risk. The raw standalone constructors and older Execution Gate remain bypassable. No live order may rely on this registry; #164 still owns the required durable, source-authenticated, unavoidable risk authority. This conservative evidence-conflict latch is an implementation-defined offline safety rule, not a broker fill/retry/recovery contract.
+
 ## Not implemented / no permission
 
 The broker API and account authentication mechanism are absent. Health and time consistency flags are **assertions by the caller**, not independently verified timestamps or a trusted broker witness. Order and position risk dollars must already be determined from an approved broker/market/stop model; this validator neither prices contracts nor reconciles fill quantity or stop protection. It has no persistence, cross-process transaction, risk release, broker-side order identity, permission token, or unavoidable connection to `ExecutionCoordinator::gate`/`submit`. A matching account or snapshot ID does not make stale/unreconciled data reliable.
