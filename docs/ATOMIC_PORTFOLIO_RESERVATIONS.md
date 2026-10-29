@@ -18,6 +18,12 @@ Risk amounts are accumulated in lexicographic `SETUP_ID` order during both snaps
 
 A successful `reserve` call records a read-only `ReservationEvidence` lookup by `SETUP_ID`, with asserted source `snapshot_id`, cluster, direction, and reserved risk amount. Duplicates cannot replace its receipt. **Existing exposures from the initial portfolio snapshot are not newly reserved orders and return no reservation receipt.** Missing setup IDs return no evidence. This information is only in the current coordinator process and the caller's snapshot flags do not establish broker truth. Receipts cannot grant execution permission or release a reservation.
 
+## Fail-closed invalidation after snapshot health failure
+
+Canonical §§16, 98–100 require invalid broker, market-data, open-order, or position state to stop new trades. The in-process ledger supports an implementation-defined conservative `invalidate()` latch: after an **external** Data Supervisor detects invalidity, calling it permanently rejects subsequent `reserve` calls from all clones sharing that ledger. The latch and reservation mutation use the **same mutex**, so concurrent invalidation cannot race past a later reservation. It does not erase prior exposure, accepted reservation evidence, or broker-reconciliation obligations. Multiple calls are idempotent. There is no reset/re-enable method: recovery requires a separately validated new snapshot and ledger instance.
+
+This API does **not** independently monitor timestamps, verify broker state, authenticate its caller, persist the latch, synchronize across processes, or protect live order execution. Neither a caller's claimed healthy snapshot nor this in-memory latch is evidence of production readiness. The current live Execution Gate remains unmodified under parent #164.
+
 ## Deliberate safety limitations
 
 - No reservation release/reset API: release requires a future documented, broker-reconciled terminal-order/position transition. No timeout or retry is invented.
