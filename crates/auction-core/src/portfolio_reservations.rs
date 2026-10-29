@@ -45,6 +45,7 @@ pub struct ReservationEvidence {
 pub enum ReservationError {
     InvalidSnapshot,
     InvalidProposal,
+    SnapshotMismatch,
     WrongOwner,
     DuplicateSetup,
     PortfolioLimit,
@@ -159,7 +160,12 @@ impl SharedPortfolioReservations {
 
     /// Atomically checks current in-ledger exposure and records a reservation.
     /// A successful result is NOT an ExecutionPermit and cannot authorize entry.
-    pub fn reserve(&self, proposal: &OrderProposal, owner: &str) -> Result<(), ReservationError> {
+    pub fn reserve(
+        &self,
+        proposal: &OrderProposal,
+        owner: &str,
+        expected_snapshot_id: &str,
+    ) -> Result<(), ReservationError> {
         if owner.trim().is_empty() || owner != proposal.owner_agent_id() {
             return Err(ReservationError::WrongOwner);
         }
@@ -187,6 +193,14 @@ impl SharedPortfolioReservations {
             .map_err(|_| ReservationError::Unavailable)?;
         if state.invalidated {
             return Err(ReservationError::Unavailable);
+        }
+        // Canonical §§16, 103, 109: a proposal's asserted source snapshot
+        // cannot be silently substituted, even when budgets still fit.
+        // This equality check does not authenticate or timestamp the broker.
+        if expected_snapshot_id.trim().is_empty()
+            || expected_snapshot_id != state.snapshot_id
+        {
+            return Err(ReservationError::SnapshotMismatch);
         }
         if state.exposures.contains_key(proposal.setup_id()) {
             return Err(ReservationError::DuplicateSetup);
