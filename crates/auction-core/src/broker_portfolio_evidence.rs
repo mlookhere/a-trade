@@ -32,6 +32,14 @@ pub struct BrokerPortfolioEvidence {
     pub open_orders: Vec<RiskExposure>,
 }
 
+/// Account identity and caller-asserted risk data remain associated.
+/// This is not an authenticated broker record or execution authorization.
+#[derive(Debug, Clone)]
+pub struct AssertedAccountRiskSnapshot {
+    pub account_id: String,
+    pub risk_snapshot: PortfolioRiskSnapshot,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrokerEvidenceError {
     MissingAccount,
@@ -50,7 +58,7 @@ impl BrokerPortfolioEvidence {
     /// Validates the declared evidence, then constructs an *asserted* risk
     /// snapshot for the existing isolated in-process reservation proof.
     /// This does not independently verify a broker API or grant live authority.
-    pub fn into_asserted_snapshot(self) -> Result<PortfolioRiskSnapshot, BrokerEvidenceError> {
+    pub fn into_asserted_snapshot(self) -> Result<AssertedAccountRiskSnapshot, BrokerEvidenceError> {
         if self.expected_account_id.trim().is_empty()
             || self.observed_account_id.trim().is_empty()
         {
@@ -115,6 +123,9 @@ impl BrokerPortfolioEvidence {
         // checks instead of duplicating or loosening canonical risk logic.
         SharedPortfolioReservations::from_snapshot(snapshot.clone())
             .map_err(BrokerEvidenceError::InvalidRiskBook)?;
-        Ok(snapshot)
+        Ok(AssertedAccountRiskSnapshot {
+            account_id: self.expected_account_id,
+            risk_snapshot: snapshot,
+        })
     }
 }
