@@ -816,6 +816,9 @@ fn sections_16_109_later_unknown_evidence_latches_old_offline_account_book() {
         .is_ok()
     );
 
+    let prior_book = registry
+        .get_or_initialize(scoped_risk_evidence(2_000.0))
+        .unwrap();
     let mut unknown = scoped_risk_evidence(2_000.0);
     unknown.open_order_state_known = Condition::Unknown;
     let next_id = "SETUP-SCOPED-LATER";
@@ -840,16 +843,8 @@ fn sections_16_109_later_unknown_evidence_latches_old_offline_account_book() {
             .order_active_or_reserved
     );
     assert_eq!(second.adapter().submit_calls, 0);
-    let book = first
-        .gate_with_process_account_registry(
-            &first_order,
-            context(common::OWNER, Condition::True),
-            &registry,
-            scoped_risk_evidence(2_000.0),
-            SCOPED_ACCOUNT_ID,
-            SHARED_RISK_SNAPSHOT_ID,
-        );
-    assert_eq!(book, Err(AccountRegistryGateError::Gate(RejectionCode::DuplicateSetup)));
+    assert!(prior_book.audit_view().unwrap().ledger.invalidated);
+    assert_eq!(prior_book.audit_view().unwrap().ledger.exposures.len(), 1);
     let status = registry.get_or_initialize(scoped_risk_evidence(2_000.0));
     assert!(matches!(status, Err(ProcessRiskRegistryError::Unavailable)));
 }
