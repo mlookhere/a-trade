@@ -188,3 +188,69 @@ fn sections_67_69_rechecks_exposure_not_proposal_stale_before_values() {
     );
     assert_eq!(ledger.reservation_count(), Ok(1));
 }
+
+fn existing_exposure(setup_id: &str, cluster_id: &str, direction: Direction, risk: f64) -> RiskExposure {
+    RiskExposure {
+        setup_id: setup_id.to_owned(),
+        cluster_id: cluster_id.to_owned(),
+        direction,
+        risk_dollars: risk,
+    }
+}
+
+#[test]
+fn sections_67_69_snapshot_rejects_over_ceiling_cluster_even_below_portfolio_ceiling() {
+    let mut input = snapshot(wide_limits());
+    input.existing = vec![
+        existing_exposure("EXISTING-MNQ", "NASDAQ_CLUSTER", Direction::Long, 600.0),
+        existing_exposure("EXISTING-NQ", "NASDAQ_CLUSTER", Direction::Long, 500.0),
+    ];
+    assert!(matches!(
+        SharedPortfolioReservations::from_snapshot(input),
+        Err(ReservationError::InvalidSnapshot)
+    ));
+}
+
+#[test]
+fn sections_67_69_snapshot_accepts_exact_cluster_ceiling_but_no_more() {
+    let mut input = snapshot(wide_limits());
+    input.existing = vec![
+        existing_exposure("EXISTING-MNQ", "NASDAQ_CLUSTER", Direction::Long, 600.0),
+        existing_exposure("EXISTING-NQ", "NASDAQ_CLUSTER", Direction::Long, 400.0),
+    ];
+    let ledger = SharedPortfolioReservations::from_snapshot(input).unwrap();
+    assert_eq!(ledger.reservation_count(), Ok(2));
+    let order = proposal("SETUP-AT-CLUSTER-CEILING");
+    assert_eq!(
+        ledger.reserve(&order, common::OWNER),
+        Err(ReservationError::ClusterLimit)
+    );
+    assert_eq!(ledger.reservation_count(), Ok(2));
+}
+
+#[test]
+fn section_70_snapshot_rejects_existing_opposing_cluster_directions() {
+    let mut input = snapshot(wide_limits());
+    input.existing = vec![
+        existing_exposure("EXISTING-LONG", "NASDAQ_CLUSTER", Direction::Long, 100.0),
+        existing_exposure("EXISTING-SHORT", "NASDAQ_CLUSTER", Direction::Short, 100.0),
+    ];
+    assert!(matches!(
+        SharedPortfolioReservations::from_snapshot(input),
+        Err(ReservationError::InvalidSnapshot)
+    ));
+}
+
+#[test]
+fn sections_16_67_69_snapshot_rejects_nonfinite_computed_ceilings() {
+    for limits in [
+        limits(f64::MAX, 0.01),
+        limits(0.02, f64::MAX),
+    ] {
+        let input = snapshot(limits);
+        assert!(matches!(
+            SharedPortfolioReservations::from_snapshot(input),
+            Err(ReservationError::InvalidSnapshot)
+        ));
+    }
+}
