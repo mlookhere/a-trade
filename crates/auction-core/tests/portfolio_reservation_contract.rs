@@ -438,10 +438,7 @@ fn sections_9_16_67_109_invalidation_and_reservation_are_serialized() {
         Ok(()) | Err(ReservationError::Unavailable)
     ));
     assert_eq!(
-        ledger.reserve(
-            &proposal("SETUP-AFTER-RACING-INVALIDATION"),
-            common::OWNER
-        ),
+        ledger.reserve(&proposal("SETUP-AFTER-RACING-INVALIDATION"), common::OWNER),
         Err(ReservationError::Unavailable)
     );
     let expected = if submission_result.is_ok() { 1 } else { 0 };
