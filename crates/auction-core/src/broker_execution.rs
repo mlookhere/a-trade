@@ -116,6 +116,7 @@ struct SetupRecord {
     broker_order_id: Option<String>,
     state: Option<SetupState>,
     pending_entry_guard: Option<PendingEntryGuard>,
+    flatten_attempted: bool,
 }
 
 #[derive(Debug, Default)]
@@ -145,6 +146,7 @@ impl SetupRegistry {
                 broker_order_id: None,
                 state: None,
                 pending_entry_guard: None,
+                flatten_attempted: false,
             },
         );
         Ok(())
@@ -299,6 +301,23 @@ impl SetupRegistry {
                 .map_err(|_| RejectionCode::ProcessError)?,
         );
         Ok(())
+    }
+
+    /// A single immediate protective flatten attempt per consumed setup is idempotent
+    /// within this coordinator instance. This does not define broker retry behavior.
+    fn claim_flatten_attempt(&mut self, setup_id: &str) -> Result<bool, RejectionCode> {
+        let record = self
+            .setups
+            .get_mut(setup_id)
+            .ok_or(RejectionCode::ProcessError)?;
+        if !record.consumed {
+            return Err(RejectionCode::ProcessError);
+        }
+        if record.flatten_attempted {
+            return Ok(false);
+        }
+        record.flatten_attempted = true;
+        Ok(true)
     }
 
     fn execution_record(&self, setup_id: &str) -> Option<&SetupRecord> {
@@ -586,9 +605,8 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
     /// Canonical §§16,64,73,98,100,102,118 provider-neutral open-position safety cycle.
     /// This remains available after 11:00 because §4 preserves existing-position management.
     pub fn verify_open_position_safety(&mut self, setup_id: &str) -> Result<(), RejectionCode> {
-        if !self.engine_safe {
-            return Err(RejectionCode::BrokerUnsafe);
-        }
+        // An unsafe shared execution latch blocks new entries, not protective
+        // stop checks on existing positions (§§73, 101, 118).
         if setup_id.trim().is_empty() {
             return Err(RejectionCode::ProcessError);
         }
@@ -632,7 +650,9 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         }
 
         self.engine_safe = false;
-        let _ = self.adapter.flatten_instrument(&instrument);
+        if self.registry.claim_flatten_attempt(setup_id)? {
+            let _ = self.adapter.flatten_instrument(&instrument);
+        }
         Err(RejectionCode::BrokerUnsafe)
     }
 
@@ -674,7 +694,9 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             .execution_record(setup_id)
             .and_then(|record| record.instrument.clone())
             .ok_or(RejectionCode::ProcessError)?;
-        let _ = self.adapter.flatten_instrument(&instrument);
+        if self.registry.claim_flatten_attempt(setup_id)? {
+            let _ = self.adapter.flatten_instrument(&instrument);
+        }
         Err(RejectionCode::BrokerUnsafe)
     }
 }
