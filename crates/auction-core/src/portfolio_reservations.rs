@@ -12,7 +12,7 @@ use crate::{
     evaluate_portfolio_risk,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RiskExposure {
     pub setup_id: String,
     pub cluster_id: String,
@@ -33,6 +33,14 @@ pub struct PortfolioRiskSnapshot {
     pub existing: Vec<RiskExposure>,
 }
 
+/// Read-only in-process evidence; the asserted snapshot ID does not prove
+/// external broker freshness, reconciliation or durable persistence.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReservationEvidence {
+    pub snapshot_id: String,
+    pub exposure: RiskExposure,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReservationError {
     InvalidSnapshot,
@@ -47,6 +55,7 @@ pub enum ReservationError {
 
 #[derive(Debug)]
 struct ReservationState {
+    snapshot_id: String,
     account_equity: f64,
     limits: PortfolioRiskLimits,
     exposures: BTreeMap<String, RiskExposure>,
@@ -122,6 +131,7 @@ impl SharedPortfolioReservations {
         }
         Ok(Self {
             state: Arc::new(Mutex::new(ReservationState {
+                snapshot_id: snapshot.snapshot_id,
                 account_equity: snapshot.account_equity,
                 limits: snapshot.limits,
                 exposures,
@@ -206,6 +216,25 @@ impl SharedPortfolioReservations {
             },
         );
         Ok(())
+    }
+
+    /// Read-only evidence for an existing exposure. A missing SETUP_ID never
+    /// creates a reservation or implies that broker reconciliation succeeded.
+    pub fn reservation_evidence(
+        &self,
+        setup_id: &str,
+    ) -> Result<Option<ReservationEvidence>, ReservationError> {
+        if setup_id.trim().is_empty() {
+            return Ok(None);
+        }
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| ReservationError::Unavailable)?;
+        Ok(state.exposures.get(setup_id).map(|exposure| ReservationEvidence {
+            snapshot_id: state.snapshot_id.clone(),
+            exposure: exposure.clone(),
+        }))
     }
 
     pub fn reservation_count(&self) -> Result<usize, ReservationError> {
