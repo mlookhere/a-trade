@@ -359,3 +359,98 @@ fn sections_9_103_existing_broker_exposures_do_not_fabricate_reservation_receipt
     assert_eq!(ledger.reservation_evidence("EXISTING-ONE"), Ok(None));
     assert_eq!(ledger.reservation_count(), Ok(1));
 }
+
+#[test]
+fn sections_16_98_100_invalidation_blocks_new_reservations_across_clones() {
+    let ledger = SharedPortfolioReservations::from_snapshot(snapshot(wide_limits())).unwrap();
+    let clone = ledger.clone();
+    let order = proposal("SETUP-INVALIDATED-ONE");
+
+    assert_eq!(clone.invalidate(), Ok(()));
+    assert_eq!(ledger.invalidate(), Ok(()));
+    assert_eq!(
+        ledger.reserve(&order, common::OWNER),
+        Err(ReservationError::Unavailable)
+    );
+    assert_eq!(
+        clone.reserve(&order, common::OWNER),
+        Err(ReservationError::Unavailable)
+    );
+    assert_eq!(ledger.reservation_count(), Ok(0));
+    assert_eq!(clone.reservation_evidence(order.setup_id()), Ok(None));
+}
+
+#[test]
+fn sections_9_16_103_invalidation_preserves_existing_risk_and_receipts() {
+    let mut input = snapshot(wide_limits());
+    input.existing = vec![existing_exposure(
+        "BROKER-EXPOSURE",
+        "OTHER_CLUSTER",
+        Direction::Long,
+        100.0,
+    )];
+    let ledger = SharedPortfolioReservations::from_snapshot(input).unwrap();
+    let accepted = proposal("SETUP-ACCEPTED-BEFORE-INVALIDATION");
+    let rejected = proposal("SETUP-REJECTED-AFTER-INVALIDATION");
+    assert_eq!(ledger.reserve(&accepted, common::OWNER), Ok(()));
+    let original_receipt = ledger
+        .reservation_evidence(accepted.setup_id())
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(ledger.invalidate(), Ok(()));
+    assert_eq!(
+        ledger.reserve(&rejected, common::OWNER),
+        Err(ReservationError::Unavailable)
+    );
+    assert_eq!(ledger.reservation_count(), Ok(2));
+    assert_eq!(
+        ledger.reservation_evidence(accepted.setup_id()),
+        Ok(Some(original_receipt))
+    );
+    assert_eq!(ledger.reservation_evidence("BROKER-EXPOSURE"), Ok(None));
+    assert_eq!(ledger.reservation_evidence(rejected.setup_id()), Ok(None));
+}
+
+#[test]
+fn sections_9_16_67_109_invalidation_and_reservation_are_serialized() {
+    let ledger = SharedPortfolioReservations::from_snapshot(snapshot(wide_limits())).unwrap();
+    let barrier = Arc::new(Barrier::new(3));
+    let submitter = ledger.clone();
+    let invalidator = ledger.clone();
+
+    let submit_barrier = barrier.clone();
+    let submission = thread::spawn(move || {
+        let order = proposal("SETUP-RACING-INVALIDATION");
+        submit_barrier.wait();
+        submitter.reserve(&order, common::OWNER)
+    });
+    let invalidate_barrier = barrier.clone();
+    let invalidation = thread::spawn(move || {
+        invalidate_barrier.wait();
+        invalidator.invalidate()
+    });
+    barrier.wait();
+    let submission_result = submission.join().unwrap();
+    assert_eq!(invalidation.join().unwrap(), Ok(()));
+    assert!(matches!(
+        submission_result,
+        Ok(()) | Err(ReservationError::Unavailable)
+    ));
+    assert_eq!(
+        ledger.reserve(
+            &proposal("SETUP-AFTER-RACING-INVALIDATION"),
+            common::OWNER
+        ),
+        Err(ReservationError::Unavailable)
+    );
+    let expected = if submission_result.is_ok() { 1 } else { 0 };
+    assert_eq!(ledger.reservation_count(), Ok(expected));
+    assert_eq!(
+        ledger
+            .reservation_evidence("SETUP-RACING-INVALIDATION")
+            .unwrap()
+            .is_some(),
+        submission_result.is_ok()
+    );
+}
