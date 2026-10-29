@@ -58,9 +58,10 @@ impl BrokerPortfolioEvidence {
     /// Validates the declared evidence, then constructs an *asserted* risk
     /// snapshot for the existing isolated in-process reservation proof.
     /// This does not independently verify a broker API or grant live authority.
-    pub fn into_asserted_snapshot(self) -> Result<AssertedAccountRiskSnapshot, BrokerEvidenceError> {
-        if self.expected_account_id.trim().is_empty()
-            || self.observed_account_id.trim().is_empty()
+    pub fn into_asserted_snapshot(
+        self,
+    ) -> Result<AssertedAccountRiskSnapshot, BrokerEvidenceError> {
+        if self.expected_account_id.trim().is_empty() || self.observed_account_id.trim().is_empty()
         {
             return Err(BrokerEvidenceError::MissingAccount);
         }
@@ -70,9 +71,7 @@ impl BrokerPortfolioEvidence {
         if self.snapshot_id.trim().is_empty() {
             return Err(BrokerEvidenceError::MissingSnapshot);
         }
-        if self.broker_connected != Condition::True
-            || self.broker_state_known != Condition::True
-        {
+        if self.broker_connected != Condition::True || self.broker_state_known != Condition::True {
             return Err(BrokerEvidenceError::BrokerUnknown);
         }
         if self.position_state_known != Condition::True {
@@ -113,11 +112,7 @@ impl BrokerPortfolioEvidence {
             broker_reconciled: Condition::True,
             exposure_complete: Condition::True,
             data_fresh: Condition::True,
-            existing: self
-                .positions
-                .into_iter()
-                .chain(self.open_orders)
-                .collect(),
+            existing: self.positions.into_iter().chain(self.open_orders).collect(),
         };
         // Reuse the exact aggregate, cluster and directional fail-close
         // checks instead of duplicating or loosening canonical risk logic.
