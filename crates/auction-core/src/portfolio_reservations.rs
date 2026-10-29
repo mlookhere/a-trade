@@ -6,11 +6,11 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use crate::order_risk::ClusterExposure;
 use crate::{
     Condition, Direction, OrderProposal, PortfolioRiskLimits, cluster_direction_clear,
     evaluate_portfolio_risk,
 };
-use crate::order_risk::ClusterExposure;
 
 #[derive(Debug, Clone)]
 pub struct RiskExposure {
@@ -87,7 +87,9 @@ impl SharedPortfolioReservations {
             }
             open_risk += exposure.risk_dollars;
             if !open_risk.is_finite()
-                || exposures.insert(exposure.setup_id.clone(), exposure).is_some()
+                || exposures
+                    .insert(exposure.setup_id.clone(), exposure)
+                    .is_some()
             {
                 return Err(ReservationError::InvalidSnapshot);
             }
@@ -128,7 +130,10 @@ impl SharedPortfolioReservations {
             return Err(ReservationError::InvalidProposal);
         }
 
-        let mut state = self.state.lock().map_err(|_| ReservationError::Unavailable)?;
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| ReservationError::Unavailable)?;
         if state.exposures.contains_key(proposal.setup_id()) {
             return Err(ReservationError::DuplicateSetup);
         }
@@ -182,7 +187,10 @@ impl SharedPortfolioReservations {
 
     #[must_use]
     pub fn reservation_count(&self) -> Result<usize, ReservationError> {
-        let state = self.state.lock().map_err(|_| ReservationError::Unavailable)?;
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| ReservationError::Unavailable)?;
         Ok(state.exposures.len())
     }
 }
