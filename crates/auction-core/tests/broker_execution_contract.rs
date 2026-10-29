@@ -342,10 +342,7 @@ fn section_64_immediate_fill_requires_confirmed_stop_or_flattens_and_disables_en
 
 #[test]
 fn section_64_filled_ack_without_order_id_flattens_and_latches_unsafe() {
-    for (i, order_id, flatten_result) in [
-        (0, "", Ok(())),
-        (1, "   ", Err(MockError::Failure)),
-    ] {
+    for (i, order_id, flatten_result) in [(0, "", Ok(())), (1, "   ", Err(MockError::Failure))] {
         let setup_id = format!("SETUP-MALFORMED-FILLED-ACK-{i}");
         let mut coordinator = registered(&setup_id);
         coordinator.adapter_mut().submission = Ok(BrokerSubmission {
