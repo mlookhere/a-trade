@@ -185,7 +185,6 @@ impl SharedPortfolioReservations {
         Ok(())
     }
 
-    #[must_use]
     pub fn reservation_count(&self) -> Result<usize, ReservationError> {
         let state = self
             .state
