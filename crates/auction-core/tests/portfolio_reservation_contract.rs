@@ -394,7 +394,10 @@ fn sections_9_16_103_invalidation_preserves_existing_risk_and_receipts() {
     let ledger = SharedPortfolioReservations::from_snapshot(input).unwrap();
     let accepted = proposal("SETUP-ACCEPTED-BEFORE-INVALIDATION");
     let rejected = proposal("SETUP-REJECTED-AFTER-INVALIDATION");
-    assert_eq!(ledger.reserve(&accepted, common::OWNER, SNAPSHOT_ID), Ok(()));
+    assert_eq!(
+        ledger.reserve(&accepted, common::OWNER, SNAPSHOT_ID),
+        Ok(())
+    );
     let original_receipt = ledger
         .reservation_evidence(accepted.setup_id())
         .unwrap()
@@ -440,7 +443,11 @@ fn sections_9_16_67_109_invalidation_and_reservation_are_serialized() {
         Ok(()) | Err(ReservationError::Unavailable)
     ));
     assert_eq!(
-        ledger.reserve(&proposal("SETUP-AFTER-RACING-INVALIDATION"), common::OWNER, SNAPSHOT_ID),
+        ledger.reserve(
+            &proposal("SETUP-AFTER-RACING-INVALIDATION"),
+            common::OWNER,
+            SNAPSHOT_ID
+        ),
         Err(ReservationError::Unavailable)
     );
     let expected = if submission_result.is_ok() { 1 } else { 0 };
@@ -475,7 +482,10 @@ fn sections_16_103_109_reservations_require_matching_asserted_snapshot_identity(
     assert_eq!(ledger.reservation_evidence(order.setup_id()), Ok(None));
 
     assert_eq!(ledger.reserve(&order, common::OWNER, SNAPSHOT_ID), Ok(()));
-    let receipt = ledger.reservation_evidence(order.setup_id()).unwrap().unwrap();
+    let receipt = ledger
+        .reservation_evidence(order.setup_id())
+        .unwrap()
+        .unwrap();
     assert_eq!(receipt.snapshot_id, SNAPSHOT_ID);
     assert_eq!(
         ledger.reserve(&order, common::OWNER, "OLDER-SNAPSHOT"),
