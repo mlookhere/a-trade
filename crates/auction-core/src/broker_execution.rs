@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     Condition, Direction, EtTime, InstrumentExecutionConfig, OperationalSafetyController,
-    OrderProposal, RejectionCode, SessionPermissions, SetupState, TerminalState, slippage_guard,
-    trigger_expired,
+    OrderProposal, RejectionCode, ReservationError, SessionPermissions, SetupState,
+    SharedPortfolioReservations, TerminalState, slippage_guard, trigger_expired,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -347,6 +347,13 @@ impl ExecutionPermit {
     }
 }
 
+/// Typed failure for the offline portfolio-coordinated gate proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortfolioCoordinatedGateError {
+    Gate(RejectionCode),
+    Reservation(ReservationError),
+}
+
 pub struct ExecutionCoordinator<A: BrokerAdapter> {
     adapter: A,
     registry: SetupRegistry,
@@ -486,6 +493,34 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             proposal: approved,
             owner_agent_id: context.submitting_agent_id.to_owned(),
         })
+    }
+
+    /// Offline §§9,67-70,103,109 proof: existing broker/setup preflight
+    /// followed by one atomic cross-coordinator in-process risk reservation.
+    ///
+    /// This is NOT an unavoidable live gate: the uncoordinated gate() and
+    /// submit() APIs still exist, caller-reported snapshot IDs are unauthenticated,
+    /// and the shared ledger has neither persistence nor release semantics.
+    /// A successful reservation is conservatively retained if later steps fail.
+    pub fn gate_with_shared_portfolio(
+        &mut self,
+        proposal: &OrderProposal,
+        context: ExecutionGateContext<'_>,
+        shared_portfolio: &SharedPortfolioReservations,
+        expected_snapshot_id: &str,
+    ) -> Result<ExecutionPermit, PortfolioCoordinatedGateError> {
+        let permit = self
+            .gate(proposal, context)
+            .map_err(PortfolioCoordinatedGateError::Gate)?;
+        if let Err(error) =
+            shared_portfolio.reserve(proposal, context.submitting_agent_id, expected_snapshot_id)
+        {
+            // No broker submission occurred. Only the local untransmitted
+            // registry reservation may be cleared; no shared risk is released.
+            self.registry.clear_reservation(proposal.setup_id());
+            return Err(PortfolioCoordinatedGateError::Reservation(error));
+        }
+        Ok(permit)
     }
 
     /// Canonical §§3-4/109/117 second time-authority check at the broker transmission boundary.

@@ -1,9 +1,13 @@
 mod common;
 
+use std::sync::{Arc, Barrier};
+use std::thread;
+
 use auction_core::{
     BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition, EtTime,
     ExecutionCoordinator, ExecutionGateContext, ExecutionStatus, OrderProposal,
-    ProcessViolationScope, RejectionCode,
+    PortfolioCoordinatedGateError, PortfolioRiskLimits, PortfolioRiskSnapshot,
+    ProcessViolationScope, RejectionCode, ReservationError, SharedPortfolioReservations,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -512,4 +516,167 @@ fn sections_98_100_operational_safety_and_post_gate_kill_switch_cannot_be_bypass
         Err(RejectionCode::ProcessError)
     );
     assert_eq!(coordinator.adapter().submit_calls, 0);
+}
+
+const SHARED_RISK_SNAPSHOT_ID: &str = "OFFLINE-RISK-SNAPSHOT-A";
+
+fn shared_risk_ledger(max_dollars: f64) -> SharedPortfolioReservations {
+    let max_percent = max_dollars / 100_000.0;
+    SharedPortfolioReservations::from_snapshot(PortfolioRiskSnapshot {
+        snapshot_id: SHARED_RISK_SNAPSHOT_ID.to_owned(),
+        account_equity: 100_000.0,
+        limits: PortfolioRiskLimits {
+            max_portfolio_open_risk_percent: max_percent,
+            max_cluster_open_risk_percent: max_percent,
+        },
+        broker_reconciled: Condition::True,
+        exposure_complete: Condition::True,
+        data_fresh: Condition::True,
+        existing: vec![],
+    })
+    .unwrap()
+}
+
+#[test]
+fn sections_9_67_69_109_offline_coordinators_share_one_atomic_risk_allowance() {
+    let sample = proposal("SETUP-OFFLINE-ONE");
+    let trade_risk = sample.open_portfolio_risk_after() - sample.open_portfolio_risk_before();
+    let ledger = shared_risk_ledger(trade_risk * 1.5);
+    let barrier = Arc::new(Barrier::new(3));
+    let mut workers = Vec::new();
+
+    for setup_id in ["SETUP-OFFLINE-ONE", "SETUP-OFFLINE-TWO"] {
+        let ledger = ledger.clone();
+        let barrier = barrier.clone();
+        workers.push(thread::spawn(move || {
+            let mut coordinator = registered(setup_id);
+            let order = proposal(setup_id);
+            barrier.wait();
+            let result = coordinator
+                .gate_with_shared_portfolio(
+                    &order,
+                    context(common::OWNER, Condition::True),
+                    &ledger,
+                    SHARED_RISK_SNAPSHOT_ID,
+                )
+                .map(|_| ());
+            let local_reserved = coordinator
+                .setup_status(setup_id)
+                .unwrap()
+                .order_active_or_reserved;
+            (result, local_reserved)
+        }));
+    }
+    barrier.wait();
+
+    let results: Vec<_> = workers
+        .into_iter()
+        .map(|worker| worker.join().unwrap())
+        .collect();
+    assert_eq!(
+        results.iter().filter(|(result, _)| result.is_ok()).count(),
+        1
+    );
+    assert_eq!(
+        results
+            .iter()
+            .filter(|(result, _)| {
+                *result
+                    == Err(PortfolioCoordinatedGateError::Reservation(
+                        ReservationError::PortfolioLimit,
+                    ))
+            })
+            .count(),
+        1
+    );
+    for (result, local_reserved) in &results {
+        assert_eq!(result.is_ok(), *local_reserved);
+    }
+    assert_eq!(ledger.reservation_count(), Ok(1));
+}
+
+#[test]
+fn sections_16_103_109_offline_snapshot_mismatch_clears_only_local_preflight() {
+    let setup_id = "SETUP-OFFLINE-RETRY";
+    let ledger = shared_risk_ledger(1000.0);
+    let mut coordinator = registered(setup_id);
+    let order = proposal(setup_id);
+    let ctx = context(common::OWNER, Condition::True);
+
+    assert_eq!(
+        coordinator.gate_with_shared_portfolio(&order, ctx, &ledger, "WRONG-SNAPSHOT"),
+        Err(PortfolioCoordinatedGateError::Reservation(
+            ReservationError::SnapshotMismatch
+        ))
+    );
+    assert!(
+        !coordinator
+            .setup_status(setup_id)
+            .unwrap()
+            .order_active_or_reserved
+    );
+    assert_eq!(ledger.reservation_count(), Ok(0));
+    assert!(
+        coordinator
+            .gate_with_shared_portfolio(&order, ctx, &ledger, SHARED_RISK_SNAPSHOT_ID)
+            .is_ok()
+    );
+    assert_eq!(ledger.reservation_count(), Ok(1));
+}
+
+#[test]
+fn sections_16_109_broker_preflight_failure_never_allocates_shared_risk() {
+    let setup_id = "SETUP-OFFLINE-BROKER-UNSAFE";
+    let ledger = shared_risk_ledger(1000.0);
+    let mut coordinator = registered(setup_id);
+    coordinator.adapter_mut().reconciliation = Ok(BrokerReconciliation {
+        broker_connected: Condition::Unknown,
+        ..clear_reconciliation()
+    });
+    let order = proposal(setup_id);
+    assert_eq!(
+        coordinator.gate_with_shared_portfolio(
+            &order,
+            context(common::OWNER, Condition::True),
+            &ledger,
+            SHARED_RISK_SNAPSHOT_ID
+        ),
+        Err(PortfolioCoordinatedGateError::Gate(
+            RejectionCode::BrokerUnsafe
+        ))
+    );
+    assert_eq!(ledger.reservation_count(), Ok(0));
+    assert!(
+        !coordinator
+            .setup_status(setup_id)
+            .unwrap()
+            .order_active_or_reserved
+    );
+}
+
+#[test]
+fn sections_16_98_100_invalidated_shared_risk_book_blocks_new_permit() {
+    let setup_id = "SETUP-OFFLINE-LATCHED";
+    let ledger = shared_risk_ledger(1000.0);
+    ledger.invalidate().unwrap();
+    let mut coordinator = registered(setup_id);
+    let order = proposal(setup_id);
+    assert_eq!(
+        coordinator.gate_with_shared_portfolio(
+            &order,
+            context(common::OWNER, Condition::True),
+            &ledger,
+            SHARED_RISK_SNAPSHOT_ID
+        ),
+        Err(PortfolioCoordinatedGateError::Reservation(
+            ReservationError::Unavailable
+        ))
+    );
+    assert_eq!(ledger.reservation_count(), Ok(0));
+    assert!(
+        !coordinator
+            .setup_status(setup_id)
+            .unwrap()
+            .order_active_or_reserved
+    );
 }

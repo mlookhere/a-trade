@@ -36,6 +36,12 @@ The `audit_view()` method copies the current ledger's asserted source snapshot I
 
 This value is **not a durable checkpoint, serialized state schema, authenticated broker snapshot, or authority to resume trading after process restart**. An external log of the view cannot safely restore or release reservations without a separately specified broker-reconciled persistence lifecycle. The initial baseline exposures remain distinguishable from SETUP_IDs accepted by this ledger.
 
+## Offline execution-coordinator integration proof
+
+The optional `ExecutionCoordinator::gate_with_shared_portfolio` method (Issue #181) first applies the existing setup/time/broker/operational preflight and then asks the shared in-process ledger to atomically reserve risk using the submitting owner and asserted snapshot ID. It returns a typed `PortfolioCoordinatedGateError` distinguishing an existing gate rejection from a reservation failure. If the latter fails, only the **untransmitted local** setup reservation is cleared; the rejected shared ledger is unchanged. An accepted shared reservation is retained conservatively if a later broker step fails; no speculative release is added. Synthetic tests demonstrate two independent coordinators competing for one configured risk allowance.
+
+**Important: this is an offline integration proof only.** The existing `gate` and `submit` APIs can still be used without this helper. There is no authenticated live broker snapshot, durable or distributed shared ledger, restart reconciliation, broker-terminal risk-release contract, or non-bypassable central authorization requirement. In particular, an application must never treat the presence of this helper or its green CI as live execution readiness. Parent #164 continues to own the mandatory non-bypassable, broker-reconciled risk authority.
+
 ## Deliberate safety limitations
 
 - No reservation release/reset API: release requires a future documented, broker-reconciled terminal-order/position transition. No timeout or retry is invented.

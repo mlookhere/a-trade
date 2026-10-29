@@ -39,7 +39,7 @@ pub use authorization::{AuthorizationInputs, ProductionConditions, trade_authori
 pub use broker_execution::{
     BrokerAdapter, BrokerCapabilities, BrokerOrderCancellation, BrokerReconciliation,
     BrokerSubmission, ExecutionCoordinator, ExecutionGateContext, ExecutionPermit, ExecutionStatus,
-    SetupRegistry, SetupRegistryStatus,
+    PortfolioCoordinatedGateError, SetupRegistry, SetupRegistryStatus,
 };
 pub use data::{
     DataCycleReadiness, DataHealth, GammaContext, GammaInterpretation, GammaRegime,
