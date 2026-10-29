@@ -532,6 +532,12 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
         };
         if submission.broker_order_id.trim().is_empty() {
             self.engine_safe = false;
+            // Canonical §64: a reported fill with no usable order ID cannot be
+            // treated as protected. Attempt to flatten immediately even if the
+            // broker acknowledgement was malformed.
+            if submission.entry_filled {
+                let _ = self.adapter.flatten_instrument(permit.proposal.instrument());
+            }
             return Err(RejectionCode::BrokerUnsafe);
         }
         self.registry
