@@ -341,6 +341,66 @@ fn section_64_immediate_fill_requires_confirmed_stop_or_flattens_and_disables_en
 }
 
 #[test]
+fn section_64_filled_ack_without_order_id_flattens_and_latches_unsafe() {
+    for (i, order_id, flatten_result) in [(0, "", Ok(())), (1, "   ", Err(MockError::Failure))] {
+        let setup_id = format!("SETUP-MALFORMED-FILLED-ACK-{i}");
+        let mut coordinator = registered(&setup_id);
+        coordinator.adapter_mut().submission = Ok(BrokerSubmission {
+            broker_order_id: order_id.to_owned(),
+            entry_filled: true,
+        });
+        coordinator.adapter_mut().flatten_result = flatten_result;
+        let raw = proposal(&setup_id);
+        let permit = coordinator
+            .gate(&raw, context(common::OWNER, Condition::True))
+            .unwrap();
+
+        assert_eq!(
+            coordinator.submit(permit, in_window()),
+            Err(RejectionCode::BrokerUnsafe)
+        );
+        assert_eq!(coordinator.adapter().submit_calls, 1);
+        assert_eq!(coordinator.adapter().flatten_calls, 1);
+        assert_eq!(
+            coordinator.adapter().last_flatten_instrument.as_deref(),
+            Some(common::INSTRUMENT)
+        );
+        assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+        let status = coordinator.setup_status(&setup_id).unwrap();
+        assert!(!status.consumed);
+        assert!(status.broker_order_id.is_none());
+        assert_eq!(
+            coordinator.gate(&raw, context(common::OWNER, Condition::True)),
+            Err(RejectionCode::BrokerUnsafe)
+        );
+        assert_eq!(coordinator.adapter().submit_calls, 1);
+    }
+}
+
+#[test]
+fn section_16_unfilled_ack_without_order_id_does_not_infer_fill() {
+    let setup_id = "SETUP-MALFORMED-PENDING-ACK";
+    let mut coordinator = registered(setup_id);
+    coordinator.adapter_mut().submission = Ok(BrokerSubmission {
+        broker_order_id: " ".to_owned(),
+        entry_filled: false,
+    });
+    let permit = coordinator
+        .gate(&proposal(setup_id), context(common::OWNER, Condition::True))
+        .unwrap();
+    assert_eq!(
+        coordinator.submit(permit, in_window()),
+        Err(RejectionCode::BrokerUnsafe)
+    );
+    assert_eq!(coordinator.adapter().submit_calls, 1);
+    assert_eq!(coordinator.adapter().flatten_calls, 0);
+    assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+    let status = coordinator.setup_status(setup_id).unwrap();
+    assert!(!status.consumed);
+    assert!(status.broker_order_id.is_none());
+}
+
+#[test]
 fn section_64_stop_adapter_error_and_flatten_failure_remain_broker_unsafe() {
     for flatten_result in [Ok(()), Err(MockError::Failure)] {
         let setup_id = if flatten_result.is_ok() {
