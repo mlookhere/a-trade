@@ -735,7 +735,11 @@ fn sections_9_67_69_103_offline_gate_uses_same_account_book_across_coordinators(
                 .setup_status(setup_id)
                 .unwrap()
                 .order_active_or_reserved;
-            (result.map(|_| ()), reserved, coordinator.adapter().submit_calls)
+            (
+                result.map(|_| ()),
+                reserved,
+                coordinator.adapter().submit_calls,
+            )
         }));
     }
     barrier.wait();
@@ -743,14 +747,20 @@ fn sections_9_67_69_103_offline_gate_uses_same_account_book_across_coordinators(
         .into_iter()
         .map(|worker| worker.join().unwrap())
         .collect();
-    assert_eq!(results.iter().filter(|(result, _, _)| result.is_ok()).count(), 1);
+    assert_eq!(
+        results
+            .iter()
+            .filter(|(result, _, _)| result.is_ok())
+            .count(),
+        1
+    );
     assert_eq!(
         results
             .iter()
             .filter(|(result, _, _)| {
                 *result
                     == Err(AccountRegistryGateError::Reservation(
-                        ScopedReservationError::Reservation(ReservationError::PortfolioLimit)
+                        ScopedReservationError::Reservation(ReservationError::PortfolioLimit),
                     ))
             })
             .count(),
@@ -805,15 +815,16 @@ fn sections_16_109_later_unknown_evidence_latches_old_offline_account_book() {
     let mut first = registered(first_id);
     let first_order = proposal(first_id);
     assert!(
-        first.gate_with_process_account_registry(
-            &first_order,
-            context(common::OWNER, Condition::True),
-            &registry,
-            scoped_risk_evidence(2_000.0),
-            SCOPED_ACCOUNT_ID,
-            SHARED_RISK_SNAPSHOT_ID,
-        )
-        .is_ok()
+        first
+            .gate_with_process_account_registry(
+                &first_order,
+                context(common::OWNER, Condition::True),
+                &registry,
+                scoped_risk_evidence(2_000.0),
+                SCOPED_ACCOUNT_ID,
+                SHARED_RISK_SNAPSHOT_ID,
+            )
+            .is_ok()
     );
 
     let prior_book = registry
@@ -870,8 +881,17 @@ fn sections_16_109_offline_broker_preflight_rejects_before_registry_creation() {
         ),
         Err(AccountRegistryGateError::Gate(RejectionCode::BrokerUnsafe))
     );
-    assert!(registry.get_or_initialize(scoped_risk_evidence(2_000.0)).is_ok());
+    assert!(
+        registry
+            .get_or_initialize(scoped_risk_evidence(2_000.0))
+            .is_ok()
+    );
     assert!(coordinator.setup_status(setup_id).is_some());
-    assert!(!coordinator.setup_status(setup_id).unwrap().order_active_or_reserved);
+    assert!(
+        !coordinator
+            .setup_status(setup_id)
+            .unwrap()
+            .order_active_or_reserved
+    );
     assert_eq!(coordinator.adapter().submit_calls, 0);
 }
