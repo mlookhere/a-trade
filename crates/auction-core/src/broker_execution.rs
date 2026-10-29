@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use crate::{
-    Condition, Direction, EtTime, InstrumentExecutionConfig, OperationalSafetyController,
-    OrderProposal, RejectionCode, ReservationError, SessionPermissions, SetupState,
-    SharedPortfolioReservations, TerminalState, slippage_guard, trigger_expired,
+    BrokerPortfolioEvidence, Condition, Direction, EtTime, InstrumentExecutionConfig,
+    OperationalSafetyController, OrderProposal, ProcessAccountRiskRegistry,
+    ProcessRiskRegistryError, RejectionCode, ReservationError, ScopedReservationError,
+    SessionPermissions, SetupState, SharedPortfolioReservations, TerminalState, slippage_guard,
+    trigger_expired,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -354,6 +356,15 @@ pub enum PortfolioCoordinatedGateError {
     Reservation(ReservationError),
 }
 
+/// Typed rejection provenance from the offline account-scoped gate proof.
+/// This is NOT a broker-authenticated live trading authorization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccountRegistryGateError {
+    Gate(RejectionCode),
+    Registry(ProcessRiskRegistryError),
+    Reservation(ScopedReservationError),
+}
+
 pub struct ExecutionCoordinator<A: BrokerAdapter> {
     adapter: A,
     registry: SetupRegistry,
@@ -520,6 +531,50 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             self.registry.clear_reservation(proposal.setup_id());
             return Err(PortfolioCoordinatedGateError::Reservation(error));
         }
+        Ok(permit)
+    }
+
+    /// Offline §§9,16,67-70,103,109: the existing broker/setup gate plus
+    /// account-scoped, caller-shared, in-process portfolio reservation proof.
+    ///
+    /// Caller-provided broker health/account/snapshot identity are NOT
+    /// independently authenticated. Both existing gate() and submit() remain
+    /// bypassable and this helper does not establish live execution authority,
+    /// cross-process durability, or broker-terminal release semantics.
+    ///
+    /// A failed registry/reservation step clears only the local untransmitted
+    /// setup reservation. Shared accepted exposure is never released here.
+    pub fn gate_with_process_account_registry(
+        &mut self,
+        proposal: &OrderProposal,
+        context: ExecutionGateContext<'_>,
+        process_registry: &ProcessAccountRiskRegistry,
+        evidence: BrokerPortfolioEvidence,
+        expected_account_id: &str,
+        expected_snapshot_id: &str,
+    ) -> Result<ExecutionPermit, AccountRegistryGateError> {
+        let permit = self
+            .gate(proposal, context)
+            .map_err(AccountRegistryGateError::Gate)?;
+
+        let ledger = match process_registry.get_or_initialize(evidence) {
+            Ok(ledger) => ledger,
+            Err(error) => {
+                self.registry.clear_reservation(proposal.setup_id());
+                return Err(AccountRegistryGateError::Registry(error));
+            }
+        };
+
+        if let Err(error) = ledger.reserve(
+            proposal,
+            context.submitting_agent_id,
+            expected_account_id,
+            expected_snapshot_id,
+        ) {
+            self.registry.clear_reservation(proposal.setup_id());
+            return Err(AccountRegistryGateError::Reservation(error));
+        }
+
         Ok(permit)
     }
 
