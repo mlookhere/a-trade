@@ -384,6 +384,30 @@ fn sections_60_61_100_unsafe_pending_entry_cancels_only_after_broker_confirmatio
 }
 
 #[test]
+fn sections_60_61_64_117_unsafe_confirmed_fill_preempts_expiry_cancellation() {
+    let setup_id = "SETUP-UNSAFE-FILL-BEFORE-CANCEL";
+    let (mut coordinator, proposal) = pending_long(setup_id, MockBroker::default());
+    coordinator.adapter_mut().fill_state = Ok(Condition::Unknown);
+    assert_eq!(
+        coordinator.reconcile_pending_entry(setup_id, proposal.entry_trigger(), 0),
+        Err(RejectionCode::BrokerUnsafe)
+    );
+
+    coordinator.adapter_mut().fill_state = Ok(Condition::True);
+    assert!(matches!(
+        coordinator
+            .reconcile_pending_entry(setup_id, proposal.entry_trigger() + 10.0, 2)
+            .unwrap(),
+        ExecutionStatus::FilledProtected { .. }
+    ));
+    assert_eq!(coordinator.adapter().cancel_calls, 0);
+    let setup = coordinator.setup_status(setup_id).unwrap();
+    assert!(setup.consumed);
+    assert_eq!(setup.state, Some(SetupState::PositionManagement));
+    assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+}
+
+#[test]
 fn sections_16_60_61_100_unsafe_pending_cancellation_uncertainty_never_marks_missed() {
     for (i, cancel_state) in [
         Ok(Condition::False),
