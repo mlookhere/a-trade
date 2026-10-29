@@ -14,6 +14,10 @@ The ledger derives risk for a sealed `OrderProposal` from its pre/post portfolio
 
 Risk amounts are accumulated in lexicographic `SETUP_ID` order during both snapshot initialization and subsequent reservations. This prevents hash-map iteration order or broker snapshot vector order from changing the sequence of floating-point additions. It does not add an epsilon, round risk, change an inclusive ceiling, or prove that floating-point arithmetic is an appropriate durable broker accounting representation.
 
+## Reservation evidence (in-process only)
+
+A successful `reserve` call records a read-only `ReservationEvidence` lookup by `SETUP_ID`, with asserted source `snapshot_id`, cluster, direction, and reserved risk amount. Duplicates cannot replace its receipt. **Existing exposures from the initial portfolio snapshot are not newly reserved orders and return no reservation receipt.** Missing setup IDs return no evidence. This information is only in the current coordinator process and the caller's snapshot flags do not establish broker truth. Receipts cannot grant execution permission or release a reservation.
+
 ## Deliberate safety limitations
 
 - No reservation release/reset API: release requires a future documented, broker-reconciled terminal-order/position transition. No timeout or retry is invented.

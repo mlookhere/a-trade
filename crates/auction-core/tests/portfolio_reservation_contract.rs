@@ -96,6 +96,13 @@ fn sections_67_69_atomic_thread_competition_cannot_double_spend_limit() {
         1
     );
     assert_eq!(ledger.reservation_count(), Ok(1));
+    // Evidence is visible through the shared ledger after concurrent claims,
+    // and no losing proposal can manufacture a reservation receipt.
+    let receipts = ["SETUP-ATOMIC-ONE", "SETUP-ATOMIC-TWO"]
+        .iter()
+        .filter(|id| ledger.reservation_evidence(id).unwrap().is_some())
+        .count();
+    assert_eq!(receipts, 1);
 }
 
 #[test]
@@ -306,4 +313,49 @@ fn sections_67_69_overlimit_baseline_rejection_is_order_independent() {
             Err(ReservationError::InvalidSnapshot)
         ));
     }
+}
+
+#[test]
+fn sections_103_109_111_reservation_evidence_is_bound_to_asserted_snapshot_id() {
+    let order = proposal("SETUP-EVIDENCE-ONE");
+    let input = snapshot(wide_limits());
+    let expected_snapshot_id = input.snapshot_id.clone();
+    let ledger = SharedPortfolioReservations::from_snapshot(input).unwrap();
+
+    assert_eq!(ledger.reservation_evidence(order.setup_id()), Ok(None));
+    assert_eq!(ledger.reservation_evidence(""), Ok(None));
+    assert_eq!(ledger.reserve(&order, common::OWNER), Ok(()));
+
+    let evidence = ledger
+        .reservation_evidence(order.setup_id())
+        .unwrap()
+        .unwrap();
+    assert_eq!(evidence.snapshot_id, expected_snapshot_id);
+    assert_eq!(evidence.exposure.setup_id, order.setup_id());
+    assert_eq!(evidence.exposure.cluster_id, order.cluster_id());
+    assert_eq!(evidence.exposure.direction, order.side());
+    assert_eq!(evidence.exposure.risk_dollars, risk(&order));
+    assert_eq!(ledger.reservation_count(), Ok(1));
+
+    // Duplicate rejection cannot fabricate a second exposure or change
+    // the original reservation's read-only provenance.
+    assert_eq!(
+        ledger.reserve(&order, common::OWNER),
+        Err(ReservationError::DuplicateSetup)
+    );
+    assert_eq!(
+        ledger.reservation_evidence(order.setup_id()),
+        Ok(Some(evidence))
+    );
+    assert_eq!(ledger.reservation_evidence("UNKNOWN-SETUP"), Ok(None));
+}
+
+#[test]
+fn sections_9_103_existing_broker_exposures_do_not_fabricate_reservation_receipts() {
+    let exposure = existing_exposure("EXISTING-ONE", "OTHER_CLUSTER", Direction::Long, 100.0);
+    let mut input = snapshot(wide_limits());
+    input.existing = vec![exposure];
+    let ledger = SharedPortfolioReservations::from_snapshot(input).unwrap();
+    assert_eq!(ledger.reservation_evidence("EXISTING-ONE"), Ok(None));
+    assert_eq!(ledger.reservation_count(), Ok(1));
 }
