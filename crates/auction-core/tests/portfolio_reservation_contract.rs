@@ -70,11 +70,8 @@ fn sections_67_69_atomic_thread_competition_cannot_double_spend_limit() {
     let one = proposal("SETUP-ATOMIC-ONE");
     let amount = risk(&one);
     let allowance = amount * 1.5 / 100_000.0;
-    let ledger = SharedPortfolioReservations::from_snapshot(snapshot(limits(
-        allowance,
-        allowance,
-    )))
-    .unwrap();
+    let ledger =
+        SharedPortfolioReservations::from_snapshot(snapshot(limits(allowance, allowance))).unwrap();
     let barrier = Arc::new(Barrier::new(3));
     let mut handles = vec![];
 
@@ -106,10 +103,16 @@ fn sections_8_9_103_same_setup_duplicate_and_wrong_owner_fail_closed() {
     let order = proposal("SETUP-OWNER-ONE");
     let ledger = SharedPortfolioReservations::from_snapshot(snapshot(wide_limits())).unwrap();
 
-    assert_eq!(ledger.reserve(&order, "OTHER_AGENT"), Err(ReservationError::WrongOwner));
+    assert_eq!(
+        ledger.reserve(&order, "OTHER_AGENT"),
+        Err(ReservationError::WrongOwner)
+    );
     assert_eq!(ledger.reservation_count(), Ok(0));
     assert_eq!(ledger.reserve(&order, common::OWNER), Ok(()));
-    assert_eq!(ledger.reserve(&order, common::OWNER), Err(ReservationError::DuplicateSetup));
+    assert_eq!(
+        ledger.reserve(&order, common::OWNER),
+        Err(ReservationError::DuplicateSetup)
+    );
     assert_eq!(ledger.reservation_count(), Ok(1));
 }
 
