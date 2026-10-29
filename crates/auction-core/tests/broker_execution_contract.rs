@@ -4,10 +4,12 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 
 use auction_core::{
-    BrokerAdapter, BrokerCapabilities, BrokerReconciliation, BrokerSubmission, Condition, EtTime,
+    AccountRegistryGateError, BrokerAdapter, BrokerCapabilities, BrokerEvidenceError,
+    BrokerPortfolioEvidence, BrokerReconciliation, BrokerSubmission, Condition, EtTime,
     ExecutionCoordinator, ExecutionGateContext, ExecutionStatus, OrderProposal,
     PortfolioCoordinatedGateError, PortfolioRiskLimits, PortfolioRiskSnapshot,
-    ProcessViolationScope, RejectionCode, ReservationError, SharedPortfolioReservations,
+    ProcessAccountRiskRegistry, ProcessRiskRegistryError, ProcessViolationScope, RejectionCode,
+    ReservationError, ScopedReservationError, SharedPortfolioReservations,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -679,4 +681,202 @@ fn sections_16_98_100_invalidated_shared_risk_book_blocks_new_permit() {
             .unwrap()
             .order_active_or_reserved
     );
+}
+
+const SCOPED_ACCOUNT_ID: &str = "OFFLINE-ACCOUNT-ONE";
+
+fn scoped_risk_evidence(max_dollars: f64) -> BrokerPortfolioEvidence {
+    let max_percent = max_dollars / 100_000.0;
+    BrokerPortfolioEvidence {
+        expected_account_id: SCOPED_ACCOUNT_ID.to_owned(),
+        observed_account_id: SCOPED_ACCOUNT_ID.to_owned(),
+        snapshot_id: SHARED_RISK_SNAPSHOT_ID.to_owned(),
+        broker_connected: Condition::True,
+        broker_state_known: Condition::True,
+        position_state_known: Condition::True,
+        open_order_state_known: Condition::True,
+        data_fresh: Condition::True,
+        timestamps_consistent: Condition::True,
+        exposure_complete: Condition::True,
+        account_equity: 100_000.0,
+        limits: PortfolioRiskLimits {
+            max_portfolio_open_risk_percent: max_percent,
+            max_cluster_open_risk_percent: max_percent,
+        },
+        positions: vec![],
+        open_orders: vec![],
+    }
+}
+
+#[test]
+fn sections_9_67_69_103_offline_gate_uses_same_account_book_across_coordinators() {
+    let example = proposal("SETUP-SCOPED-GATE-A");
+    let allowance =
+        (example.open_portfolio_risk_after() - example.open_portfolio_risk_before()) * 1.5;
+    let registry = ProcessAccountRiskRegistry::new();
+    let barrier = Arc::new(Barrier::new(3));
+    let mut workers = Vec::new();
+    for setup_id in ["SETUP-SCOPED-GATE-A", "SETUP-SCOPED-GATE-B"] {
+        let registry = registry.clone();
+        let barrier = barrier.clone();
+        workers.push(thread::spawn(move || {
+            let mut coordinator = registered(setup_id);
+            let order = proposal(setup_id);
+            barrier.wait();
+            let result = coordinator.gate_with_process_account_registry(
+                &order,
+                context(common::OWNER, Condition::True),
+                &registry,
+                scoped_risk_evidence(allowance),
+                SCOPED_ACCOUNT_ID,
+                SHARED_RISK_SNAPSHOT_ID,
+            );
+            let reserved = coordinator
+                .setup_status(setup_id)
+                .unwrap()
+                .order_active_or_reserved;
+            (result.map(|_| ()), reserved, coordinator.adapter().submit_calls)
+        }));
+    }
+    barrier.wait();
+    let results: Vec<_> = workers
+        .into_iter()
+        .map(|worker| worker.join().unwrap())
+        .collect();
+    assert_eq!(results.iter().filter(|(result, _, _)| result.is_ok()).count(), 1);
+    assert_eq!(
+        results
+            .iter()
+            .filter(|(result, _, _)| {
+                *result
+                    == Err(AccountRegistryGateError::Reservation(
+                        ScopedReservationError::Reservation(ReservationError::PortfolioLimit)
+                    ))
+            })
+            .count(),
+        1
+    );
+    for (result, reserved, submitted) in results {
+        assert_eq!(result.is_ok(), reserved);
+        assert_eq!(submitted, 0);
+    }
+    let book = registry
+        .get_or_initialize(scoped_risk_evidence(allowance))
+        .unwrap();
+    assert_eq!(book.audit_view().unwrap().ledger.exposures.len(), 1);
+}
+
+#[test]
+fn sections_16_103_offline_gate_rejects_wrong_account_without_local_phantom() {
+    let registry = ProcessAccountRiskRegistry::new();
+    let setup_id = "SETUP-SCOPED-WRONG-ACCOUNT";
+    let mut coordinator = registered(setup_id);
+    let order = proposal(setup_id);
+    assert_eq!(
+        coordinator.gate_with_process_account_registry(
+            &order,
+            context(common::OWNER, Condition::True),
+            &registry,
+            scoped_risk_evidence(2_000.0),
+            "WRONG-ACCOUNT",
+            SHARED_RISK_SNAPSHOT_ID,
+        ),
+        Err(AccountRegistryGateError::Reservation(
+            ScopedReservationError::AccountMismatch
+        ))
+    );
+    assert!(
+        !coordinator
+            .setup_status(setup_id)
+            .unwrap()
+            .order_active_or_reserved
+    );
+    assert_eq!(coordinator.adapter().submit_calls, 0);
+    let book = registry
+        .get_or_initialize(scoped_risk_evidence(2_000.0))
+        .unwrap();
+    assert!(book.audit_view().unwrap().ledger.exposures.is_empty());
+}
+
+#[test]
+fn sections_16_109_later_unknown_evidence_latches_old_offline_account_book() {
+    let registry = ProcessAccountRiskRegistry::new();
+    let first_id = "SETUP-SCOPED-EARLY";
+    let mut first = registered(first_id);
+    let first_order = proposal(first_id);
+    assert!(
+        first.gate_with_process_account_registry(
+            &first_order,
+            context(common::OWNER, Condition::True),
+            &registry,
+            scoped_risk_evidence(2_000.0),
+            SCOPED_ACCOUNT_ID,
+            SHARED_RISK_SNAPSHOT_ID,
+        )
+        .is_ok()
+    );
+
+    let mut unknown = scoped_risk_evidence(2_000.0);
+    unknown.open_order_state_known = Condition::Unknown;
+    let next_id = "SETUP-SCOPED-LATER";
+    let mut second = registered(next_id);
+    assert_eq!(
+        second.gate_with_process_account_registry(
+            &proposal(next_id),
+            context(common::OWNER, Condition::True),
+            &registry,
+            unknown,
+            SCOPED_ACCOUNT_ID,
+            SHARED_RISK_SNAPSHOT_ID,
+        ),
+        Err(AccountRegistryGateError::Registry(
+            ProcessRiskRegistryError::InvalidEvidence(BrokerEvidenceError::OpenOrdersUnknown)
+        ))
+    );
+    assert!(
+        !second
+            .setup_status(next_id)
+            .unwrap()
+            .order_active_or_reserved
+    );
+    assert_eq!(second.adapter().submit_calls, 0);
+    let book = first
+        .gate_with_process_account_registry(
+            &first_order,
+            context(common::OWNER, Condition::True),
+            &registry,
+            scoped_risk_evidence(2_000.0),
+            SCOPED_ACCOUNT_ID,
+            SHARED_RISK_SNAPSHOT_ID,
+        );
+    assert_eq!(book, Err(AccountRegistryGateError::Gate(RejectionCode::DuplicateSetup)));
+    let status = registry.get_or_initialize(scoped_risk_evidence(2_000.0));
+    assert!(matches!(status, Err(ProcessRiskRegistryError::Unavailable)));
+}
+
+#[test]
+fn sections_16_109_offline_broker_preflight_rejects_before_registry_creation() {
+    let registry = ProcessAccountRiskRegistry::new();
+    let setup_id = "SETUP-SCOPED-BROKER-UNKNOWN";
+    let mut coordinator = registered(setup_id);
+    coordinator.adapter_mut().reconciliation = Ok(BrokerReconciliation {
+        broker_connected: Condition::Unknown,
+        ..clear_reconciliation()
+    });
+    let order = proposal(setup_id);
+    assert_eq!(
+        coordinator.gate_with_process_account_registry(
+            &order,
+            context(common::OWNER, Condition::True),
+            &registry,
+            scoped_risk_evidence(2_000.0),
+            SCOPED_ACCOUNT_ID,
+            SHARED_RISK_SNAPSHOT_ID,
+        ),
+        Err(AccountRegistryGateError::Gate(RejectionCode::BrokerUnsafe))
+    );
+    assert!(registry.get_or_initialize(scoped_risk_evidence(2_000.0)).is_ok());
+    assert!(coordinator.setup_status(setup_id).is_some());
+    assert!(!coordinator.setup_status(setup_id).unwrap().order_active_or_reserved);
+    assert_eq!(coordinator.adapter().submit_calls, 0);
 }
