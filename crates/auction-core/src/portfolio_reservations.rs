@@ -41,6 +41,20 @@ pub struct ReservationEvidence {
     pub exposure: RiskExposure,
 }
 
+/// One coherent in-process observation of the risk book, captured under
+/// the ledger mutex. Not a broker snapshot, durable checkpoint, or permit.
+#[derive(Debug, Clone)]
+pub struct PortfolioLedgerAuditView {
+    pub snapshot_id: String,
+    pub account_equity: f64,
+    pub limits: PortfolioRiskLimits,
+    /// Sorted by SETUP_ID, including initial broker exposure and reservations.
+    pub exposures: Vec<RiskExposure>,
+    /// Sorted SETUP_IDs accepted by this particular ledger instance only.
+    pub accepted_setup_ids: Vec<String>,
+    pub invalidated: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReservationError {
     InvalidSnapshot,
@@ -277,6 +291,23 @@ impl SharedPortfolioReservations {
                 snapshot_id: state.snapshot_id.clone(),
                 exposure: exposure.clone(),
             }))
+    }
+
+    /// Returns a complete read-only risk book view from one mutex acquisition.
+    /// A caller MUST NOT interpret this as durable persistence or broker truth.
+    pub fn audit_view(&self) -> Result<PortfolioLedgerAuditView, ReservationError> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| ReservationError::Unavailable)?;
+        Ok(PortfolioLedgerAuditView {
+            snapshot_id: state.snapshot_id.clone(),
+            account_equity: state.account_equity,
+            limits: state.limits,
+            exposures: state.exposures.values().cloned().collect(),
+            accepted_setup_ids: state.accepted_reservations.iter().cloned().collect(),
+            invalidated: state.invalidated,
+        })
     }
 
     pub fn reservation_count(&self) -> Result<usize, ReservationError> {

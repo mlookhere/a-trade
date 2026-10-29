@@ -77,8 +77,8 @@ pub use order_risk::{
     stop_replacement_allowed, structural_stop, structural_target_valid, trigger_expired,
 };
 pub use portfolio_reservations::{
-    PortfolioRiskSnapshot, ReservationError, ReservationEvidence, RiskExposure,
-    SharedPortfolioReservations,
+    PortfolioLedgerAuditView, PortfolioRiskSnapshot, ReservationError, ReservationEvidence,
+    RiskExposure, SharedPortfolioReservations,
 };
 pub use position_management::{
     ManagementDirective, StructuralTrailEvaluation, defensive_stop_candidate_allowed,
