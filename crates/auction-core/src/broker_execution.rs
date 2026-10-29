@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use crate::{
     Condition, Direction, EtTime, InstrumentExecutionConfig, OperationalSafetyController,
     OrderProposal, RejectionCode, ReservationError, SessionPermissions, SetupState,
-    SharedPortfolioReservations, TerminalState, slippage_guard,
-    trigger_expired,
+    SharedPortfolioReservations, TerminalState, slippage_guard, trigger_expired,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
