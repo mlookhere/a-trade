@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ $# -gt 1 ]] || { [[ $# -eq 1 ]] && [[ "$1" != "--ci" ]]; }; then
+  echo "usage: ./scripts/bootstrap [--ci]" >&2
+  exit 2
+fi
 python3 --version
 cargo --version
 rustc --version
