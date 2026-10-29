@@ -14,6 +14,12 @@ The ledger derives risk for a sealed `OrderProposal` from its pre/post portfolio
 
 Risk amounts are accumulated in lexicographic `SETUP_ID` order during both snapshot initialization and subsequent reservations. This prevents hash-map iteration order or broker snapshot vector order from changing the sequence of floating-point additions. It does not add an epsilon, round risk, change an inclusive ceiling, or prove that floating-point arithmetic is an appropriate durable broker accounting representation.
 
+## Caller snapshot identity at reservation time
+
+Each `reserve(proposal, owner, expected_snapshot_id)` call must name the nonblank, **exact** source snapshot ID supplied when this ledger was constructed. The comparison and risk mutation happen under one mutex; wrong or missing identities return `SnapshotMismatch` without recording a reservation or receipt. The prior in-process invalidation latch still takes precedence and remains irreversible, including for a caller with a matching identity. A new ledger can only be initialized from a separately validated new snapshot; there is no reset method.
+
+This is an **implementation-defined provenance safeguard**, not a canonical requirement to authenticate a broker through an ID string. Caller-provided matching IDs do not prove source timeliness, account ownership, equity authenticity or process-wide synchronization. This does not integrate the ledger with any broker or live Execution Gate.
+
 ## Reservation evidence (in-process only)
 
 A successful `reserve` call records a read-only `ReservationEvidence` lookup by `SETUP_ID`, with asserted source `snapshot_id`, cluster, direction, and reserved risk amount. Duplicates cannot replace its receipt. **Existing exposures from the initial portfolio snapshot are not newly reserved orders and return no reservation receipt.** Missing setup IDs return no evidence. This information is only in the current coordinator process and the caller's snapshot flags do not establish broker truth. Receipts cannot grant execution permission or release a reservation.
