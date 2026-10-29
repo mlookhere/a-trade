@@ -30,6 +30,12 @@ Canonical §§16, 98–100 require invalid broker, market-data, open-order, or p
 
 This API does **not** independently monitor timestamps, verify broker state, authenticate its caller, persist the latch, synchronize across processes, or protect live order execution. Neither a caller's claimed healthy snapshot nor this in-memory latch is evidence of production readiness. The current live Execution Gate remains unmodified under parent #164.
 
+## Coherent read-only audit observation
+
+The `audit_view()` method copies the current ledger's asserted source snapshot ID, account equity, configured risk ceilings, full SETUP_ID-sorted exposures (both original broker baseline and new reservations), SETUP_ID-sorted accepted reservation identifiers, and permanent invalidation state under **one mutex acquisition**. A racing reservation or invalidation is observed entirely before or entirely after its mutation, avoiding an internally torn view. No read operation reserves risk, resets a latch, releases a reservation, or issues an execution permit.
+
+This value is **not a durable checkpoint, serialized state schema, authenticated broker snapshot, or authority to resume trading after process restart**. An external log of the view cannot safely restore or release reservations without a separately specified broker-reconciled persistence lifecycle. The initial baseline exposures remain distinguishable from SETUP_IDs accepted by this ledger.
+
 ## Deliberate safety limitations
 
 - No reservation release/reset API: release requires a future documented, broker-reconciled terminal-order/position transition. No timeout or retry is invented.
