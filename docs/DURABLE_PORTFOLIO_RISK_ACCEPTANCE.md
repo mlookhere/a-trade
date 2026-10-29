@@ -61,6 +61,21 @@ A prospective transaction must prove, as one indivisible logical decision:
 
 Each eventual implementation test must include **input witness → pre-state → decision/rejection → durable state → broker-visible action or no action**, plus crash/restart replay evidence. Test both equality and just-over-cap boundaries using externally supplied limits; do not invent default deployment values.
 
+## Evidence traceability for follow-up implementation reviews
+
+For each proposed durable-risk implementation PR, reviewers must be able to follow one `SETUP_ID` through **all** of the following boundaries, including negative and UNKNOWN cases. These are acceptance witnesses, **not** a new canonical wire schema or an assertion that the present code supplies them.
+
+| Boundary | Evidence to present | Current status |
+| --- | --- | --- |
+| Data Supervisor → Portfolio Coordinator | Account-scoped, reconciled positions, pending/open orders, configured limits, instrument/cluster mappings and validated time/source identity | Caller-asserted health flags and a snapshot ID only; provider truth is **unverified** |
+| Portfolio Coordinator → durable risk authority | One atomic commit decision binding SETUP_ID, owner, source witness, complete current/reserved exposure and the resulting portfolio/cluster verdict | `SharedPortfolioReservations` supplies only a process-local mutex; crash and multi-process guarantees are **absent** |
+| Durable risk authority → Execution Gate | Proof that a committed, still-valid reservation is mandatory and cannot be bypassed by another order submission path | `gate_with_shared_portfolio` is optional; existing `gate`/`submit` interfaces do **not** enforce this |
+| Execution Gate → broker | Broker-visible order identity, accepted/rejected/unknown acknowledgement and corresponding setup/position state evidence | Generic adapter/fake tests exist; provider-specific identity and ambiguous acceptance are **unspecified** |
+| Broker event → protection/reconciliation | Confirmed fill quantity, hard-stop acknowledgement, outstanding order/position exposure and a documented safe reservation lifecycle | Canonical stop/flatten duty exists (§§64, 118); provider terminal and partial-fill release conditions remain **unresolved** |
+| All paths → Audit | Original input witness, deterministic before/after state, rejection reason, reservation result and broker action or documented absence | In-memory receipts and audit observations are not a durable transactional event log |
+
+A reviewer must **reject claims of live readiness** when any row is unsupported, even if the submitted tests pass or a snapshot ID matches. Any eventual recovery design must explicitly distinguish *observed broker position/order truth* from *local intended order state*; absence of a local pending record is not proof the broker lacks an order (§§9, 16, 103, 109). A future implementation may choose a persistence mechanism only through a separately reviewed design with demonstrated atomicity, restart recovery and broker reconciliation; this document does not choose one.
+
 ## Required architecture promotion gate
 
 Before replacing offline proof with live execution authority, evidence must establish all of the following **simultaneously**:
