@@ -536,7 +536,9 @@ impl<A: BrokerAdapter> ExecutionCoordinator<A> {
             // treated as protected. Attempt to flatten immediately even if the
             // broker acknowledgement was malformed.
             if submission.entry_filled {
-                let _ = self.adapter.flatten_instrument(permit.proposal.instrument());
+                let _ = self
+                    .adapter
+                    .flatten_instrument(permit.proposal.instrument());
             }
             return Err(RejectionCode::BrokerUnsafe);
         }
