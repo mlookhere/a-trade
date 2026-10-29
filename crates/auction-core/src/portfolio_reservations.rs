@@ -3,7 +3,7 @@
 //! authorize orders. No reservation may be released without a future explicit
 //! broker-reconciled lifecycle contract.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::order_risk::ClusterExposure;
@@ -49,7 +49,7 @@ pub enum ReservationError {
 struct ReservationState {
     account_equity: f64,
     limits: PortfolioRiskLimits,
-    exposures: HashMap<String, RiskExposure>,
+    exposures: BTreeMap<String, RiskExposure>,
 }
 
 /// Clones share a single mutex-protected ledger. It is deliberately not a
@@ -86,17 +86,26 @@ impl SharedPortfolioReservations {
             return Err(ReservationError::InvalidSnapshot);
         }
 
-        let mut exposures = HashMap::new();
-        let mut clusters: HashMap<String, (f64, Direction)> = HashMap::new();
-        let mut open_risk = 0.0;
+        // Always accumulate in SETUP_ID order. Floating-point addition is not
+        // associative; input vector order and randomized hash iteration must
+        // not change a deterministic portfolio or cluster risk verdict.
+        let mut exposures = BTreeMap::new();
         for exposure in snapshot.existing {
             if exposure.setup_id.trim().is_empty()
                 || exposure.cluster_id.trim().is_empty()
                 || !exposure.risk_dollars.is_finite()
                 || exposure.risk_dollars <= 0.0
+                || exposures
+                    .insert(exposure.setup_id.clone(), exposure)
+                    .is_some()
             {
                 return Err(ReservationError::InvalidSnapshot);
             }
+        }
+
+        let mut clusters: BTreeMap<String, (f64, Direction)> = BTreeMap::new();
+        let mut open_risk = 0.0;
+        for exposure in exposures.values() {
             open_risk += exposure.risk_dollars;
             let cluster = clusters
                 .entry(exposure.cluster_id.clone())
@@ -107,9 +116,6 @@ impl SharedPortfolioReservations {
                 || !cluster.0.is_finite()
                 || cluster.0 > cluster_ceiling
                 || cluster.1 != exposure.direction
-                || exposures
-                    .insert(exposure.setup_id.clone(), exposure)
-                    .is_some()
             {
                 return Err(ReservationError::InvalidSnapshot);
             }
