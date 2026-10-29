@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "name": "Multi-Agent First-90-Minute Auction Trading System",
+  "repository": "mlookhere/a-trade",
+  "agent": {
+    "provider": "chatgpt",
+    "tool": "github-mcp",
+    "exclusive": true,
+    "github_source_of_truth": true,
+    "background_worker": false
+  },
+  "branches": {
+    "integration": "dev",
+    "production": "main"
+  },
+  "github": {
+    "expected_owner": "mlookhere",
+    "expected_repository": "a-trade",
+    "control_issue_title": "[CONTROL] Current repository state",
+    "release_title_prefix": "[RELEASE]",
+    "branch_protection": {
+      "integration": {
+        "required_checks": [
+          "PR metadata",
+          "Fast deterministic gates",
+          "PR test/build gates",
+          "Dependency audit",
+          "Workflow policy"
+        ]
+      },
+      "production": {
+        "required_checks": [
+          "Release metadata",
+          "Full regression and production build",
+          "Workflow policy"
+        ]
+      }
+    }
+  },
+  "tracking": {
+    "control_issue": 1,
+    "branch_prefix": "work",
+    "required_pr_sections": [
+      "Issue",
+      "Result",
+      "Implementation",
+      "Verification",
+      "Risk",
+      "Remaining work"
+    ],
+    "max_failed_fixes_per_cause": 3
+  },
+  "commands": {
+    "bootstrap": "./scripts/bootstrap --ci",
+    "fast": "./ci/run fast",
+    "pr": "./ci/run pr",
+    "audit": "./ci/run audit",
+    "release": "./ci/run release",
+    "nightly": "./ci/run nightly"
+  },
+  "migration": {
+    "legacy_runtime_present": false,
+    "do_not_vendor": [
+      ".claude/",
+      ".claude-workflow.json",
+      ".github/claude/",
+      "CLAUDE.md",
+      ".github/workflows/claude-review.yml"
+    ]
+  },
+  "production": {
+    "live_trading_authorized": false,
+    "canonical_strategy_authority": "strategy/authority.json"
+  }
+}
