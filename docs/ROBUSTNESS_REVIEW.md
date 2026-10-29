@@ -1,0 +1,49 @@
+# Robustness review — evidence and release gaps
+
+**Checkpoint:** 2026-10-28, `dev` `a3eab9fedf75a69503a483679b2d3acb6bcf8a95`. Tracking: [#154](https://github.com/mlookhere/a-trade/issues/154). This document is **development guidance, not a new trading strategy or proof of production readiness**. Live state must be re-read from [CONTROL #1](https://github.com/mlookhere/a-trade/issues/1) and [MASTER_PLAN.md](MASTER_PLAN.md).
+
+## Evidence boundaries
+
+- Canonical `auction-core` is a **production candidate**, not a live-approved implementation. Required sequence: environment → location → participation → effort versus result → absorption → dominance shift → second attempt → second failure → reconfirmation → risk validation → execution; `UNKNOWN = NO_TRADE` (§§10, 56, 102, 108, 109, 122).
+- GEX infrastructure transports evidence but does not authorize direction or entry (§§14–15, 109). `gex-strategy` vNext remains research-only: no result, cleared veto or advisory proposal can become execution authority without the full §116 promotion sequence.
+- Issues/PRs reported complete in control #1 describe implemented development slices, **not independently proven live brokerage safety**. The latest prior PR #153 had five completed successful checks on its exact head; this does not certify runtime/broker readiness.
+- At review time both `dev` and `main` branch metadata reported `protected=false`; retain [#26](https://github.com/mlookhere/a-trade/issues/26) as the existing security/release blocker. [#66](https://github.com/mlookhere/a-trade/issues/66) remains conditional capacity work, not a default feature.
+
+## Priority-ordered hardening opportunities
+
+| Priority | Area / existing starting point | Evidence still required before live use | Canonical authority |
+| --- | --- | --- | --- |
+| P0 | **Broker adapter and order lifecycle.** Existing execution gate, pending-entry cancellation and stop safety (#14, #44, #46, #49, #52). | Versioned per-broker contract covering acknowledgements, rejected/unknown orders, partial fills, stop/target quantities, OCO/bracket semantics, cancel/replace races, disconnected broker and ambiguous fill state. Prove no unprotected exposure or accidental duplicate entry after reconnect. Broker-specific behavior is **unspecified** until integration evidence exists. | §§16, 64, 100, 109–110, 118 |
+| P0 | **Restart/crash recovery and state reconciliation.** Existing setup ownership and broker-state checks (#14, #44, #46). | Kill process between authorization, send, acknowledgement, partial fill, stop acknowledgement, cancellation and close. On restart reconcile actual positions and orders before any new entry; inconsistent state must block entry while protected existing-position handling remains available. Verify one consumed setup cannot re-enter. | §§8–9, 16, 64, 100–103, 109 |
+| P0 | **Atomic portfolio reservation across agents.** Existing central portfolio/correlation evaluation (#12, #14). | Concurrent MNQ/NQ and ES/MES proposals must not both pass against the same available risk budget via time-of-check/time-of-use races. Verify single owner, deduplication, reservation release on terminal order outcomes, and opposing-cluster conflict fail-close. Choose transaction semantics in implementation, not a new risk threshold. | §§67–70, 102–103, 122 |
+| P0 | **Branch and release controls.** Existing CI checks and #26. | Verify enforcement of PR-only merge, required exact-head checks, no force push and protected `dev`/`main` via authenticated GitHub evidence; block release without this. Never equate successful Actions with protection. | §116; repository implementation contract |
+| P1 | **Market data provenance and freshness.** Existing data-health, premarket, research snapshot work (#4, #36, #76, #78, #80 and subsequent research contracts). | Fault-inject missing/duplicate/out-of-order bars, changing OHLCV with reused IDs, delayed feed and broker clocks, DST boundaries, stale footprint and inconsistent locked value. Prove required inputs fail closed and replay exactly reproduces original decisions. No unstated freshness cutoff may be promoted to production. | §§11–17, 25, 95–96, 108–109 |
+| P1 | **Time and cancellation races.** Existing live 11:00 recheck (#52) and news handling (#16). | Exercise authorization just before 11:00 ET with broker send delayed beyond cutoff; pending orders at cutoff or blackout; late acknowledgements and partial fills. Separate prohibited new entry from continued protected management of existing positions. Preserve known canonical expiration/cancel requirements and isolate unspecified adapter semantics. | §§3–4, 60–61, 95–96, 100 |
+| P1 | **Failure injection and deterministic acceptance.** Existing replay/OOS harness (#32), process violations (#18), audit (#22). | End-to-end replay/chaos matrix for wrong sequence, UNKNOWN, invalid 0.886, missing second test, mismatched direction, stale feed, duplicate setup, stop widening, conflicting portfolio exposure, missing stop and broker-unsafe state; assert rejection reason, state terminality, and no broker entry. | §§36–37, 56, 63–64, 67–70, 100–103, 108–113 |
+| P1 | **Emergency response and operations.** Existing kill-switch and audit slices (#18, #22). | Test kill-switch activation and restart lockout, broker/data-provider shared failure fan-out, per-agent isolation, alert delivery/acknowledgement, account-risk discrepancy and evidence preservation. Configured safety limits are external deployment values, not inferred thresholds. | §§98–101, 111–115 |
+| P2 | **Observability and audit lineage.** Existing append-only audit and replay (#22, #32). | Correlate every candidate/setup/order/fill/position to SETUP_ID, exact rule version, input witness, agent owner, deterministic gate verdict, broker acknowledgement and reconciliation event. Validate durable persistence/replay under crash and storage errors. | §§103, 107–115 |
+| P2 | **Empirical promotion evidence.** Existing promotion state machine (#34), research-only paired replay (#150, #152). | Obtain real source-backed baseline, historical split isolation, executed-cost/slippage model with explicit limitations, OOS results, paper/shadow evidence and human approval. Green unit tests or advisory comparison alone do not demonstrate positive expectancy or authorize live trading. | §§111–116 |
+
+## Minimal acceptance evidence for follow-up implementations
+
+Each follow-up test should persist the original event inputs, pre-state, decision, rejection/transition outcome, and broker-visible action (or explicit absence of a new entry). Use synthetic/fake broker responses until a real broker contract is documented; a simulated pass does not attest live fill behavior.
+
+| Fault injected | Required observation | Boundary |
+| --- | --- | --- |
+| Worker restarts after send with unknown acknowledgement or after a partial fill | New entries remain blocked until order and position reconciliation resolves uncertainty; no duplicate setup order or unprotected open position is accepted as safe | §§8–9, 16, 64, 100–103 |
+| Two instrument agents contend for a single remaining portfolio/cluster allowance | At most the risk-valid, nonduplicate set of reservations proceeds; an uncertain/conflicting reservation fails closed rather than double-counting capacity | §§67–70, 103, 122 |
+| Data witness changes while retaining a setup or snapshot identity, or timestamps become stale/disagree | Recheck rejects invalid provenance; no stale/unknown source data can be treated as passing a mandatory gate | §§16, 108–109 |
+| Pending entry crosses the 11:00 ET cutoff or an applicable news blackout | No unauthorized new entry reaches the broker; already-open positions continue only with permitted risk management; stale pre-event setups are not revived | §§3–4, 95–96, 100 |
+| Broker fails to confirm a protective stop after a fill | Explicit fail-safe flatten attempt, process failure record, and no continued authorization; exact retry and acknowledgement behavior requires a broker contract | §§64, 100, 118 |
+
+Proof must include positive and negative cases, current-head CI logs and a replayable provenance trail. Do not encode assumptions about transport acknowledgements, OCO behavior, exchange fills, market-data age or provider-specific limits as canonical strategy thresholds.
+
+## Execution order and acceptance discipline
+
+1. Resolve **external** blockers first: broker-specific contract, verified provider/market-data access, externally approved deployment risk configuration and #26 GitHub enforcement. Do not manufacture defaults.
+2. Deliver each P0/P1 proof independently using one Issue → `work/<issue>-<slug>` branch → PR into `dev`. Prefer focused deterministic fault-injection tests on existing interfaces before adding infrastructure.
+3. Require the full five-check exact-head gate: PR metadata, Fast deterministic, PR test/build, Dependency audit, Workflow policy. A missing check is not success.
+4. Verify recovery with missing, stale, conflicting, duplicated and out-of-order evidence as well as successful paths. Preserve canonical section IDs in test cases and audit evidence.
+5. Keep all novel strategy refinements and vNext features outside canonical live authorization until §116 evidence and versioned approval. No autonomous production rule tuning.
+
+**Not established by this review:** verified live broker fill semantics, externally approved per-deployment parameters, complete historical/OOS/shadow evidence, enforced branch protection, or production release permission. Until those are proven, `TRADE_ALLOWED` defaults to false.
