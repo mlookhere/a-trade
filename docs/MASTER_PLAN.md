@@ -18,22 +18,95 @@ The canonical order is **environment → location → participation → effort v
 
 Production changes cannot be inferred from a successful research feature, AI result, backtest, or green CI. Material strategy promotion requires **hypothesis → backtest → out-of-sample → paper/shadow execution → human approval → new version**, as prescribed by canonical §116.
 
-## Milestones and dependencies
+## Verified state and remaining dependencies — 2026-10-28 PDT
 
-| Phase | Deliverable | Tracking | State |
-| --- | --- | --- | --- |
-| 1. Control plane and canonical safety | CI, setup state, deterministic validator, central risk/execution, data validity, orderflow, position management, audit/replay contracts | Completed Issues/PRs summarized in [#1](https://github.com/mlookhere/a-trade/issues/1); implementation and evidence in `auction-core` | Implemented development slices; no live release |
-| 2. Provider and GEX transport | Provider-neutral GEX engine, dependency security, Schwab multi-profile stream, snapshot/coverage/provenance protections | [#53](https://github.com/mlookhere/a-trade/issues/53), [#55](https://github.com/mlookhere/a-trade/issues/55), [#56](https://github.com/mlookhere/a-trade/issues/56), [#73](https://github.com/mlookhere/a-trade/issues/73), [#76](https://github.com/mlookhere/a-trade/issues/76), [#78](https://github.com/mlookhere/a-trade/issues/78), [#80](https://github.com/mlookhere/a-trade/issues/80) | Initial infrastructure slices merged; full provider validity not yet established |
-| 3. Research deterministic features | Explicit snapshot-bound observations, 13-condition hard-veto transport, specialist evidence interfaces, OHLCV coverage and carefully versioned numerical features | [#57](https://github.com/mlookhere/a-trade/issues/57), [#68](https://github.com/mlookhere/a-trade/issues/68), [#70](https://github.com/mlookhere/a-trade/issues/70), [#72](https://github.com/mlookhere/a-trade/issues/72), [#82](https://github.com/mlookhere/a-trade/issues/82) / [PR #83](https://github.com/mlookhere/a-trade/pull/83) | Ongoing; research EMA #82/#83 merged after five green checks (dev `31f988b`); research-only, no trade authority |
-| 4. AI-native decision architecture | Stable shared feature set; specialist observations; playbook eligibility, interactions, adversarial review, hierarchical arbiter, calibrated-EV interface, deterministic vNext execution validation, outcome persistence | Create independently scoped Issues after prerequisite data/feature contracts are verified | Future work; not production authorization |
-| 5. Empirical validation and release evidence | Historical data/replay, source baseline vs AI-native comparison, OOS, paper/shadow, documented approvals, new version | Canonical §116 and existing offline validation/promotion docs | Incomplete; no strategy promotion |
-| 6. Production integration and safe operations | Broker-specific entry/stop/target, cancellation and partial-fill semantics, reconciliation, live system safety, operational checks, release promotion | Broker contract remains undefined; branch protection [#26](https://github.com/mlookhere/a-trade/issues/26) | Release blocked; no live execution approval |
+- `main` is the public repository's production/default branch; `dev` is integration and currently at `c88de8395a3981354b3080570712600c64f0d191`. Neither branch has verified protection; [#26](https://github.com/mlookhere/a-trade/issues/26) is a release blocker. Do not change the default branch.
+- [#191](https://github.com/mlookhere/a-trade/issues/191) / [PR #192](https://github.com/mlookhere/a-trade/pull/192) was verified and squash-merged at that `dev` head. Exact PR head `1f7d4d6e2816b37499110fd8886b42e0019842d1` passed **5/5** required Actions jobs ([PR](https://github.com/mlookhere/a-trade/actions/runs/40822413393), [workflow policy](https://github.com/mlookhere/a-trade/actions/runs/40822413403)). Its shared account registry remains **offline only**, and is neither authenticated broker truth nor durable multi-process risk authority.
+- Parent [#164](https://github.com/mlookhere/a-trade/issues/164) tracks the still-incomplete broker-grounded, atomic and unavoidable risk authority. [#66](https://github.com/mlookhere/a-trade/issues/66) remains **conditional** on verified independent Schwab streamer constraints; do not implement speculatively.
+- Current deterministic CI functions through the legacy `.claude-workflow.json` command manifest. The configuration presently runs Rust/Python tools rather than Claude; nevertheless the legacy executable contract must be migrated to reviewed ChatGPT-native, runtime-neutral assets from `mlookhere/CI-Pipline` through [#194](https://github.com/mlookhere/a-trade/issues/194). No Claude agents, hooks, credentials or toolchain are permitted.
+- **Confirmed CI migration seam:** `ci/run.py` currently loads `.claude-workflow.json` directly, and `scripts/bootstrap` does not implement a distinct `--ci` dependency-provisioning mode. The template's `.chatfreept/ci.json` is Python-specific and cannot replace this project's Rustfmt/Clippy/locked-build/RustSec command matrix without adaptation and parity tests. Existing workflow self-tests also enforce precise audit-cache sequences; preserve these instead of blind vendoring. This is a functional migration item, not merely a filename cleanup.\n- **Live authorization remains FALSE.** No broker-specific fill/stop/cancel lifecycle, source-authenticated portfolio, durable cross-process risk reservation, complete empirical validation, paper/shadow approval, or protected production promotion has been demonstrated.
 
-### Known blocking or conditional work
+### Common delivery gate and risk policy
 
-- **[#26 — GitHub protection](https://github.com/mlookhere/a-trade/issues/26):** enforce and verify PR-only, required-check and no-force-push controls for `dev` and `main` before a release. Do not treat an inaccessible branch-protection API response as evidence that protection is active.
-- **[#66 — Single-underlying Schwab sharding](https://github.com/mlookhere/a-trade/issues/66):** conditional capacity expansion. Implement only if measured provider capacity and independent streamer identity justify deterministic per-contract sharding; never evade provider restrictions.
-- **Unresolved canonical qualitative/adapter rules:** consult the current list in [Issue #1](https://github.com/mlookhere/a-trade/issues/1) rather than inventing a threshold, extraction algorithm, provider behavior, or broker fill model.
+For every **new** numbered slice, use exactly one linked Issue, a `work/<issue>-<slug>` branch from `dev`, and a PR into `dev`. The PR requires all five **current-head** Actions checks completed successfully: **PR metadata; Fast deterministic gates; PR test/build gates; Dependency audit; Workflow policy**. Additionally verify the slice-specific headless commands/tests below. A successful historical PR is not evidence for another PR head. No skipped/missing/pending/red required check passes. PRs must reference their Issue and include Result, Implementation, Verification, Risk, Remaining work.
+
+## Numbered CI-verifiable delivery plan
+
+### 1. Scaffold, toolchain and baseline deterministic PR gates — [Issue #2](https://github.com/mlookhere/a-trade/issues/2) (historically completed)
+
+**Acceptance:** Rust workspace, initial deterministic `auction-core` foundation, `dev`/ `main` boundaries, headless `./scripts/bootstrap` and `./ci/run` entry points, fast and PR gates. Preserve baseline instead of rebuilding. Current template/consumer parity must be revalidated in item 3; historical Issue closure alone is not live authorization.
+
+**Areas:** `Cargo.toml`, `rust-toolchain.toml`, `crates/auction-core/`, `ci/`, `scripts/`, `.github/workflows/`.
+
+**Required gates:** fast, PR and policy/security via all five current-head PR checks for any subsequent scaffold change. **Labels:** `type:feature`, `risk:high` (historical risk classification; do not relabel completed Issue).
+
+### 2. Account-scoped process registry integration proof — [Issue #191](https://github.com/mlookhere/a-trade/issues/191) (completed)
+
+**Acceptance:** mock/offline-only shared account registry connection with typed error provenance, competing-coordinator tests, wrong account, later UNKNOWN evidence and unsafe broker cases; no live routing authority, broker authentication, durable transaction or reservation release. [PR #192](https://github.com/mlookhere/a-trade/pull/192) was merged after five exact-head green checks.
+
+**Areas:** `crates/auction-core/src/broker_execution.rs`, tests, `docs/BROKER_PORTFOLIO_EVIDENCE.md`.
+
+**Required gates:** five checks, verified above; exact-head Rust tests. **Labels:** `type:hardening`, `risk:high`.
+
+### 3. ChatGPT-native CI and toolchain manifest migration — [Issue #194](https://github.com/mlookhere/a-trade/issues/194) (next engineering slice)
+
+**Acceptance:** review `mlookhere/CI-Pipline` and migrate only compatible runtime-neutral assets. Use `.chatfreept/project.json` and `docs/CHATFREEPT_CI.md` in place of legacy `.claude-workflow.json`; no Claude-specific agents, hooks, CLIs, policy dependencies or secrets. Preserve `dev`/ `main`, release/nightly PR job names, Rustfmt/Clippy/locked test/build/RustSec security commands, quality thresholds and audit evidence. Make missing/empty stage execution fail closed and verify parity before deletion of old manifest.
+
+**Areas:** `.chatfreept/`, `ci/`, `scripts/`, `workflow/`, `.github/workflows/`, `.gitignore`, `README.md`, `docs/CHATFREEPT_CI.md`.
+
+**Required gates:** `./scripts/bootstrap --ci`, `./ci/run fast`, `./ci/run pr`, `./ci/run audit`, manifest self-tests, five current-head Actions jobs. **Labels:** `type:chore`, `risk:high`.
+
+### 4. Source-authenticated account, position and pending-order evidence — [Issue #195](https://github.com/mlookhere/a-trade/issues/195)
+
+**Acceptance:** provider-authenticated and account-scoped snapshots; validated complete open/pending orders and positions, freshness, timestamps and source identity; fail closed on UNKNOWN, partial, duplicate, conflicting or mismatched evidence. Provider behavior must be verified from its real contract; if missing, only non-authorizing adapter scaffolding/tests may be delivered. Explicitly preserve parent [#164](https://github.com/mlookhere/a-trade/issues/164).
+
+**Areas:** `crates/auction-core/` broker evidence, provider adapter boundary and tests, `docs/BROKER_PORTFOLIO_EVIDENCE.md`.
+
+**Required gates:** broker evidence positive/negative fixtures, stale/UNKNOWN/wrong-account tests and all five Actions jobs. **Labels:** `type:hardening`, `risk:high`.
+
+### 5. Durable cross-process atomic risk reservations — [Issue #196](https://github.com/mlookhere/a-trade/issues/196)
+
+**Acceptance:** transactional account/cluster risk budget across independent processes with no duplicate SETUP_ID spend, restart data loss, missing broker exposure, stale snapshot acceptance or silent reservation release. Failover/crash and concurrency proof; do not invent provider TTL, fill or cancellation rules. Block live use until provider-grounded authority is verified.
+
+**Areas:** `crates/auction-core/` risk and portfolio coordination, durable-store contract, race/restart tests, `docs/ATOMIC_PORTFOLIO_RESERVATIONS.md`.
+
+**Required gates:** deterministic cross-process contention/crash tests, boundary/UNKNOWN/correlation tests, five Actions jobs. **Labels:** `type:hardening`, `risk:high`.
+
+### 6. Non-bypassable execution gate and verified broker lifecycle — [Issue #197](https://github.com/mlookhere/a-trade/issues/197)
+
+**Acceptance:** one unavoidable Strategy Validator → Risk Engine → Portfolio Coordinator → Execution Gate proof for each broker order; no legacy transmit bypass. Verified broker stop/bracket, acknowledgment, cancel/replace, fill/partial fill, unknown status, restart and terminal risk-release behavior. Unspecified broker semantics remain blocked, never guessed. Test post-11:00 entry denial and uninterrupted safe position management.
+
+**Areas:** `crates/auction-core/` execution/portfolio/order state, broker-specific adapter once verified, integration and fault-injection tests.
+
+**Required gates:** safety and negative-path broker contract tests, `UNKNOWN = NO_TRADE`, five Actions jobs. **Labels:** `type:hardening`, `risk:high`.
+
+### 7. Advisory specialist orchestration and sealed authority — [Issue #198](https://github.com/mlookhere/a-trade/issues/198)
+
+**Acceptance:** narrow, typed advisory specialists with immutable observations and snapshot/SETUP_ID lineage; never give an LLM final authority over time, inputs, state sequence, sizing, portfolio or orders. Isolate AI-native GEX research from canonical authorization; verify stale/mismatched/partial/duplicated agent output cannot pass. No new unapproved production threshold or strategy state.
+
+**Areas:** `crates/auction-core/`, isolated `crates/gex-strategy/`, `prompts/`, `docs/ADVISORY_LLM_BOUNDARY.md`, contract tests.
+
+**Required gates:** adversarial and fail-closed orchestration tests, replay validity, five Actions jobs. **Labels:** `type:feature`, `risk:medium`.
+
+### 8. Reproducible full-system test, out-of-sample and paper/shadow proof — [Issue #199](https://github.com/mlookhere/a-trade/issues/199)
+
+**Acceptance:** reproduce full canonical ordered scenarios and rejections, evaluate separate held-out data, compare research only as research, and record broker-safe paper/shadow evidence. Document §116 hypothesis → backtest → out-of-sample → paper/shadow → human approval → new version; no claim of profitable/approved/live behavior from an empty dataset or a green build.
+
+**Areas:** replay fixtures, audit/metrics and report tools, offline test harness, `docs/OFFLINE_VALIDATION.md`, `docs/STRATEGY_CHANGE_PROMOTION.md`.
+
+**Required gates:** deterministically reproducible scenario tests including invalid time, news, sequence, stop, broker, duplicates and correlation; five Actions jobs. **Labels:** `type:feature`, `risk:high`.
+
+### 9. Production protection, release gates and approved promotion — [Issue #26](https://github.com/mlookhere/a-trade/issues/26) (blocked; pre-release)
+
+**Acceptance:** enforce PR-only protected `dev` and `main`, no force push, verified required checks, no zero-check bypass; release PR from `dev` to `main` only with actual broker/replay/shadow evidence, §116 human approval and versioned artifact. GitHub settings capability not proven by a code change or inaccessible branch-protection endpoint: keep #26 open until externally verified.
+
+**Areas:** repository branch protections/rulesets, `.github/workflows/ci-release.yml`, `docs/STRATEGY_CHANGE_PROMOTION.md`, release documentation.
+
+**Required gates:** five `dev` PR jobs for code changes; release metadata, full regression/production build and workflow-policy jobs on exact release head; independently verified branch protection. **Labels:** `type:chore`, `risk:high`.
+
+### Dependencies and stopping conditions
+
+Items 4–6 require a verified actual broker/provider integration contract; do not fabricate implementation details to satisfy a roadmap. Item 8 needs independent market/replay evidence; item 9 needs human approval and GitHub protection. Items may be developed in narrow dependency-respecting PRs. Existing child Issues and conditional [#66](https://github.com/mlookhere/a-trade/issues/66) are not recreated. All unresolved requirements retain `TRADE_ALLOWED = FALSE` and prevent live trading.
 
 ## GitHub delivery protocol
 
