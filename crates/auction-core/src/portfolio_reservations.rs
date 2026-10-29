@@ -75,7 +75,19 @@ impl SharedPortfolioReservations {
             return Err(ReservationError::InvalidSnapshot);
         }
 
+        // Canonical §§67-70: no baseline is usable if any risk ceiling
+        // overflows or any existing cluster is over-limit or directionally
+        // conflicted. Reject rather than repairing broker-reported exposure.
+        let portfolio_ceiling =
+            snapshot.account_equity * snapshot.limits.max_portfolio_open_risk_percent;
+        let cluster_ceiling =
+            snapshot.account_equity * snapshot.limits.max_cluster_open_risk_percent;
+        if !portfolio_ceiling.is_finite() || !cluster_ceiling.is_finite() {
+            return Err(ReservationError::InvalidSnapshot);
+        }
+
         let mut exposures = HashMap::new();
+        let mut clusters: HashMap<String, (f64, Direction)> = HashMap::new();
         let mut open_risk = 0.0;
         for exposure in snapshot.existing {
             if exposure.setup_id.trim().is_empty()
@@ -86,16 +98,21 @@ impl SharedPortfolioReservations {
                 return Err(ReservationError::InvalidSnapshot);
             }
             open_risk += exposure.risk_dollars;
+            let cluster = clusters
+                .entry(exposure.cluster_id.clone())
+                .or_insert((0.0, exposure.direction));
+            cluster.0 += exposure.risk_dollars;
             if !open_risk.is_finite()
+                || open_risk > portfolio_ceiling
+                || !cluster.0.is_finite()
+                || cluster.0 > cluster_ceiling
+                || cluster.1 != exposure.direction
                 || exposures
                     .insert(exposure.setup_id.clone(), exposure)
                     .is_some()
             {
                 return Err(ReservationError::InvalidSnapshot);
             }
-        }
-        if open_risk > snapshot.account_equity * snapshot.limits.max_portfolio_open_risk_percent {
-            return Err(ReservationError::InvalidSnapshot);
         }
         Ok(Self {
             state: Arc::new(Mutex::new(ReservationState {
