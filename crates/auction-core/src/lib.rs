@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod account_scoped_reservations;
 pub mod advisory;
 pub mod audit;
 pub mod authority;
@@ -28,6 +29,10 @@ pub mod swings;
 pub mod truth;
 pub mod validation;
 
+pub use account_scoped_reservations::{
+    AccountScopedPortfolioReservations, ScopedPortfolioAuditView, ScopedReservationError,
+    ScopedReservationEvidence,
+};
 pub use advisory::{
     AdvisoryConditions, AdvisoryFib, AdvisoryGamma, AdvisorySetupEvaluation, AdvisorySwing,
     AdvisoryValidationError, AdvisoryValue, AgentRole, CANONICAL_AGENT_MASTER_PROMPT,

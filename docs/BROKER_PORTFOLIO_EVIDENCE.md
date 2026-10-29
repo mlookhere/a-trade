@@ -14,6 +14,12 @@ Positions and open/pending orders remain separate input lists. Their externally 
 
 A successful result is an `AssertedAccountRiskSnapshot` preserving the reported account ID alongside the legacy non-authorizing `PortfolioRiskSnapshot`. Keeping the account ID prevents silent loss of declared scope during handoff. It **does not authenticate** the account or make the legacy ledger account-enforced across processes.
 
+## Account-bound isolated reservation wrapper
+
+The non-authorizing `AccountScopedPortfolioReservations::from_evidence` wrapper retains the validated, *asserted* account ID alongside its private in-process `SharedPortfolioReservations`. Its `reserve` boundary requires an exact, nonblank account ID **and** the underlying asserted snapshot ID, setup owner, and complete existing deterministic portfolio/cluster checks. A wrong account ID cannot mutate local risk, and shared clones continue using the same atomic in-process mutex. Read-only reservation receipts and coherent audit observations include the asserted account ID; there is no public escape hatch from the wrapper to its raw ledger.
+
+The wrapper does **not** make account IDs cryptographically authenticated, ensure the source is the connected broker, prove timestamp freshness, or coordinate with another process/account. Existing unscoped ledger and broker gate APIs remain available, so this proof is *bypassable and strictly offline*. Account scope is a caller-asserted provenance consistency check, not a new production strategy requirement or new risk threshold.
+
 ## Not implemented / no permission
 
 The broker API and account authentication mechanism are absent. Health and time consistency flags are **assertions by the caller**, not independently verified timestamps or a trusted broker witness. Order and position risk dollars must already be determined from an approved broker/market/stop model; this validator neither prices contracts nor reconciles fill quantity or stop protection. It has no persistence, cross-process transaction, risk release, broker-side order identity, permission token, or unavoidable connection to `ExecutionCoordinator::gate`/`submit`. A matching account or snapshot ID does not make stale/unreconciled data reliable.
