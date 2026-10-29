@@ -208,7 +208,9 @@ impl SharedPortfolioReservations {
             return Err(ReservationError::ClusterLimit);
         }
 
-        state.accepted_reservations.insert(proposal.setup_id().to_owned());
+        state
+            .accepted_reservations
+            .insert(proposal.setup_id().to_owned());
         state.exposures.insert(
             proposal.setup_id().to_owned(),
             RiskExposure {
@@ -237,10 +239,13 @@ impl SharedPortfolioReservations {
         if !state.accepted_reservations.contains(setup_id) {
             return Ok(None);
         }
-        Ok(state.exposures.get(setup_id).map(|exposure| ReservationEvidence {
-            snapshot_id: state.snapshot_id.clone(),
-            exposure: exposure.clone(),
-        }))
+        Ok(state
+            .exposures
+            .get(setup_id)
+            .map(|exposure| ReservationEvidence {
+                snapshot_id: state.snapshot_id.clone(),
+                exposure: exposure.clone(),
+            }))
     }
 
     pub fn reservation_count(&self) -> Result<usize, ReservationError> {
