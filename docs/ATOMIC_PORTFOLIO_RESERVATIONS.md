@@ -12,6 +12,8 @@ Initialization also rejects pre-existing same-cluster long/short conflicts, any 
 
 The ledger derives risk for a sealed `OrderProposal` from its pre/post portfolio-risk delta, then **recalculates** portfolio and same-cluster budget using all exposures and reservations presently in that same book. Opposing same-cluster directions, duplicate `SETUP_ID`, wrong owner, zero/non-finite amounts, and exceeded portfolio/cluster ceilings reject without adding a reservation. A successful call does not set `execution_pass` and cannot create an `ExecutionPermit`.
 
+Risk amounts are accumulated in lexicographic `SETUP_ID` order during both snapshot initialization and subsequent reservations. This prevents hash-map iteration order or broker snapshot vector order from changing the sequence of floating-point additions. It does not add an epsilon, round risk, change an inclusive ceiling, or prove that floating-point arithmetic is an appropriate durable broker accounting representation.
+
 ## Deliberate safety limitations
 
 - No reservation release/reset API: release requires a future documented, broker-reconciled terminal-order/position transition. No timeout or retry is invented.
