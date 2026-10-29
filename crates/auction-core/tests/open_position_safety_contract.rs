@@ -192,8 +192,7 @@ fn latch_other_setup_failure(
         .register_setup(failed_setup_id, common::OWNER)
         .unwrap();
     coordinator.adapter_mut().submission = Err(MockError::Failure);
-    let proposal =
-        common::valid_long_proposal(failed_setup_id, common::OWNER, common::INSTRUMENT);
+    let proposal = common::valid_long_proposal(failed_setup_id, common::OWNER, common::INSTRUMENT);
     let permit = coordinator.gate(&proposal, context()).unwrap();
     assert_eq!(
         coordinator.submit(permit, in_window()),
