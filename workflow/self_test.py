@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+CI_CONFIG = ROOT / ".chatfreept" / "ci.json"
+PROJECT_CONFIG = ROOT / ".chatfreept" / "project.json"
 PINNED_ACTION = re.compile(r"^\s*uses:\s*([^\s]+)@([0-9a-fA-F]{40})\s*(?:#.*)?$")
 USES_LINE = re.compile(r"^\s*uses:\s*([^\s]+)@([^\s#]+)")
 
@@ -34,6 +36,75 @@ REQUIRED_STAGE_GROUPS = {
         "dependency_audit_tests",
         "dependency_audit",
     ],
+}
+
+
+# Freeze the existing gate semantics before removing the legacy manifest.
+REQUIRED_COMMANDS = {
+    "workflow_self_test": [
+        "python3 workflow/self_test.py --ci",
+        "python3 ci/tests/audit_cache_workflow_test.py"
+    ],
+    "quality": [
+        "python3 ci/quality.py"
+    ],
+    "rust_format": [
+        "cargo fmt --all -- --check"
+    ],
+    "rust_lint": [
+        "cargo clippy --workspace --all-targets --all-features -- -D warnings"
+    ],
+    "rust_test": [
+        "cargo test --workspace --all-targets --locked",
+        "cargo test -p gex-strategy --doc --locked"
+    ],
+    "rust_release_build": [
+        "cargo build --workspace --release --locked"
+    ],
+    "dependency_audit_tests": [
+        "python3 ci/tests/dependency_audit_test.py"
+    ],
+    "dependency_audit": [
+        "python3 ci/dependency_audit.py"
+    ]
+}
+REQUIRED_QUALITY = {
+    "base_ref": "origin/dev",
+    "max_changed_files": 80,
+    "max_changed_lines": 4000,
+    "max_file_lines": 1200,
+    "tracked_extensions": [
+        ".rs",
+        ".py",
+        ".md",
+        ".json",
+        ".toml",
+        ".yml",
+        ".yaml",
+        ".sh"
+    ],
+    "exclude_globs": [
+        "target/**",
+        "artifacts/**"
+    ]
+}
+REQUIRED_BRANCH_CHECKS = {
+    "integration": {
+        "required_checks": [
+            "PR metadata",
+            "Fast deterministic gates",
+            "PR test/build gates",
+            "Dependency audit",
+            "Workflow policy"
+        ]
+    },
+    "production": {
+        "required_checks": [
+            "Release metadata",
+            "Full regression and production build",
+            "Workflow policy"
+        ]
+    }
 }
 
 
@@ -128,15 +199,36 @@ def main() -> int:
     parser.parse_args()
 
     failures: list[str] = []
-    config = json.loads((ROOT / ".claude-workflow.json").read_text(encoding="utf-8"))
+    config = json.loads(CI_CONFIG.read_text(encoding="utf-8"))
+    project = json.loads(PROJECT_CONFIG.read_text(encoding="utf-8"))
 
-    if config.get("branches") != {"integration": "dev", "production": "main"}:
+    if (ROOT / ".claude-workflow.json").exists():
+        failures.append("legacy agent configuration must not be present")
+    if config.get("version") != 1 or project.get("version") != 1:
+        failures.append("ChatGPT CI manifest versions must equal 1")
+    if project.get("repository") != "mlookhere/a-trade":
+        failures.append("ChatGPT project repository must be mlookhere/a-trade")
+    if project.get("agent") != {
+        "provider": "chatgpt",
+        "tool": "github-mcp",
+        "exclusive": True,
+        "github_source_of_truth": True,
+        "background_worker": False,
+    }:
+        failures.append("ChatGPT must be the only autonomous agent")
+    if project.get("branches") != {"integration": "dev", "production": "main"}:
         failures.append("branches must remain dev integration / main production")
-    github = config.get("github", {})
+    if project.get("production", {}).get("live_trading_authorized") is not False:
+        failures.append("CI must not assert live trading authorization")
+    github = project.get("github", {})
     if github.get("expected_owner") != "mlookhere" or github.get("expected_repository") != "a-trade":
         failures.append("GitHub repository identity does not match mlookhere/a-trade")
+    if github.get("branch_protection") != REQUIRED_BRANCH_CHECKS:
+        failures.append("required branch check names must remain unchanged")
 
     commands = config.get("commands", {})
+    if commands != REQUIRED_COMMANDS:
+        failures.append("deterministic Rust/Python commands differ from approved baseline")
     for name, command_list in commands.items():
         if not isinstance(command_list, list) or not command_list or not all(command_list):
             failures.append(f"command group {name!r} is empty")
@@ -148,9 +240,14 @@ def main() -> int:
                 f"stage {stage!r} must be exactly {required_groups!r}; got {stages.get(stage)!r}"
             )
     for stage, groups in stages.items():
+        if not isinstance(groups, list) or not groups:
+            failures.append(f"stage {stage!r} is missing or empty")
+            continue
         for group in groups:
             if group not in commands:
                 failures.append(f"stage {stage!r} references unknown command group {group!r}")
+    if config.get("quality") != REQUIRED_QUALITY:
+        failures.append("quality limits differ from approved baseline")
 
     workflow_sources = {
         str(path.relative_to(ROOT)): path.read_text(encoding="utf-8")

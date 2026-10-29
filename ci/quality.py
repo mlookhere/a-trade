@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CONFIG = json.loads((ROOT / ".claude-workflow.json").read_text(encoding="utf-8"))["quality"]
+CONFIG = json.loads((ROOT / ".chatfreept" / "ci.json").read_text(encoding="utf-8"))["quality"]
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),

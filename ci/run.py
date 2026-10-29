@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CONFIG = ROOT / ".claude-workflow.json"
+CONFIG = ROOT / ".chatfreept" / "ci.json"
 
 
 def git_sha() -> str:
