@@ -60,7 +60,10 @@ fn sections_9_67_103_same_initial_evidence_reuses_the_same_account_book() {
             ReservationError::PortfolioLimit
         ))
     );
-    assert_eq!(second.audit_view().unwrap().ledger.accepted_setup_ids.len(), 1);
+    assert_eq!(
+        second.audit_view().unwrap().ledger.accepted_setup_ids.len(),
+        1
+    );
 }
 
 #[test]
@@ -115,7 +118,12 @@ fn sections_16_67_conflicting_reinit_latches_old_ledger_without_recovery() {
         Err(ProcessRiskRegistryError::ConflictingEvidence)
     ));
     assert_eq!(
-        old_book.reserve(&proposal("SETUP-AFTER-CONFLICT"), common::OWNER, ACCOUNT, SNAPSHOT),
+        old_book.reserve(
+            &proposal("SETUP-AFTER-CONFLICT"),
+            common::OWNER,
+            ACCOUNT,
+            SNAPSHOT
+        ),
         Err(ScopedReservationError::Reservation(
             ReservationError::Unavailable
         ))
