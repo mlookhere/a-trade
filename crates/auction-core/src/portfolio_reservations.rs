@@ -60,6 +60,7 @@ struct ReservationState {
     limits: PortfolioRiskLimits,
     exposures: BTreeMap<String, RiskExposure>,
     accepted_reservations: BTreeSet<String>,
+    invalidated: bool,
 }
 
 /// Clones share a single mutex-protected ledger. It is deliberately not a
@@ -137,8 +138,23 @@ impl SharedPortfolioReservations {
                 limits: snapshot.limits,
                 exposures,
                 accepted_reservations: BTreeSet::new(),
+                invalidated: false,
             })),
         })
+    }
+
+    /// Irreversibly blocks all new reservations from every shared ledger clone.
+    /// Canonical §§16, 98-100: use after an external supervisor detects
+    /// broker/data/portfolio invalidity. Existing exposure and evidence are
+    /// deliberately retained; there is no implicit release or recovery.
+    /// A replacement book requires a separately validated new snapshot.
+    pub fn invalidate(&self) -> Result<(), ReservationError> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| ReservationError::Unavailable)?;
+        state.invalidated = true;
+        Ok(())
     }
 
     /// Atomically checks current in-ledger exposure and records a reservation.
@@ -169,6 +185,9 @@ impl SharedPortfolioReservations {
             .state
             .lock()
             .map_err(|_| ReservationError::Unavailable)?;
+        if state.invalidated {
+            return Err(ReservationError::Unavailable);
+        }
         if state.exposures.contains_key(proposal.setup_id()) {
             return Err(ReservationError::DuplicateSetup);
         }
