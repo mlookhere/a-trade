@@ -24,6 +24,20 @@
 | P2 | **Observability and audit lineage.** Existing append-only audit and replay (#22, #32). | Correlate every candidate/setup/order/fill/position to SETUP_ID, exact rule version, input witness, agent owner, deterministic gate verdict, broker acknowledgement and reconciliation event. Validate durable persistence/replay under crash and storage errors. | §§103, 107–115 |
 | P2 | **Empirical promotion evidence.** Existing promotion state machine (#34), research-only paired replay (#150, #152). | Obtain real source-backed baseline, historical split isolation, executed-cost/slippage model with explicit limitations, OOS results, paper/shadow evidence and human approval. Green unit tests or advisory comparison alone do not demonstrate positive expectancy or authorize live trading. | §§111–116 |
 
+## Minimal acceptance evidence for follow-up implementations
+
+Each follow-up test should persist the original event inputs, pre-state, decision, rejection/transition outcome, and broker-visible action (or explicit absence of a new entry). Use synthetic/fake broker responses until a real broker contract is documented; a simulated pass does not attest live fill behavior.
+
+| Fault injected | Required observation | Boundary |
+| --- | --- | --- |
+| Worker restarts after send with unknown acknowledgement or after a partial fill | New entries remain blocked until order and position reconciliation resolves uncertainty; no duplicate setup order or unprotected open position is accepted as safe | §§8–9, 16, 64, 100–103 |
+| Two instrument agents contend for a single remaining portfolio/cluster allowance | At most the risk-valid, nonduplicate set of reservations proceeds; an uncertain/conflicting reservation fails closed rather than double-counting capacity | §§67–70, 103, 122 |
+| Data witness changes while retaining a setup or snapshot identity, or timestamps become stale/disagree | Recheck rejects invalid provenance; no stale/unknown source data can be treated as passing a mandatory gate | §§16, 108–109 |
+| Pending entry crosses the 11:00 ET cutoff or an applicable news blackout | No unauthorized new entry reaches the broker; already-open positions continue only with permitted risk management; stale pre-event setups are not revived | §§3–4, 95–96, 100 |
+| Broker fails to confirm a protective stop after a fill | Explicit fail-safe flatten attempt, process failure record, and no continued authorization; exact retry and acknowledgement behavior requires a broker contract | §§64, 100, 118 |
+
+Proof must include positive and negative cases, current-head CI logs and a replayable provenance trail. Do not encode assumptions about transport acknowledgements, OCO behavior, exchange fills, market-data age or provider-specific limits as canonical strategy thresholds.
+
 ## Execution order and acceptance discipline
 
 1. Resolve **external** blockers first: broker-specific contract, verified provider/market-data access, externally approved deployment risk configuration and #26 GitHub enforcement. Do not manufacture defaults.
