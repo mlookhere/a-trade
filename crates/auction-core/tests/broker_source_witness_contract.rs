@@ -96,13 +96,22 @@ fn section_16_declared_zero_requires_complete_state_and_explicit_zero_count() {
 fn section_16_rejects_missing_source_session_and_capture() {
     let mut source = witness();
     source.provider_reference.clear();
-    assert_eq!(source.review_offline(&evidence()), Err(SourceWitnessError::MissingSource));
+    assert_eq!(
+        source.review_offline(&evidence()),
+        Err(SourceWitnessError::MissingSource)
+    );
     source = witness();
     source.connection_reference.clear();
-    assert_eq!(source.review_offline(&evidence()), Err(SourceWitnessError::MissingSource));
+    assert_eq!(
+        source.review_offline(&evidence()),
+        Err(SourceWitnessError::MissingSource)
+    );
     source = witness();
     source.capture_id.clear();
-    assert_eq!(source.review_offline(&evidence()), Err(SourceWitnessError::MissingCapture));
+    assert_eq!(
+        source.review_offline(&evidence()),
+        Err(SourceWitnessError::MissingCapture)
+    );
     source = witness();
     source.positions.response_reference.clear();
     assert_eq!(
