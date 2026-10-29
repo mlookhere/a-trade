@@ -256,3 +256,54 @@ fn sections_16_67_69_snapshot_rejects_nonfinite_computed_ceilings() {
         ));
     }
 }
+
+#[test]
+fn sections_67_69_baseline_and_reservation_independent_of_vector_order() {
+    let first = proposal("SETUP-STABLE-ONE");
+    let second = proposal("SETUP-STABLE-TWO");
+    let existing = vec![
+        existing_exposure("EXISTING-Z", "NASDAQ_CLUSTER", Direction::Long, 110.125),
+        existing_exposure("EXISTING-A", "NASDAQ_CLUSTER", Direction::Long, 210.375),
+        existing_exposure("EXISTING-M", "NASDAQ_CLUSTER", Direction::Long, 0.001),
+    ];
+    let current_risk = existing.iter().map(|item| item.risk_dollars).sum::<f64>();
+    let cluster_ceiling = (current_risk + risk(&first) + 0.01) / 100_000.0;
+    let mut outcomes = vec![];
+
+    for reversed in [false, true] {
+        let mut input = snapshot(limits(0.02, cluster_ceiling));
+        input.existing = existing.clone();
+        if reversed {
+            input.existing.reverse();
+        }
+        let ledger = SharedPortfolioReservations::from_snapshot(input).unwrap();
+        let first_result = ledger.reserve(&first, common::OWNER);
+        let second_result = ledger.reserve(&second, common::OWNER);
+        outcomes.push((first_result, second_result, ledger.reservation_count()));
+    }
+
+    assert_eq!(outcomes[0], outcomes[1]);
+    assert_eq!(outcomes[0].0, Ok(()));
+    assert_eq!(outcomes[0].1, Err(ReservationError::ClusterLimit));
+    assert_eq!(outcomes[0].2, Ok(existing.len() + 1));
+}
+
+#[test]
+fn sections_67_69_overlimit_baseline_rejection_is_order_independent() {
+    let exposures = vec![
+        existing_exposure("EXISTING-Z", "NASDAQ_CLUSTER", Direction::Long, 650.0),
+        existing_exposure("EXISTING-A", "NASDAQ_CLUSTER", Direction::Long, 400.0),
+        existing_exposure("EXISTING-M", "OTHER_CLUSTER", Direction::Long, 100.0),
+    ];
+    for reversed in [false, true] {
+        let mut input = snapshot(wide_limits());
+        input.existing = exposures.clone();
+        if reversed {
+            input.existing.reverse();
+        }
+        assert!(matches!(
+            SharedPortfolioReservations::from_snapshot(input),
+            Err(ReservationError::InvalidSnapshot)
+        ));
+    }
+}
