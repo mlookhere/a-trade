@@ -44,8 +44,8 @@ pub use audit::{
 };
 pub use authorization::{AuthorizationInputs, ProductionConditions, trade_authorized};
 pub use broker_execution::{
-    BrokerAdapter, BrokerCapabilities, BrokerOrderCancellation, BrokerReconciliation,
-    AccountRegistryGateError, BrokerSubmission, ExecutionCoordinator, ExecutionGateContext,
+    AccountRegistryGateError, BrokerAdapter, BrokerCapabilities, BrokerOrderCancellation,
+    BrokerReconciliation, BrokerSubmission, ExecutionCoordinator, ExecutionGateContext,
     ExecutionPermit, ExecutionStatus, PortfolioCoordinatedGateError, SetupRegistry,
     SetupRegistryStatus,
 };
