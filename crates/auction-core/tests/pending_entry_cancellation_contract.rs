@@ -329,7 +329,7 @@ fn sections_16_100_unfilled_order_during_unsafe_latch_is_not_treated_as_safe() {
     );
     coordinator.adapter_mut().fill_state = Ok(Condition::False);
     assert_eq!(
-        coordinator.reconcile_pending_entry(setup_id, proposal.entry_trigger(), 2),
+        coordinator.reconcile_pending_entry(setup_id, proposal.entry_trigger(), 0),
         Err(RejectionCode::BrokerUnsafe)
     );
     assert_eq!(coordinator.adapter().cancel_calls, 0);
@@ -339,6 +339,80 @@ fn sections_16_100_unfilled_order_during_unsafe_latch_is_not_treated_as_safe() {
     assert!(!setup.consumed);
     assert!(setup.order_active_or_reserved);
     assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+}
+
+#[test]
+fn sections_60_61_100_unsafe_pending_entry_cancels_only_after_broker_confirmation() {
+    for (i, expired) in [false, true].into_iter().enumerate() {
+        let setup_id = format!("SETUP-UNSAFE-EXPIRED-{i}");
+        let (mut coordinator, proposal) = pending_long(&setup_id, MockBroker::default());
+
+        coordinator.adapter_mut().fill_state = Ok(Condition::Unknown);
+        assert_eq!(
+            coordinator.reconcile_pending_entry(&setup_id, proposal.entry_trigger(), 0),
+            Err(RejectionCode::BrokerUnsafe)
+        );
+        coordinator.adapter_mut().fill_state = Ok(Condition::False);
+        let current_price = if expired {
+            proposal.entry_trigger()
+        } else {
+            proposal.entry_trigger() + 1.25
+        };
+        let completed_candles = if expired { 2 } else { 0 };
+
+        assert!(matches!(
+            coordinator
+                .reconcile_pending_entry(&setup_id, current_price, completed_candles)
+                .unwrap(),
+            ExecutionStatus::Missed { .. }
+        ));
+        assert_eq!(coordinator.adapter().cancel_calls, 1);
+        assert_eq!(coordinator.adapter().flatten_calls, 0);
+        assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+        let setup = coordinator.setup_status(&setup_id).unwrap();
+        assert_eq!(
+            setup.state,
+            Some(SetupState::Terminal(TerminalState::Missed))
+        );
+        assert!(!setup.consumed);
+        assert!(!setup.order_active_or_reserved);
+        assert_eq!(
+            coordinator.gate(&proposal, context()),
+            Err(RejectionCode::BrokerUnsafe)
+        );
+    }
+}
+
+#[test]
+fn sections_16_60_61_100_unsafe_pending_cancellation_uncertainty_never_marks_missed() {
+    for (i, cancel_state) in [
+        Ok(Condition::False),
+        Ok(Condition::Unknown),
+        Err(MockError::Failure),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let setup_id = format!("SETUP-UNSAFE-CANCEL-UNKNOWN-{i}");
+        let (mut coordinator, proposal) = pending_long(&setup_id, MockBroker::default());
+        coordinator.adapter_mut().fill_state = Ok(Condition::Unknown);
+        assert_eq!(
+            coordinator.reconcile_pending_entry(&setup_id, proposal.entry_trigger(), 0),
+            Err(RejectionCode::BrokerUnsafe)
+        );
+        coordinator.adapter_mut().fill_state = Ok(Condition::False);
+        coordinator.adapter_mut().cancel_state = cancel_state;
+        assert_eq!(
+            coordinator.reconcile_pending_entry(&setup_id, proposal.entry_trigger(), 2),
+            Err(RejectionCode::BrokerUnsafe)
+        );
+        assert_eq!(coordinator.adapter().cancel_calls, 1);
+        let setup = coordinator.setup_status(&setup_id).unwrap();
+        assert_eq!(setup.state, Some(SetupState::OrderPending));
+        assert!(setup.order_active_or_reserved);
+        assert!(!setup.consumed);
+        assert_eq!(coordinator.execution_engine_safe(), Condition::False);
+    }
 }
 
 #[test]
