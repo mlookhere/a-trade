@@ -189,7 +189,12 @@ fn sections_67_69_rechecks_exposure_not_proposal_stale_before_values() {
     assert_eq!(ledger.reservation_count(), Ok(1));
 }
 
-fn existing_exposure(setup_id: &str, cluster_id: &str, direction: Direction, risk: f64) -> RiskExposure {
+fn existing_exposure(
+    setup_id: &str,
+    cluster_id: &str,
+    direction: Direction,
+    risk: f64,
+) -> RiskExposure {
     RiskExposure {
         setup_id: setup_id.to_owned(),
         cluster_id: cluster_id.to_owned(),
@@ -243,10 +248,7 @@ fn section_70_snapshot_rejects_existing_opposing_cluster_directions() {
 
 #[test]
 fn sections_16_67_69_snapshot_rejects_nonfinite_computed_ceilings() {
-    for limits in [
-        limits(f64::MAX, 0.01),
-        limits(0.02, f64::MAX),
-    ] {
+    for limits in [limits(f64::MAX, 0.01), limits(0.02, f64::MAX)] {
         let input = snapshot(limits);
         assert!(matches!(
             SharedPortfolioReservations::from_snapshot(input),
