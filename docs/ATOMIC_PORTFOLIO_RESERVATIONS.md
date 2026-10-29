@@ -8,6 +8,8 @@ The `SharedPortfolioReservations` ledger is a deterministic **isolated engineeri
 
 Canonical §§8–9, 16, 65–70, 102–103, 109–110, 122. No risk percentages or instrument-level thresholds are defaulted. An externally supplied, complete and reconciled snapshot and deployment-owned percentage ceilings initialize the book. Required state flags are `TRUE`; `FALSE` or `UNKNOWN` fail closed. These asserted flags are **not evidence** that a real broker snapshot is fresh, complete or reconciled.
 
+Initialization also rejects pre-existing same-cluster long/short conflicts, any individual cluster already exceeding its configured risk ceiling, and non-finite computed portfolio or cluster ceilings. Equality to a configured ceiling is valid for an observed position, but no further positive risk may be reserved. These checks do not independently verify the caller-supplied broker flags.
+
 The ledger derives risk for a sealed `OrderProposal` from its pre/post portfolio-risk delta, then **recalculates** portfolio and same-cluster budget using all exposures and reservations presently in that same book. Opposing same-cluster directions, duplicate `SETUP_ID`, wrong owner, zero/non-finite amounts, and exceeded portfolio/cluster ceilings reject without adding a reservation. A successful call does not set `execution_pass` and cannot create an `ExecutionPermit`.
 
 ## Deliberate safety limitations
