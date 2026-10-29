@@ -76,7 +76,10 @@ fn sections_9_16_103_109_account_scope_is_retained_on_receipt_and_audit() {
         ledger.reserve(&order, common::OWNER, ACCOUNT_ID, SNAPSHOT_ID),
         Ok(())
     );
-    let receipt = ledger.reservation_evidence(order.setup_id()).unwrap().unwrap();
+    let receipt = ledger
+        .reservation_evidence(order.setup_id())
+        .unwrap()
+        .unwrap();
     assert_eq!(receipt.account_id, ACCOUNT_ID);
     assert_eq!(receipt.reservation.snapshot_id, SNAPSHOT_ID);
     assert_eq!(receipt.reservation.exposure.setup_id, order.setup_id());
@@ -87,7 +90,10 @@ fn sections_9_16_103_109_account_scope_is_retained_on_receipt_and_audit() {
     assert_eq!(view.ledger.accepted_setup_ids, vec![order.setup_id()]);
     assert!(!view.ledger.invalidated);
     // Initial broker exposure is not a locally accepted reservation.
-    assert_eq!(ledger.reservation_evidence("BROKER-EXISTING").unwrap(), None);
+    assert_eq!(
+        ledger.reservation_evidence("BROKER-EXISTING").unwrap(),
+        None
+    );
 }
 
 #[test]
@@ -115,10 +121,9 @@ fn sections_16_103_wrong_snapshot_and_invalidation_remain_authoritative() {
 #[test]
 fn sections_9_67_69_103_shared_account_clones_cannot_double_spend() {
     let sample = proposal("SETUP-SCOPED-COMPETE-A");
-    let ledger = AccountScopedPortfolioReservations::from_evidence(evidence(
-        proposed_risk(&sample) * 1.5,
-    ))
-    .unwrap();
+    let ledger =
+        AccountScopedPortfolioReservations::from_evidence(evidence(proposed_risk(&sample) * 1.5))
+            .unwrap();
     let barrier = Arc::new(Barrier::new(3));
     let mut handles = Vec::new();
     for setup_id in ["SETUP-SCOPED-COMPETE-A", "SETUP-SCOPED-COMPETE-B"] {
