@@ -307,3 +307,54 @@ fn sections_67_69_overlimit_baseline_rejection_is_order_independent() {
         ));
     }
 }
+
+#[test]
+fn sections_103_109_111_reservation_evidence_is_bound_to_asserted_snapshot_id() {
+    let order = proposal("SETUP-EVIDENCE-ONE");
+    let input = snapshot(wide_limits());
+    let expected_snapshot_id = input.snapshot_id.clone();
+    let ledger = SharedPortfolioReservations::from_snapshot(input).unwrap();
+
+    assert_eq!(ledger.reservation_evidence(order.setup_id()), Ok(None));
+    assert_eq!(ledger.reservation_evidence(""), Ok(None));
+    assert_eq!(ledger.reserve(&order, common::OWNER), Ok(()));
+
+    let evidence = ledger
+        .reservation_evidence(order.setup_id())
+        .unwrap()
+        .unwrap();
+    assert_eq!(evidence.snapshot_id, expected_snapshot_id);
+    assert_eq!(evidence.exposure.setup_id, order.setup_id());
+    assert_eq!(evidence.exposure.cluster_id, order.cluster_id());
+    assert_eq!(evidence.exposure.direction, order.side());
+    assert_eq!(evidence.exposure.risk_dollars, risk(&order));
+    assert_eq!(ledger.reservation_count(), Ok(1));
+
+    // Duplicate rejection cannot fabricate a second exposure or change
+    // the original reservation's read-only provenance.
+    assert_eq!(
+        ledger.reserve(&order, common::OWNER),
+        Err(ReservationError::DuplicateSetup)
+    );
+    assert_eq!(
+        ledger.reservation_evidence(order.setup_id()),
+        Ok(Some(evidence))
+    );
+    assert_eq!(ledger.reservation_evidence("UNKNOWN-SETUP"), Ok(None));
+}
+
+#[test]
+fn sections_9_103_existing_snapshot_exposures_retain_read_only_provenance() {
+    let exposure = existing_exposure("EXISTING-ONE", "OTHER_CLUSTER", Direction::Long, 100.0);
+    let mut input = snapshot(wide_limits());
+    input.existing = vec![exposure.clone()];
+    let expected_snapshot_id = input.snapshot_id.clone();
+    let ledger = SharedPortfolioReservations::from_snapshot(input).unwrap();
+    let receipt = ledger
+        .reservation_evidence("EXISTING-ONE")
+        .unwrap()
+        .unwrap();
+    assert_eq!(receipt.snapshot_id, expected_snapshot_id);
+    assert_eq!(receipt.exposure, exposure);
+    assert_eq!(ledger.reservation_count(), Ok(1));
+}
