@@ -92,10 +92,27 @@ impl ProcessAccountRiskRegistry {
         &self,
         evidence: BrokerPortfolioEvidence,
     ) -> Result<AccountScopedPortfolioReservations, ProcessRiskRegistryError> {
-        let validated = evidence
-            .clone()
-            .into_asserted_snapshot()
-            .map_err(ProcessRiskRegistryError::InvalidEvidence)?;
+        let validated = match evidence.clone().into_asserted_snapshot() {
+            Ok(value) => value,
+            Err(error) => {
+                // A later UNKNOWN or contradictory report for an already
+                // registered account must invalidate that account's older
+                // supposedly healthy book as well (§16). Never let the
+                // previously accepted risk disappear on failure.
+                let mut books = self
+                    .books
+                    .lock()
+                    .map_err(|_| ProcessRiskRegistryError::Unavailable)?;
+                if let Some(existing) = books.get_mut(&evidence.expected_account_id) {
+                    existing.invalidated = true;
+                    existing
+                        .ledger
+                        .invalidate()
+                        .map_err(|_| ProcessRiskRegistryError::Unavailable)?;
+                }
+                return Err(ProcessRiskRegistryError::InvalidEvidence(error));
+            }
+        };
         let account_id = validated.account_id;
         let signature = InitialEvidenceSignature::from_validated(&evidence);
         let mut books = self
