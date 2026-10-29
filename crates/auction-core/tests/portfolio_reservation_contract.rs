@@ -587,7 +587,11 @@ fn sections_67_69_111_audit_view_is_stably_ordered_for_reversed_broker_input() {
     assert_eq!(observed[0].exposures, observed[1].exposures);
     assert_eq!(observed[0].exposures[0].setup_id, "BASE-A");
     assert_eq!(observed[0].exposures[1].setup_id, "BASE-Z");
-    assert!(observed.iter().all(|view| view.accepted_setup_ids.is_empty()));
+    assert!(
+        observed
+            .iter()
+            .all(|view| view.accepted_setup_ids.is_empty())
+    );
 }
 
 #[test]
