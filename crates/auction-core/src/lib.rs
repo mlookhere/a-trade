@@ -18,6 +18,7 @@ pub mod news;
 pub mod order_risk;
 pub mod portfolio_reservations;
 pub mod position_management;
+pub mod process_account_risk_registry;
 pub mod promotion;
 pub mod rejection;
 pub mod safety;
@@ -95,6 +96,7 @@ pub use position_management::{
     final_target_directive, one_r_reached, reference_management_directive, structural_trail,
     value_reclaimed,
 };
+pub use process_account_risk_registry::{ProcessAccountRiskRegistry, ProcessRiskRegistryError};
 pub use promotion::{PaperShadowMode, PromotionError, PromotionState, StrategyChangePromotion};
 pub use rejection::RejectionCode;
 pub use safety::{
